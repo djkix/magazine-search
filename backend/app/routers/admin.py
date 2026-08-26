@@ -1,0 +1,117 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.deps import get_current_admin
+from app.models import Magazine, ScanStatus, User
+from app.schemas import (
+    PasswordReset,
+    ScanStatusResponse,
+    ScanTriggerResponse,
+    UserCreate,
+    UserOut,
+    UserUpdate,
+)
+from app.security import hash_password
+from app.services.scan import get_scan_job_magazine_ids, run_scan
+
+router = APIRouter(dependencies=[Depends(get_current_admin)])
+
+
+# ---- Users ----
+
+
+@router.get("/users", response_model=list[UserOut])
+def list_users(db: Session = Depends(get_db)):
+    return db.query(User).order_by(User.created_at).all()
+
+
+@router.post("/users", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+def create_user(payload: UserCreate, db: Session = Depends(get_db)):
+    if db.query(User).filter(User.email == payload.email).first():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already in use")
+
+    user = User(
+        email=payload.email,
+        display_name=payload.display_name,
+        password_hash=hash_password(payload.password),
+        is_admin=payload.is_admin,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.patch("/users/{user_id}", response_model=UserOut)
+def update_user(user_id: int, payload: UserUpdate, db: Session = Depends(get_db)):
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    if payload.display_name is not None:
+        user.display_name = payload.display_name
+    if payload.is_active is not None:
+        user.is_active = payload.is_active
+    if payload.is_admin is not None:
+        user.is_admin = payload.is_admin
+
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(user_id: int, db: Session = Depends(get_db)):
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    db.delete(user)
+    db.commit()
+
+
+@router.post("/users/{user_id}/reset-password", response_model=UserOut)
+def reset_password(user_id: int, payload: PasswordReset, db: Session = Depends(get_db)):
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    user.password_hash = hash_password(payload.new_password)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+# ---- Scan ----
+
+
+@router.post("/scan", response_model=ScanTriggerResponse)
+def trigger_scan(db: Session = Depends(get_db)):
+    try:
+        job_id, new_files = run_scan(db)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+    return ScanTriggerResponse(job_id=job_id, new_files_detected=new_files)
+
+
+@router.get("/scan/{job_id}/status", response_model=ScanStatusResponse)
+def scan_status(job_id: str, db: Session = Depends(get_db)):
+    magazine_ids = get_scan_job_magazine_ids(job_id)
+    if magazine_ids is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown scan job")
+
+    counts = {status_value: 0 for status_value in ("detected", "processing", "done", "failed")}
+    if magazine_ids:
+        magazines = db.query(Magazine.scan_status).filter(Magazine.id.in_(magazine_ids)).all()
+        for (magazine_status,) in magazines:
+            if magazine_status in (ScanStatus.detected, ScanStatus.stable, ScanStatus.queued):
+                counts["detected"] += 1
+            elif magazine_status == ScanStatus.processing:
+                counts["processing"] += 1
+            elif magazine_status == ScanStatus.done:
+                counts["done"] += 1
+            elif magazine_status == ScanStatus.failed:
+                counts["failed"] += 1
+
+    finished = len(magazine_ids) == 0 or (counts["done"] + counts["failed"] == len(magazine_ids))
+
+    return ScanStatusResponse(job_id=job_id, finished=finished, **counts)
