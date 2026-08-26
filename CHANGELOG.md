@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/djkix/magazine-search/compare/v0.2.0...v0.3.0) (2026-08-26)
+
+
+### Features
+
+* proxy /api through the frontend so only one port needs exposing ([1fed57d](https://github.com/djkix/magazine-search/commit/1fed57da5c0b792a161d62c43f3686d8c748cea2))
+
 ## [0.2.0](https://github.com/djkix/magazine-search/compare/v0.1.5...v0.2.0) (2026-08-26)
 
 
