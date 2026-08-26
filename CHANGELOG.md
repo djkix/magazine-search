@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.0](https://github.com/djkix/magazine-search/compare/v0.1.5...v0.2.0) (2026-08-26)
+
+
+### Features
+
+* display app version in the UI and publish it with releases ([c0f63c5](https://github.com/djkix/magazine-search/commit/c0f63c519bb87af6c3634406d2c87fc7eca7ede8))
+
+
+### Bug Fixes
+
+* address top 10 findings from full codebase review ([e8c1244](https://github.com/djkix/magazine-search/commit/e8c1244418cde8eb010b4fb6b6dc9d3f40fe6c13))
+* fall back to /api when NEXT_PUBLIC_API_URL is baked in empty ([7d91515](https://github.com/djkix/magazine-search/commit/7d91515a14acb270469a07f649d31036c5690924))
+
 ## [0.1.5](https://github.com/djkix/magazine-search/compare/v0.1.4...v0.1.5) (2026-08-26)
 
 
