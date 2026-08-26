@@ -2,7 +2,7 @@ services:
   app-backend:
     image: ghcr.io/djkix/magazine-search-backend:latest
     restart: unless-stopped
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips="*"
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
@@ -12,9 +12,12 @@ services:
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     depends_on:
-      - postgres
-      - redis
-      - meilisearch
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      meilisearch:
+        condition: service_started
     networks:
       - internal
 
@@ -29,9 +32,12 @@ services:
       - app_data:/data
       - ${NAS_MOUNT_PATH}:/mnt/nas:ro
     depends_on:
-      - postgres
-      - redis
-      - meilisearch
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      meilisearch:
+        condition: service_started
     networks:
       - internal
 
@@ -51,6 +57,11 @@ services:
     restart: unless-stopped
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     networks:
       - internal
 
@@ -63,6 +74,11 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     networks:
       - internal
 
