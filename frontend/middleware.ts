@@ -21,5 +21,8 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // /api/* is proxied straight to the backend (see next.config.js rewrites)
+  // and has its own auth via the session cookie/JWT - this middleware's
+  // page-level redirect logic must never intercept it.
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
 };
