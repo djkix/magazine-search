@@ -28,6 +28,8 @@ jobs:
         with:
           context: ./backend
           push: false
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
 
   build-frontend:
     runs-on: ubuntu-latest
@@ -42,3 +44,5 @@ jobs:
           push: false
           build-args: |
             NEXT_PUBLIC_API_URL=/api
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
