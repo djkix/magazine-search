@@ -31,10 +31,7 @@ export default function PdfViewer({ fileUrl, pageNumber, zoom, highlightWords, o
     async function load() {
       try {
         const pdfjsLib = await import("pdfjs-dist");
-        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-          "pdfjs-dist/build/pdf.worker.min.mjs",
-          import.meta.url
-        ).toString();
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
         const res = await fetch(fileUrl, { credentials: "include" });
         if (!res.ok) throw new Error("Impossible de charger le PDF");
