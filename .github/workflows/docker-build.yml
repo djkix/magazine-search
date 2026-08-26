@@ -65,6 +65,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: ${{ matrix.build_args }}
+          build-args: |
+            ${{ matrix.build_args }}
+            NEXT_PUBLIC_APP_VERSION=${{ steps.version.outputs.value }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}

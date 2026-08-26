@@ -19,6 +19,11 @@ export default function Sidebar({ user, onLogout }: { user: User; onLogout: () =
       <div className="flex items-center gap-2 px-6 py-6">
         <Icon name="auto_stories" className="text-2xl text-primary" />
         <span className="font-serif text-lg font-semibold text-foreground">L&apos;Archive</span>
+        {process.env.NEXT_PUBLIC_APP_VERSION && (
+          <span className="ml-auto font-mono text-[10px] text-foreground-muted">
+            v{process.env.NEXT_PUBLIC_APP_VERSION}
+          </span>
+        )}
       </div>
 
       <nav className="flex-1 space-y-1 px-3">

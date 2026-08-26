@@ -9,6 +9,8 @@ FROM node:20-slim AS builder
 WORKDIR /app
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_APP_VERSION
+ENV NEXT_PUBLIC_APP_VERSION=$NEXT_PUBLIC_APP_VERSION
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs
