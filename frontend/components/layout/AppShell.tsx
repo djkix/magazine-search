@@ -26,8 +26,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   async function handleLogout() {
-    await api.post("/logout");
-    window.location.href = "/login";
+    try {
+      await api.post("/logout");
+    } finally {
+      window.location.href = "/login";
+    }
   }
 
   if (user === undefined) {

@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -84,8 +85,14 @@ def run_scan(db: Session) -> tuple[str, int]:
             file_mtime=datetime.fromtimestamp(mtime, tz=timezone.utc),
             scan_status=ScanStatus.stable,
         )
-        db.add(magazine)
-        db.flush()
+        try:
+            with db.begin_nested():
+                db.add(magazine)
+                db.flush()
+        except IntegrityError:
+            # Another concurrent scan inserted the same file_hash first.
+            known_hashes.add(file_hash)
+            continue
         new_magazine_ids.append(magazine.id)
         known_hashes.add(file_hash)
 

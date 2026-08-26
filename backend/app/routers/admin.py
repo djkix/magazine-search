@@ -69,6 +69,10 @@ def delete_user(user_id: int, db: Session = Depends(get_db)):
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if user.is_admin:
+        other_admins = db.query(User).filter(User.is_admin.is_(True), User.id != user_id).count()
+        if other_admins == 0:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Cannot delete the last remaining admin")
     db.delete(user)
     db.commit()
 

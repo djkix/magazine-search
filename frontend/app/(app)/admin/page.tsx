@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import type { AdminStats, ScanStatusResponse, ScanTriggerResponse } from "@/lib/types";
 import StatCard from "@/components/admin/StatCard";
@@ -13,6 +13,7 @@ export default function AdminDashboardPage() {
   const [scanJob, setScanJob] = useState<ScanStatusResponse | null>(null);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   function loadStats() {
     api
@@ -22,6 +23,12 @@ export default function AdminDashboardPage() {
   }
 
   useEffect(loadStats, []);
+
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
+  }, []);
 
   async function triggerScan() {
     setScanning(true);
@@ -36,20 +43,24 @@ export default function AdminDashboardPage() {
   }
 
   function poll(jobId: string) {
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     const interval = setInterval(async () => {
       try {
         const status = await api.get<ScanStatusResponse>(`/admin/scan/${jobId}/status`);
         setScanJob(status);
         if (status.finished) {
           clearInterval(interval);
+          pollIntervalRef.current = null;
           setScanning(false);
           loadStats();
         }
       } catch {
         clearInterval(interval);
+        pollIntervalRef.current = null;
         setScanning(false);
       }
     }, 3000);
+    pollIntervalRef.current = interval;
   }
 
   return (

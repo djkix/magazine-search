@@ -1,6 +1,7 @@
 import re
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from meilisearch.errors import MeilisearchApiError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -18,6 +19,10 @@ def _matched_terms(query: str) -> set[str]:
     return {w.lower() for w in WORD_RE.findall(query)}
 
 
+def _escape_filter_value(value: str) -> str:
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
 @router.get("/search", response_model=SearchResponse)
 def search(
     q: str = Query(..., min_length=1),
@@ -30,28 +35,31 @@ def search(
     db: Session = Depends(get_db),
 ):
     filters = []
-    if magazine_id:
+    if magazine_id is not None:
         filters.append(f"magazine_id = {magazine_id}")
     if magazine_title:
-        filters.append(f'magazine_title = "{magazine_title}"')
+        filters.append(f'magazine_title = "{_escape_filter_value(magazine_title)}"')
     if year:
         filters.append(f"year = {year}")
     if issue_number:
-        filters.append(f'issue_number = "{issue_number}"')
+        filters.append(f'issue_number = "{_escape_filter_value(issue_number)}"')
 
-    results = get_index().search(
-        q,
-        {
-            "filter": " AND ".join(filters) if filters else None,
-            "offset": page * limit,
-            "limit": limit,
-            "attributesToHighlight": ["raw_text"],
-            "attributesToCrop": ["raw_text"],
-            "cropLength": 40,
-            "highlightPreTag": "<mark>",
-            "highlightPostTag": "</mark>",
-        },
-    )
+    try:
+        results = get_index().search(
+            q,
+            {
+                "filter": " AND ".join(filters) if filters else None,
+                "offset": page * limit,
+                "limit": limit,
+                "attributesToHighlight": ["raw_text"],
+                "attributesToCrop": ["raw_text"],
+                "cropLength": 40,
+                "highlightPreTag": "<mark>",
+                "highlightPostTag": "</mark>",
+            },
+        )
+    except MeilisearchApiError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Search backend error") from exc
 
     terms = _matched_terms(q)
     hits: list[SearchHit] = []

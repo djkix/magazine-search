@@ -26,7 +26,7 @@ def login(request: Request, response: Response, payload: LoginRequest, db: Sessi
     user.last_login = func.now()
     db.commit()
 
-    token = create_access_token(subject=user.email)
+    token = create_access_token(subject=user.email, password_hash=user.password_hash)
     response.set_cookie(
         key=COOKIE_NAME,
         value=token,
