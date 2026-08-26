@@ -1,10 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_admin
-from app.models import Magazine, ScanStatus, User
+from app.models import Magazine, Page, ScanStatus, User
 from app.schemas import (
+    AdminStatsResponse,
+    MagazineOut,
     PasswordReset,
     ScanStatusResponse,
     ScanTriggerResponse,
@@ -115,3 +118,37 @@ def scan_status(job_id: str, db: Session = Depends(get_db)):
     finished = len(magazine_ids) == 0 or (counts["done"] + counts["failed"] == len(magazine_ids))
 
     return ScanStatusResponse(job_id=job_id, finished=finished, **counts)
+
+
+# ---- Stats ----
+
+
+@router.get("/stats", response_model=AdminStatsResponse)
+def get_stats(db: Session = Depends(get_db)):
+    counts = dict(db.query(Magazine.scan_status, func.count(Magazine.id)).group_by(Magazine.scan_status).all())
+
+    def count_of(*statuses: ScanStatus) -> int:
+        return sum(counts.get(s, 0) for s in statuses)
+
+    recent_rows = (
+        db.query(Magazine, func.count(Page.id))
+        .outerjoin(Page, Page.magazine_id == Magazine.id)
+        .group_by(Magazine.id)
+        .order_by(Magazine.created_at.desc())
+        .limit(10)
+        .all()
+    )
+    recent = []
+    for magazine, page_count in recent_rows:
+        out = MagazineOut.model_validate(magazine)
+        out.page_count = page_count
+        recent.append(out)
+
+    return AdminStatsResponse(
+        total=sum(counts.values()),
+        done=count_of(ScanStatus.done),
+        processing=count_of(ScanStatus.processing),
+        failed=count_of(ScanStatus.failed),
+        pending=count_of(ScanStatus.detected, ScanStatus.stable, ScanStatus.queued),
+        recent=recent,
+    )
