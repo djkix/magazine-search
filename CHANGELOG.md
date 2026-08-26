@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/djkix/magazine-search/compare/v0.3.0...v0.3.1) (2026-08-26)
+
+
+### Bug Fixes
+
+* exclude /api from the auth-redirect middleware matcher ([7d9f783](https://github.com/djkix/magazine-search/commit/7d9f7830aeccd16c6a64ebddd2757f4b9e6668df))
+
 ## [0.3.0](https://github.com/djkix/magazine-search/compare/v0.2.0...v0.3.0) (2026-08-26)
 
 
