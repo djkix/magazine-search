@@ -1,0 +1,108 @@
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import FileResponse
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from app.config import get_settings
+from app.database import get_db
+from app.deps import get_current_user
+from app.models import Magazine, Page
+from app.schemas import MagazineOut, PageOut
+
+router = APIRouter(dependencies=[Depends(get_current_user)])
+settings = get_settings()
+
+
+def _get_magazine_or_404(magazine_id: int, db: Session) -> Magazine:
+    magazine = db.get(Magazine, magazine_id)
+    if not magazine:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Magazine not found")
+    return magazine
+
+
+def _resolve_pdf_path(magazine: Magazine) -> Path:
+    processed_path = Path(settings.processed_dir) / f"{magazine.id}.pdf"
+    if processed_path.exists():
+        return processed_path
+    return Path(settings.nas_mount_path) / magazine.file_path
+
+
+@router.get("", response_model=list[MagazineOut])
+def list_magazines(
+    page: int = Query(0, ge=0),
+    limit: int = Query(30, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    rows = (
+        db.query(Magazine, func.count(Page.id))
+        .outerjoin(Page, Page.magazine_id == Magazine.id)
+        .group_by(Magazine.id)
+        .order_by(Magazine.publication_date.desc().nulls_last(), Magazine.title)
+        .offset(page * limit)
+        .limit(limit)
+        .all()
+    )
+    results = []
+    for magazine, page_count in rows:
+        out = MagazineOut.model_validate(magazine)
+        out.page_count = page_count
+        results.append(out)
+    return results
+
+
+@router.get("/{magazine_id}", response_model=MagazineOut)
+def get_magazine(magazine_id: int, db: Session = Depends(get_db)):
+    magazine = _get_magazine_or_404(magazine_id, db)
+    out = MagazineOut.model_validate(magazine)
+    out.page_count = len(magazine.pages)
+    return out
+
+
+@router.get("/{magazine_id}/pages/{page_number}", response_model=PageOut)
+def get_page(magazine_id: int, page_number: int, db: Session = Depends(get_db)):
+    page = (
+        db.query(Page)
+        .filter(Page.magazine_id == magazine_id, Page.page_number == page_number)
+        .first()
+    )
+    if not page:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Page not found")
+    return page
+
+
+@router.get("/{magazine_id}/cover")
+def get_cover(magazine_id: int, db: Session = Depends(get_db)):
+    magazine = _get_magazine_or_404(magazine_id, db)
+    if not magazine.cover_thumbnail_path or not Path(magazine.cover_thumbnail_path).exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cover not available")
+    return FileResponse(magazine.cover_thumbnail_path, media_type="image/png")
+
+
+@router.get("/{magazine_id}/file")
+def view_file(magazine_id: int, db: Session = Depends(get_db)):
+    magazine = _get_magazine_or_404(magazine_id, db)
+    pdf_path = _resolve_pdf_path(magazine)
+    if not pdf_path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PDF file not available")
+    return FileResponse(
+        pdf_path,
+        media_type="application/pdf",
+        filename=magazine.filename,
+        content_disposition_type="inline",
+    )
+
+
+@router.get("/{magazine_id}/download")
+def download_file(magazine_id: int, db: Session = Depends(get_db)):
+    magazine = _get_magazine_or_404(magazine_id, db)
+    pdf_path = _resolve_pdf_path(magazine)
+    if not pdf_path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PDF file not available")
+    return FileResponse(
+        pdf_path,
+        media_type="application/pdf",
+        filename=magazine.filename,
+        content_disposition_type="attachment",
+    )
