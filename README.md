@@ -13,7 +13,6 @@ Application web auto-hébergée de gestion, OCR et recherche plein texte d'une c
 ## Architecture
 
 ```
-├── traefik            reverse proxy + TLS automatique (Let's Encrypt)
 ├── app-backend         FastAPI : API, auth, scan, admin
 ├── app-frontend         Next.js
 ├── worker               RQ : OCR + indexation
@@ -22,15 +21,17 @@ Application web auto-hébergée de gestion, OCR et recherche plein texte d'une c
 ├── meilisearch
 ```
 
+Le reverse proxy et la terminaison TLS (Let's Encrypt) ne sont **pas** gérés par ce `docker-compose.yml` : ils sont délégués à **Nginx Proxy Manager (NPM)**, déployé séparément sur l'hôte. `app-frontend` et `app-backend` publient chacun un port sur l'hôte (`FRONTEND_PORT` / `BACKEND_PORT`, cf. `.env.example`) que NPM proxifie.
+
 ## Prérequis
 
 - Docker + Docker Compose v2.
 - Un partage NAS monté en NFS sur l'hôte (lecture seule), contenant les PDF.
-- Un nom de domaine pointant vers l'hôte si exposition hors LAN (pour Let's Encrypt via Traefik).
+- Nginx Proxy Manager (ou équivalent) déjà installé sur l'hôte, avec un nom de domaine pointant dessus si exposition hors LAN.
 
 ## Déploiement
 
-1. Copier `.env.example` vers `.env` et renseigner toutes les valeurs (secrets, domaine, chemin NAS, etc.). `.env` ne doit jamais être commité.
+1. Copier `.env.example` vers `.env` et renseigner toutes les valeurs (secrets, chemin NAS, ports, etc.). `.env` ne doit jamais être commité.
 2. Vérifier que `NAS_MOUNT_PATH` pointe vers un répertoire déjà monté en NFS sur l'hôte.
 3. Démarrer la stack :
 
@@ -38,8 +39,12 @@ Application web auto-hébergée de gestion, OCR et recherche plein texte d'une c
    docker compose up -d --build
    ```
 
-4. Un compte admin est créé automatiquement au premier démarrage du backend à partir de `ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PASSWORD` (changez le mot de passe ensuite depuis le backoffice).
-5. Se connecter, puis déclencher un premier scan depuis `/admin`.
+4. Dans NPM, créer un **Proxy Host** pour votre domaine :
+   - Onglet *Details* : `Forward Hostname/IP` = IP de l'hôte Docker, `Forward Port` = `${FRONTEND_PORT}` (ex. `3000`).
+   - Onglet *Custom Locations* : ajouter `/api` → `Forward Hostname/IP` = IP de l'hôte Docker, `Forward Port` = `${BACKEND_PORT}` (ex. `8000`).
+   - Onglet *SSL* : activer Let's Encrypt + *Force SSL* (le cookie de session est `Secure`, donc l'app doit être servie en HTTPS).
+5. Un compte admin est créé automatiquement au premier démarrage du backend à partir de `ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PASSWORD` (changez le mot de passe ensuite depuis le backoffice).
+6. Se connecter, puis déclencher un premier scan depuis `/admin`.
 
 ## Développement local
 
