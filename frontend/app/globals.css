@@ -3,9 +3,42 @@
 @tailwind utilities;
 
 body {
-  @apply bg-slate-50 text-slate-900;
+  @apply bg-background font-sans text-foreground antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  @apply font-serif;
+}
+
+.material-symbols-outlined {
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 400,
+    "GRAD" 0,
+    "opsz" 24;
+  font-size: 20px;
+  line-height: 1;
+  vertical-align: middle;
 }
 
 mark {
-  @apply bg-yellow-200 text-inherit rounded-sm px-0.5;
+  @apply rounded-sm bg-primary/20 px-0.5 text-primary-light;
+}
+
+::selection {
+  @apply bg-primary/30;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-outline-variant;
 }

@@ -33,13 +33,15 @@ def _resolve_pdf_path(magazine: Magazine) -> Path:
 def list_magazines(
     page: int = Query(0, ge=0),
     limit: int = Query(30, ge=1, le=100),
+    sort: str = Query("date", pattern="^(date|added)$"),
     db: Session = Depends(get_db),
 ):
+    order = Magazine.created_at.desc() if sort == "added" else Magazine.publication_date.desc().nulls_last()
     rows = (
         db.query(Magazine, func.count(Page.id))
         .outerjoin(Page, Page.magazine_id == Magazine.id)
         .group_by(Magazine.id)
-        .order_by(Magazine.publication_date.desc().nulls_last(), Magazine.title)
+        .order_by(order, Magazine.title)
         .offset(page * limit)
         .limit(limit)
         .all()

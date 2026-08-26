@@ -85,6 +85,7 @@ class MagazineOut(BaseModel):
     scan_status: ScanStatus
     error_message: str | None = None
     created_at: datetime
+    file_size: int
     page_count: int = 0
 
 
@@ -103,6 +104,15 @@ class ScanStatusResponse(BaseModel):
     done: int
     failed: int
     finished: bool
+
+
+class AdminStatsResponse(BaseModel):
+    total: int
+    done: int
+    processing: int
+    failed: int
+    pending: int
+    recent: list[MagazineOut]
 
 
 # ---- Search ----

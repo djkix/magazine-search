@@ -21,6 +21,7 @@ def _matched_terms(query: str) -> set[str]:
 @router.get("/search", response_model=SearchResponse)
 def search(
     q: str = Query(..., min_length=1),
+    magazine_id: int | None = None,
     magazine_title: str | None = None,
     year: int | None = None,
     issue_number: str | None = None,
@@ -29,6 +30,8 @@ def search(
     db: Session = Depends(get_db),
 ):
     filters = []
+    if magazine_id:
+        filters.append(f"magazine_id = {magazine_id}")
     if magazine_title:
         filters.append(f'magazine_title = "{magazine_title}"')
     if year:

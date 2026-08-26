@@ -26,6 +26,7 @@ export interface Magazine {
   scan_status: "detected" | "stable" | "queued" | "processing" | "done" | "failed";
   error_message: string | null;
   created_at: string;
+  file_size: number;
   page_count: number;
 }
 
@@ -68,4 +69,13 @@ export interface ScanStatusResponse {
   done: number;
   failed: number;
   finished: boolean;
+}
+
+export interface AdminStats {
+  total: number;
+  done: number;
+  processing: number;
+  failed: number;
+  pending: number;
+  recent: Magazine[];
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Icon from "@/components/ui/Icon";
 
 export interface SearchFilters {
   q: string;
@@ -34,48 +35,51 @@ export default function SearchBar({
   }
 
   return (
-    <form onSubmit={submit} className="space-y-2">
-      <div className="flex gap-2">
+    <form onSubmit={submit} className="space-y-3">
+      <div className="flex items-center gap-2 rounded-xl border border-outline-variant bg-surface/60 p-2 pl-4 backdrop-blur-sm transition focus-within:border-primary">
+        <Icon name="search" className="text-foreground-muted" />
         <input
-          type="text"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Rechercher dans les magazines..."
-          className="flex-1 rounded border px-4 py-2 text-sm"
+          placeholder="Rechercher..."
+          className="flex-1 bg-transparent py-2.5 text-sm text-foreground outline-none placeholder:text-foreground-muted/60"
         />
-        <button type="submit" className="rounded bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700">
-          Rechercher
-        </button>
         <button
           type="button"
           onClick={() => setShowFilters((v) => !v)}
-          className="rounded border px-3 py-2 text-sm text-slate-600 hover:bg-slate-100"
+          className={`rounded-lg p-2 transition ${
+            showFilters ? "bg-primary/10 text-primary-light" : "text-foreground-muted hover:bg-surface-hover"
+          }`}
         >
-          Filtres
+          <Icon name="tune" />
+        </button>
+        <button
+          type="submit"
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90"
+        >
+          Rechercher
         </button>
       </div>
+
       {showFilters && (
-        <div className="flex gap-2 rounded border bg-white p-3">
+        <div className="flex flex-wrap gap-2 rounded-xl border border-outline-variant bg-surface/40 p-3">
           <input
-            type="text"
             value={magazineTitle}
             onChange={(e) => setMagazineTitle(e.target.value)}
             placeholder="Titre du magazine"
-            className="flex-1 rounded border px-3 py-1.5 text-sm"
+            className="flex-1 rounded-lg border border-outline-variant bg-surface px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary"
           />
           <input
-            type="text"
             value={year}
             onChange={(e) => setYear(e.target.value)}
             placeholder="Année"
-            className="w-28 rounded border px-3 py-1.5 text-sm"
+            className="w-28 rounded-lg border border-outline-variant bg-surface px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary"
           />
           <input
-            type="text"
             value={issueNumber}
             onChange={(e) => setIssueNumber(e.target.value)}
             placeholder="Numéro"
-            className="w-28 rounded border px-3 py-1.5 text-sm"
+            className="w-28 rounded-lg border border-outline-variant bg-surface px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary"
           />
         </div>
       )}
