@@ -69,6 +69,13 @@ Un `docker-compose.yml` complet est le moyen recommandé de lancer l'ensemble de
 - Les releases (changelog + tag semver) sont gérées par `release-please` à partir des commits [Conventional Commits](https://www.conventionalcommits.org/).
 - `gitleaks` tourne en pre-commit et en CI pour éviter toute fuite de secret.
 
+## Versioning
+
+- La version courante du projet est suivie dans [`.release-please-manifest.json`](./.release-please-manifest.json) et incrémentée automatiquement par `release-please` à chaque release (semver, déduit des [Conventional Commits](https://www.conventionalcommits.org/)).
+- Le workflow `Build and publish images` calcule le numéro de version à partir du tag Git de la release et le publie :
+  - comme tag d'image Docker sur GHCR (`ghcr.io/<user>/<repo>-backend:<version>`, `...-frontend:<version>`, en plus de `:latest`) ;
+  - comme variable d'environnement de build `NEXT_PUBLIC_APP_VERSION` du frontend, affichée dans l'interface (sidebar, sous le logo) — pratique pour vérifier en un coup d'œil quelle version tourne sur un déploiement donné.
+
 ## Hors scope V1
 
 Segmentation en articles, auto-inscription/mot de passe oublié par email, watcher automatique du NAS, rôles avancés, écriture sur le NAS. Voir la section 6 du cahier des charges.
