@@ -1,26 +1,4 @@
 services:
-  traefik:
-    image: traefik:v3.1
-    restart: unless-stopped
-    command:
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      - --entrypoints.web.address=:80
-      - --entrypoints.web.http.redirections.entryPoint.to=websecure
-      - --entrypoints.web.http.redirections.entryPoint.scheme=https
-      - --entrypoints.websecure.address=:443
-      - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
-      - --certificatesresolvers.letsencrypt.acme.email=${LETSENCRYPT_EMAIL}
-      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - traefik_certs:/letsencrypt
-    networks:
-      - edge
-
   app-backend:
     build:
       context: ./backend
@@ -33,20 +11,14 @@ services:
     volumes:
       - app_data:/data
       - ${NAS_MOUNT_PATH}:/mnt/nas:ro
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
     depends_on:
       - postgres
       - redis
       - meilisearch
     networks:
-      - edge
       - internal
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=edge
-      - traefik.http.routers.backend.rule=Host(`${DOMAIN}`) && PathPrefix(`/api`)
-      - traefik.http.routers.backend.entrypoints=websecure
-      - traefik.http.routers.backend.tls.certresolver=letsencrypt
-      - traefik.http.services.backend.loadbalancer.server.port=8000
 
   worker:
     build:
@@ -75,17 +47,12 @@ services:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
     restart: unless-stopped
     env_file: .env
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
       - app-backend
     networks:
-      - edge
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=edge
-      - traefik.http.routers.frontend.rule=Host(`${DOMAIN}`)
-      - traefik.http.routers.frontend.entrypoints=websecure
-      - traefik.http.routers.frontend.tls.certresolver=letsencrypt
-      - traefik.http.services.frontend.loadbalancer.server.port=3000
+      - internal
 
   redis:
     image: redis:7-alpine
@@ -119,7 +86,6 @@ services:
       - internal
 
 networks:
-  edge:
   internal:
 
 volumes:
@@ -127,4 +93,3 @@ volumes:
   meili_data:
   redis_data:
   app_data:
-  traefik_certs:
