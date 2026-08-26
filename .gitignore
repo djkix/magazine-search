@@ -18,6 +18,7 @@ node_modules/
 frontend/.next/
 frontend/out/
 frontend/build/
+frontend/public/pdf.worker.min.mjs
 npm-debug.log*
 .pnpm-store/
 
