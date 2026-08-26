@@ -2,17 +2,17 @@
 const nextConfig = {
   output: "standalone",
   reactStrictMode: true,
-  webpack: (config) => {
-    // pdfjs-dist ships its worker as a raw ESM file. Next bundles it as a
-    // static asset via `new URL(...)`, but Terser still tries to minify it
-    // and chokes on top-level import/export syntax. Skip minification for
-    // that one file instead.
-    for (const minimizer of config.optimization.minimizer ?? []) {
-      if (minimizer.constructor.name === "TerserPlugin") {
-        minimizer.options.exclude = /pdf\.worker/;
-      }
-    }
-    return config;
+  async rewrites() {
+    // Proxy /api/* to the backend container over the internal Docker
+    // network, so the browser only ever talks to this single origin.
+    // The reverse proxy in front of the app then needs just one plain
+    // forward to this port — no path-based routing to a second port.
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${process.env.BACKEND_INTERNAL_URL || "http://app-backend:8000"}/api/:path*`,
+      },
+    ];
   },
 };
 
