@@ -110,6 +110,14 @@ class RetryFailedResponse(BaseModel):
     retried: int
 
 
+class LogEntry(BaseModel):
+    timestamp: str
+    level: str
+    logger: str
+    message: str
+    component: str
+
+
 class AdminStatsResponse(BaseModel):
     total: int
     done: int

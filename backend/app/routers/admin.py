@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -8,6 +8,7 @@ from app.models import Magazine, Page, ScanStatus, User
 from app.queue import ingestion_queue
 from app.schemas import (
     AdminStatsResponse,
+    LogEntry,
     MagazineOut,
     PasswordReset,
     RetryFailedResponse,
@@ -18,6 +19,7 @@ from app.schemas import (
     UserUpdate,
 )
 from app.security import hash_password
+from app.services.logs import read_logs
 from app.services.scan import get_scan_job_magazine_ids, run_scan
 from app.worker.tasks import process_magazine
 
@@ -170,3 +172,15 @@ def get_stats(db: Session = Depends(get_db)):
         pending=count_of(ScanStatus.detected, ScanStatus.stable, ScanStatus.queued),
         recent=recent,
     )
+
+
+# ---- Logs ----
+
+
+@router.get("/logs", response_model=list[LogEntry])
+def get_logs(
+    level: str | None = Query(None, description="Filter by log level, e.g. INFO, WARNING, ERROR"),
+    component: str | None = Query(None, description="Filter by component: backend or worker"),
+    limit: int = Query(200, ge=1, le=1000),
+):
+    return read_logs(level=level, component=component, limit=limit)

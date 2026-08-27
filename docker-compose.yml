@@ -30,7 +30,7 @@ services:
   worker:
     image: ghcr.io/djkix/magazine-search-backend:latest
     restart: unless-stopped
-    command: rq worker --url redis://${REDIS_HOST}:${REDIS_PORT} ingestion
+    command: python -m app.worker.run
     env_file: .env
     deploy:
       resources:
