@@ -56,6 +56,7 @@ function SearchResultsContent() {
     if (filters.year) params.set("year", filters.year);
     if (filters.issue_number) params.set("issue_number", filters.issue_number);
     if (filters.category_id) params.set("category_id", filters.category_id);
+    if (filters.collection_id) params.set("collection_id", filters.collection_id);
     router.push(`/search?${params.toString()}`);
   }
 
