@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import Magazine, ScanStatus
+from app.models import Collection, Magazine, ScanStatus
 from app.queue import ingestion_queue, redis_conn
 from app.worker.tasks import process_magazine
 
@@ -33,6 +33,27 @@ def _sha256_of_file(path: Path) -> str:
 def _stat_snapshot(path: Path) -> tuple[int, float]:
     st = path.stat()
     return st.st_size, st.st_mtime
+
+
+def _get_or_create_collection(db: Session, name: str, cache: dict[str, Collection]) -> Collection:
+    """The directory a PDF lives in (immediately under the NAS root or deeper)
+    names its collection - e.g. every issue under ".../Que Choisir/" belongs
+    to the "Que Choisir" collection. Created on first sight, reused after."""
+    if name in cache:
+        return cache[name]
+
+    collection = db.query(Collection).filter(Collection.name == name).first()
+    if collection is None:
+        try:
+            with db.begin_nested():
+                collection = Collection(name=name)
+                db.add(collection)
+                db.flush()
+        except IntegrityError:
+            collection = db.query(Collection).filter(Collection.name == name).first()
+
+    cache[name] = collection
+    return collection
 
 
 def run_scan(db: Session) -> tuple[str, int]:
@@ -69,6 +90,7 @@ def run_scan(db: Session) -> tuple[str, int]:
         else:
             logger.info("Skipping unstable file (still being written): %s", path)
 
+    collection_cache: dict[str, Collection] = {}
     new_magazine_ids: list[int] = []
     for path in stable_paths:
         file_hash = _sha256_of_file(path)
@@ -76,6 +98,10 @@ def run_scan(db: Session) -> tuple[str, int]:
             continue
 
         size, mtime = candidates[path]
+        collection_id = None
+        if path.parent != nas_root:
+            collection_id = _get_or_create_collection(db, path.parent.name, collection_cache).id
+
         magazine = Magazine(
             title=path.stem,
             filename=path.name,
@@ -84,6 +110,7 @@ def run_scan(db: Session) -> tuple[str, int]:
             file_size=size,
             file_mtime=datetime.fromtimestamp(mtime, tz=timezone.utc),
             scan_status=ScanStatus.stable,
+            collection_id=collection_id,
         )
         try:
             with db.begin_nested():

@@ -140,11 +140,6 @@ class CollectionUpdate(BaseModel):
     category_id: int | None = None
 
 
-class MagazineCollectionUpdate(BaseModel):
-    collection_id: int | None
-    apply_to_all_issues: bool = False
-
-
 class ArticleOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
