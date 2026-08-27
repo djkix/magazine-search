@@ -75,6 +75,17 @@ export interface RetryFailedResponse {
   retried: number;
 }
 
+export type LogLevel = "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL";
+export type LogComponent = "backend" | "worker";
+
+export interface LogEntry {
+  timestamp: string;
+  level: LogLevel;
+  logger: string;
+  message: string;
+  component: LogComponent;
+}
+
 export interface AdminStats {
   total: number;
   done: number;

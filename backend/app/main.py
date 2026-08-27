@@ -7,12 +7,13 @@ from slowapi.errors import RateLimitExceeded
 
 from app.config import get_settings
 from app.database import SessionLocal
+from app.logging_config import configure_logging
 from app.models import User
 from app.rate_limit import limiter
 from app.routers import admin, auth, magazines, search
 from app.security import hash_password
 
-logging.basicConfig(level=logging.INFO)
+configure_logging("backend")
 logger = logging.getLogger("app")
 
 settings = get_settings()
