@@ -113,7 +113,7 @@ function ViewerContent() {
         </div>
 
         <aside className="hidden overflow-y-auto border-l border-outline-variant bg-surface/40 lg:block">
-          <ViewerMetaPanel magazine={magazine} />
+          <ViewerMetaPanel magazine={magazine} onGoToPage={goToPage} />
         </aside>
       </div>
 
@@ -133,7 +133,7 @@ function ViewerContent() {
             onSelectHit={handleSelectHit}
           />
         )}
-        {mobilePanel === "meta" && <ViewerMetaPanel magazine={magazine} />}
+        {mobilePanel === "meta" && <ViewerMetaPanel magazine={magazine} onGoToPage={goToPage} />}
       </ViewerMobileNav>
     </div>
   );

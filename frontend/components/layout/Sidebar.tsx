@@ -8,6 +8,7 @@ import type { User } from "@/lib/types";
 const NAV_ITEMS = [
   { href: "/", label: "Recherche", icon: "search" },
   { href: "/library", label: "Bibliothèque", icon: "collections_bookmark" },
+  { href: "/articles", label: "Sommaires", icon: "toc" },
 ];
 
 export default function Sidebar({ user, onLogout }: { user: User; onLogout: () => void }) {

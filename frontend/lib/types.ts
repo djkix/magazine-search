@@ -25,9 +25,24 @@ export interface Magazine {
   cover_thumbnail_path: string | null;
   scan_status: "detected" | "stable" | "queued" | "processing" | "done" | "failed";
   error_message: string | null;
+  toc_status: "pending" | "processing" | "done" | "failed";
+  toc_error_message: string | null;
   created_at: string;
   file_size: number;
   page_count: number;
+}
+
+export interface Article {
+  id: number;
+  magazine_id: number;
+  title: string;
+  start_page: number;
+  end_page: number | null;
+}
+
+export interface ArticleWithMagazine extends Article {
+  magazine_title: string;
+  magazine_issue_number: string | null;
 }
 
 export interface Page {

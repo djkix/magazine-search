@@ -4,10 +4,13 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_admin
-from app.models import Magazine, Page, ScanStatus, User
+from app.models import Article, Magazine, OcrStatus, Page, ScanStatus, User
 from app.queue import ingestion_queue
 from app.schemas import (
     AdminStatsResponse,
+    ArticleCreate,
+    ArticleOut,
+    ArticleUpdate,
     LogEntry,
     MagazineOut,
     PasswordReset,
@@ -21,7 +24,7 @@ from app.schemas import (
 from app.security import hash_password
 from app.services.logs import read_logs
 from app.services.scan import get_scan_job_magazine_ids, run_scan
-from app.worker.tasks import process_magazine
+from app.worker.tasks import process_magazine, retry_toc
 
 router = APIRouter(dependencies=[Depends(get_current_admin)])
 
@@ -184,3 +187,54 @@ def get_logs(
     limit: int = Query(200, ge=1, le=1000),
 ):
     return read_logs(level=level, component=component, limit=limit)
+
+
+# ---- Articles (sommaires) ----
+
+
+def _get_article_or_404(article_id: int, db: Session) -> Article:
+    article = db.get(Article, article_id)
+    if not article:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found")
+    return article
+
+
+@router.post("/magazines/{magazine_id}/toc/retry")
+def retry_toc_extraction(magazine_id: int, db: Session = Depends(get_db)):
+    magazine = db.get(Magazine, magazine_id)
+    if not magazine:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Magazine not found")
+    magazine.toc_status = OcrStatus.pending
+    magazine.toc_error_message = None
+    db.commit()
+    ingestion_queue.enqueue(retry_toc, magazine_id, job_timeout="10m")
+    return {"status": "queued"}
+
+
+@router.post("/magazines/{magazine_id}/articles", response_model=ArticleOut, status_code=status.HTTP_201_CREATED)
+def create_article(magazine_id: int, payload: ArticleCreate, db: Session = Depends(get_db)):
+    magazine = db.get(Magazine, magazine_id)
+    if not magazine:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Magazine not found")
+    article = Article(magazine_id=magazine_id, **payload.model_dump())
+    db.add(article)
+    db.commit()
+    db.refresh(article)
+    return article
+
+
+@router.patch("/articles/{article_id}", response_model=ArticleOut)
+def update_article(article_id: int, payload: ArticleUpdate, db: Session = Depends(get_db)):
+    article = _get_article_or_404(article_id, db)
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(article, field, value)
+    db.commit()
+    db.refresh(article)
+    return article
+
+
+@router.delete("/articles/{article_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_article(article_id: int, db: Session = Depends(get_db)):
+    article = _get_article_or_404(article_id, db)
+    db.delete(article)
+    db.commit()

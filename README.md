@@ -8,6 +8,7 @@ Application web auto-hébergée de gestion, OCR et recherche plein texte d'une c
 - Pipeline d'ingestion asynchrone : détection de texte natif, OCR conditionnel (`fra+eng`) via `ocrmypdf`/Tesseract, extraction des bounding boxes mot par mot, miniature de couverture.
 - Recherche plein texte (Meilisearch) avec surlignage et filtres (titre, année, numéro).
 - Viewer PDF intégré (`pdf.js`) avec saut direct à la page et overlay de surlignage des termes trouvés.
+- Extraction automatique du sommaire de chaque magazine via l'API Gemini (titre + page de chaque article), avec sommaire par magazine, vue globale de tous les articles de la collection, et correction manuelle depuis le viewer (admin).
 - Authentification multi-utilisateurs (admin + comptes standards), backoffice admin pour la gestion des comptes et du scan.
 
 ## Architecture

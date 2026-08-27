@@ -73,8 +73,16 @@ class Magazine(Base):
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    toc_status: Mapped[OcrStatus] = mapped_column(
+        Enum(OcrStatus, name="toc_status"), default=OcrStatus.pending, nullable=False
+    )
+    toc_error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     pages: Mapped[list["Page"]] = relationship(
         "Page", back_populates="magazine", cascade="all, delete-orphan", order_by="Page.page_number"
+    )
+    articles: Mapped[list["Article"]] = relationship(
+        "Article", back_populates="magazine", cascade="all, delete-orphan", order_by="Article.start_page"
     )
 
 
@@ -97,3 +105,16 @@ class Page(Base):
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     magazine: Mapped["Magazine"] = relationship("Magazine", back_populates="pages")
+
+
+class Article(Base):
+    __tablename__ = "articles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    magazine_id: Mapped[int] = mapped_column(ForeignKey("magazines.id", ondelete="CASCADE"), nullable=False)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    start_page: Mapped[int] = mapped_column(Integer, nullable=False)
+    end_page: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    magazine: Mapped["Magazine"] = relationship("Magazine", back_populates="articles")

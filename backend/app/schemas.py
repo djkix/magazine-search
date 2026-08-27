@@ -84,9 +84,38 @@ class MagazineOut(BaseModel):
     cover_thumbnail_path: str | None = None
     scan_status: ScanStatus
     error_message: str | None = None
+    toc_status: OcrStatus
+    toc_error_message: str | None = None
     created_at: datetime
     file_size: int
     page_count: int = 0
+
+
+class ArticleOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    magazine_id: int
+    title: str
+    start_page: int
+    end_page: int | None = None
+
+
+class ArticleWithMagazine(ArticleOut):
+    magazine_title: str
+    magazine_issue_number: str | None = None
+
+
+class ArticleCreate(BaseModel):
+    title: str
+    start_page: int
+    end_page: int | None = None
+
+
+class ArticleUpdate(BaseModel):
+    title: str | None = None
+    start_page: int | None = None
+    end_page: int | None = None
 
 
 # ---- Scan ----
