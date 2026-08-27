@@ -64,13 +64,14 @@ jobs:
           fi
           VERSION="${TAG_NAME#v}"
           echo "value=$VERSION" >> "$GITHUB_OUTPUT"
-          # Non-release builds (plain push to main) have no version tag, but
-          # the UI should still show *something* identifying the running
-          # build rather than nothing at all.
+          # Non-release builds (plain push to main) have no version tag. Show
+          # the last actual release number (from the changelog) instead of a
+          # commit-specific "dev-<sha>" placeholder, so the UI always
+          # reflects a real, meaningful version.
           if [ -n "$VERSION" ]; then
             echo "display=$VERSION" >> "$GITHUB_OUTPUT"
           else
-            echo "display=dev-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+            echo "display=$(python3 -c "import json; print(json.load(open('.release-please-manifest.json'))['.'])")" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Extract metadata
