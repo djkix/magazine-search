@@ -32,7 +32,7 @@ from app.security import hash_password
 from app.services.logs import read_logs
 from app.services.scan import get_scan_job_magazine_ids, run_scan
 from app.services.toc import AVAILABLE_GEMINI_MODELS, get_gemini_model, set_gemini_model
-from app.worker.tasks import process_magazine, retry_toc
+from app.worker.tasks import process_magazine, reindex_magazine, retry_toc
 
 router = APIRouter(dependencies=[Depends(get_current_admin)])
 
@@ -330,5 +330,18 @@ def set_magazine_category(magazine_id: int, payload: MagazineCategoryUpdate, db:
     for target in targets:
         target.category_id = payload.category_id
     db.commit()
+    for target in targets:
+        ingestion_queue.enqueue(reindex_magazine, target.id, job_timeout="10m")
     db.refresh(magazine)
     return _to_magazine_out(magazine, len(magazine.pages))
+
+
+@router.post("/search-index/reindex-all")
+def reindex_all(db: Session = Depends(get_db)):
+    """Re-push every processed magazine's pages to Meilisearch. Needed once
+    after adding a new filterable field (e.g. category_id) so already-indexed
+    documents pick it up - going forward, changes reindex automatically."""
+    magazine_ids = [m.id for m in db.query(Magazine.id).filter(Magazine.scan_status == ScanStatus.done).all()]
+    for magazine_id in magazine_ids:
+        ingestion_queue.enqueue(reindex_magazine, magazine_id, job_timeout="10m")
+    return {"enqueued": len(magazine_ids)}

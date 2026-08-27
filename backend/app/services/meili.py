@@ -29,12 +29,12 @@ def ensure_index_configured() -> None:
 
     index = get_index()
     index.update_searchable_attributes(["raw_text", "magazine_title"])
-    index.update_filterable_attributes(["magazine_id", "magazine_title", "issue_number", "year"])
+    index.update_filterable_attributes(["magazine_id", "magazine_title", "issue_number", "year", "category_id"])
     index.update_sortable_attributes(["publication_date"])
 
 
-def index_page(page, magazine) -> None:
-    doc = {
+def _page_doc(page, magazine) -> dict:
+    return {
         "page_id": page.id,
         "magazine_id": magazine.id,
         "magazine_title": magazine.title,
@@ -44,8 +44,19 @@ def index_page(page, magazine) -> None:
         "page_number": page.page_number,
         "raw_text": page.raw_text or "",
         "language": page.language.value if page.language else None,
+        "category_id": magazine.category_id,
     }
-    get_index().add_documents([doc])
+
+
+def index_page(page, magazine) -> None:
+    get_index().add_documents([_page_doc(page, magazine)])
+
+
+def index_pages(pages, magazine) -> None:
+    """Batch variant of index_page, for bulk operations like a full reindex."""
+    docs = [_page_doc(page, magazine) for page in pages]
+    if docs:
+        get_index().add_documents(docs)
 
 
 def delete_magazine_pages(magazine_id: int) -> None:

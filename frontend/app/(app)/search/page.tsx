@@ -55,6 +55,7 @@ function SearchResultsContent() {
     if (filters.magazine_title) params.set("magazine_title", filters.magazine_title);
     if (filters.year) params.set("year", filters.year);
     if (filters.issue_number) params.set("issue_number", filters.issue_number);
+    if (filters.category_id) params.set("category_id", filters.category_id);
     router.push(`/search?${params.toString()}`);
   }
 

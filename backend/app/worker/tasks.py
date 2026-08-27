@@ -7,7 +7,7 @@ from sqlalchemy import func
 from app.config import get_settings
 from app.database import SessionLocal
 from app.models import Article, Magazine, OcrStatus, Page, PageLanguage, ScanStatus
-from app.services.meili import ensure_index_configured, index_page
+from app.services.meili import ensure_index_configured, index_page, index_pages
 from app.services.toc import extract_toc
 from app.worker.ocr import detect_language, ensure_text_layer, extract_pages, render_cover_thumbnail
 
@@ -126,5 +126,20 @@ def retry_toc(magazine_id: int) -> None:
             return
         last_page_number = db.query(func.max(Page.page_number)).filter(Page.magazine_id == magazine_id).scalar() or 0
         _refresh_table_of_contents(db, magazine, last_page_number)
+    finally:
+        db.close()
+
+
+def reindex_magazine(magazine_id: int) -> None:
+    """Re-push every page of a magazine to Meilisearch, e.g. after its
+    category changed, so full-text search filtering picks it up."""
+    db = SessionLocal()
+    try:
+        magazine = db.get(Magazine, magazine_id)
+        if magazine is None:
+            logger.warning("Magazine %s not found, skipping reindex", magazine_id)
+            return
+        pages = db.query(Page).filter(Page.magazine_id == magazine_id).all()
+        index_pages(pages, magazine)
     finally:
         db.close()

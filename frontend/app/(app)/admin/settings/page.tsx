@@ -18,6 +18,8 @@ export default function AdminSettingsPage() {
   const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
   const [editingCategoryName, setEditingCategoryName] = useState("");
   const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [reindexing, setReindexing] = useState(false);
+  const [reindexMessage, setReindexMessage] = useState<string | null>(null);
 
   function load() {
     api
@@ -66,6 +68,19 @@ export default function AdminSettingsPage() {
     if (!window.confirm("Supprimer cette catégorie ? Les magazines associés ne seront plus catégorisés.")) return;
     await api.delete(`/admin/categories/${id}`);
     loadCategories();
+  }
+
+  async function reindexAll() {
+    setReindexing(true);
+    setReindexMessage(null);
+    try {
+      const data = await api.post<{ enqueued: number }>("/admin/search-index/reindex-all");
+      setReindexMessage(`${data.enqueued} magazine(s) en cours de réindexation.`);
+    } catch (err) {
+      setCategoryError(err instanceof ApiError ? err.message : "Erreur");
+    } finally {
+      setReindexing(false);
+    }
   }
 
   async function save() {
@@ -191,6 +206,21 @@ export default function AdminSettingsPage() {
             Ajouter
           </Button>
         </div>
+      </div>
+
+      <div className="space-y-3 rounded-xl border border-outline-variant bg-surface/60 p-6">
+        <div>
+          <p className="text-sm font-medium text-foreground">Maintenance</p>
+          <p className="mt-1 text-xs text-foreground-muted">
+            Réindexe tous les magazines déjà traités dans le moteur de recherche — utile après avoir catégorisé des
+            magazines qui avaient été indexés avant l'ajout des catégories.
+          </p>
+        </div>
+        {reindexMessage && <p className="text-sm text-emerald-400">{reindexMessage}</p>}
+        <Button onClick={reindexAll} disabled={reindexing} variant="secondary">
+          <Icon name="sync" className={reindexing ? "animate-spin" : ""} />
+          {reindexing ? "Lancement..." : "Réindexer tous les magazines"}
+        </Button>
       </div>
     </div>
   );

@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
+import type { Category } from "@/lib/types";
 import Icon from "@/components/ui/Icon";
 
 export interface SearchFilters {
@@ -8,6 +10,7 @@ export interface SearchFilters {
   magazine_title?: string;
   year?: string;
   issue_number?: string;
+  category_id?: string;
 }
 
 export default function SearchBar({
@@ -21,7 +24,13 @@ export default function SearchBar({
   const [magazineTitle, setMagazineTitle] = useState(initial?.magazine_title ?? "");
   const [year, setYear] = useState(initial?.year ?? "");
   const [issueNumber, setIssueNumber] = useState(initial?.issue_number ?? "");
+  const [categoryId, setCategoryId] = useState(initial?.category_id ?? "");
+  const [categories, setCategories] = useState<Category[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+
+  useEffect(() => {
+    api.get<Category[]>("/categories").then(setCategories).catch(() => {});
+  }, []);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,6 +40,7 @@ export default function SearchBar({
       magazine_title: magazineTitle.trim() || undefined,
       year: year.trim() || undefined,
       issue_number: issueNumber.trim() || undefined,
+      category_id: categoryId || undefined,
     });
   }
 
@@ -63,6 +73,20 @@ export default function SearchBar({
 
       {showFilters && (
         <div className="flex flex-wrap gap-2 rounded-xl border border-outline-variant bg-surface/40 p-3">
+          {categories.length > 0 && (
+            <select
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              className="rounded-lg border border-outline-variant bg-surface px-3 py-1.5 text-sm text-foreground"
+            >
+              <option value="">Toutes les catégories</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          )}
           <input
             value={magazineTitle}
             onChange={(e) => setMagazineTitle(e.target.value)}
