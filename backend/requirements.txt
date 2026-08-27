@@ -11,6 +11,7 @@ rq==1.16.2
 meilisearch==0.31.4
 PyMuPDF==1.24.10
 ocrmypdf==16.4.3
+pikepdf==9.11.0
 langdetect==1.0.9
 PyJWT==2.9.0
 passlib[argon2]==1.7.4
