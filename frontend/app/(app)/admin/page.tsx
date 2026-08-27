@@ -113,12 +113,12 @@ export default function AdminDashboardPage() {
         <div>
           <h1 className="text-xl font-semibold text-foreground">Tableau de bord</h1>
           <p className="mt-1 text-sm text-foreground-muted">
-            Déclenchez un scan du NAS pour détecter et indexer de nouveaux numéros.
+            Détecte et indexe les nouveaux numéros, et retrouve ceux qui ont été déplacés dans un autre répertoire.
           </p>
         </div>
         <Button onClick={triggerScan} disabled={scanning}>
           <Icon name="sync" className={scanning ? "animate-spin" : ""} />
-          {scanning ? "Scan en cours..." : "Scanner le NAS"}
+          {scanning ? "Scan en cours..." : "Scan"}
         </Button>
       </div>
 
@@ -196,8 +196,11 @@ export default function AdminDashboardPage() {
                   <td className="px-4 py-3">
                     <StatusBadge status={m.scan_status} />
                     {m.scan_status === "failed" && m.error_message && (
-                      <p className="mt-1 max-w-md truncate font-mono text-[10px] text-red-400" title={m.error_message}>
-                        {m.error_message}
+                      <p
+                        className="mt-1 max-w-md truncate font-mono text-[10px] text-red-400"
+                        title={m.error_message}
+                      >
+                        {m.error_message.split("Traceback")[0].trim()}
                       </p>
                     )}
                   </td>
