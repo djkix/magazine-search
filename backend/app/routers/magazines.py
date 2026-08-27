@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Magazine, Page
-from app.schemas import MagazineOut, PageOut
+from app.models import Article, Magazine, Page
+from app.schemas import ArticleOut, MagazineOut, PageOut
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 settings = get_settings()
@@ -60,6 +60,12 @@ def get_magazine(magazine_id: int, db: Session = Depends(get_db)):
     out = MagazineOut.model_validate(magazine)
     out.page_count = len(magazine.pages)
     return out
+
+
+@router.get("/{magazine_id}/articles", response_model=list[ArticleOut])
+def list_magazine_articles(magazine_id: int, db: Session = Depends(get_db)):
+    _get_magazine_or_404(magazine_id, db)
+    return db.query(Article).filter(Article.magazine_id == magazine_id).order_by(Article.start_page).all()
 
 
 @router.get("/{magazine_id}/pages/{page_number}", response_model=PageOut)

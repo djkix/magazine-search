@@ -30,6 +30,9 @@ class Settings(BaseSettings):
 
     login_rate_limit: str = "5/15minutes"
 
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.5-flash"
+
     @property
     def cors_origins(self) -> list[str]:
         return [o.strip() for o in self.backend_cors_origins.split(",") if o.strip()]

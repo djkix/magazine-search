@@ -10,6 +10,7 @@ export default function BottomNav({ user }: { user: User }) {
   const items = [
     { href: "/", label: "Recherche", icon: "search" },
     { href: "/library", label: "Bibliothèque", icon: "collections_bookmark" },
+    { href: "/articles", label: "Sommaires", icon: "toc" },
     ...(user.is_admin ? [{ href: "/admin", label: "Admin", icon: "admin_panel_settings" }] : []),
   ];
 
