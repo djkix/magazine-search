@@ -43,3 +43,10 @@ def configure_logging(component: str) -> None:
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
     root.addHandler(stream_handler)
+
+    # uvicorn configures "uvicorn.access"/"uvicorn.error" with their own
+    # handlers and propagate=False, so they never reach the root logger
+    # above - attach our file handler to them directly so HTTP request
+    # activity actually shows up in the admin Logs view.
+    for name in ("uvicorn.access", "uvicorn.error"):
+        logging.getLogger(name).addHandler(file_handler)

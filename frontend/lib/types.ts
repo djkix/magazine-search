@@ -45,6 +45,16 @@ export interface ArticleWithMagazine extends Article {
   magazine_issue_number: string | null;
 }
 
+export interface GeminiModelOption {
+  id: string;
+  label: string;
+}
+
+export interface GeminiSettings {
+  model: string;
+  available_models: GeminiModelOption[];
+}
+
 export interface Page {
   id: number;
   magazine_id: number;

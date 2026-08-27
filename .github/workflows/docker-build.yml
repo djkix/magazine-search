@@ -62,7 +62,16 @@ jobs:
           else
             TAG_NAME=""
           fi
-          echo "value=${TAG_NAME#v}" >> "$GITHUB_OUTPUT"
+          VERSION="${TAG_NAME#v}"
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+          # Non-release builds (plain push to main) have no version tag, but
+          # the UI should still show *something* identifying the running
+          # build rather than nothing at all.
+          if [ -n "$VERSION" ]; then
+            echo "display=$VERSION" >> "$GITHUB_OUTPUT"
+          else
+            echo "display=dev-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Extract metadata
         id: meta
@@ -82,6 +91,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             ${{ matrix.build_args }}
-            NEXT_PUBLIC_APP_VERSION=${{ steps.version.outputs.value }}
+            NEXT_PUBLIC_APP_VERSION=${{ steps.version.outputs.display }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}

@@ -118,3 +118,13 @@ class Article(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     magazine: Mapped["Magazine"] = relationship("Magazine", back_populates="articles")
+
+
+class Setting(Base):
+    """Generic key/value store for admin-editable settings that should take
+    effect without a redeploy (e.g. which Gemini model to use)."""
+
+    __tablename__ = "settings"
+
+    key: Mapped[str] = mapped_column(String(100), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)

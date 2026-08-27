@@ -11,6 +11,8 @@ from app.schemas import (
     ArticleCreate,
     ArticleOut,
     ArticleUpdate,
+    GeminiSettingsResponse,
+    GeminiSettingsUpdate,
     LogEntry,
     MagazineOut,
     PasswordReset,
@@ -24,6 +26,7 @@ from app.schemas import (
 from app.security import hash_password
 from app.services.logs import read_logs
 from app.services.scan import get_scan_job_magazine_ids, run_scan
+from app.services.toc import AVAILABLE_GEMINI_MODELS, get_gemini_model, set_gemini_model
 from app.worker.tasks import process_magazine, retry_toc
 
 router = APIRouter(dependencies=[Depends(get_current_admin)])
@@ -238,3 +241,17 @@ def delete_article(article_id: int, db: Session = Depends(get_db)):
     article = _get_article_or_404(article_id, db)
     db.delete(article)
     db.commit()
+
+
+# ---- Settings ----
+
+
+@router.get("/settings/gemini", response_model=GeminiSettingsResponse)
+def get_gemini_settings(db: Session = Depends(get_db)):
+    return GeminiSettingsResponse(model=get_gemini_model(db), available_models=AVAILABLE_GEMINI_MODELS)
+
+
+@router.put("/settings/gemini", response_model=GeminiSettingsResponse)
+def update_gemini_settings(payload: GeminiSettingsUpdate, db: Session = Depends(get_db)):
+    set_gemini_model(db, payload.model)
+    return GeminiSettingsResponse(model=get_gemini_model(db), available_models=AVAILABLE_GEMINI_MODELS)
