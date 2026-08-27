@@ -54,21 +54,23 @@ function ViewerContent() {
       });
   }, [magazineId]);
 
+  const queryString = initialQuery ? `?q=${encodeURIComponent(initialQuery)}` : "";
+
   function goToPage(target: number) {
     if (!pageCount || target < 1 || target > pageCount) return;
     setHighlightWords([]);
-    router.push(`/viewer/${magazineId}/${target}`);
+    router.push(`/viewer/${magazineId}/${target}${queryString}`);
   }
 
   const handleSelectHit = useCallback(
     (hit: SearchHit) => {
       setHighlightWords(hit.words);
       if (hit.page_number !== pageNumber) {
-        router.push(`/viewer/${magazineId}/${hit.page_number}`);
+        router.push(`/viewer/${magazineId}/${hit.page_number}${queryString}`);
       }
       setMobilePanel(null);
     },
-    [magazineId, pageNumber, router]
+    [magazineId, pageNumber, router, queryString]
   );
 
   if (error) return <div className="p-8 text-sm text-red-400">{error}</div>;
