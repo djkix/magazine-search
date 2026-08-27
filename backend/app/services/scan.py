@@ -20,6 +20,7 @@ settings = get_settings()
 STABILITY_DELAY_SECONDS = 8
 SCAN_JOB_TTL_SECONDS = 24 * 3600
 SCAN_JOB_REDIS_PREFIX = "scan_job"
+LATEST_SCAN_JOB_REDIS_KEY = "scan_job:latest"
 
 
 def _sha256_of_file(path: Path) -> str:
@@ -137,6 +138,7 @@ def run_scan(db: Session) -> tuple[str, int]:
         SCAN_JOB_TTL_SECONDS,
         json.dumps(new_magazine_ids),
     )
+    redis_conn.setex(LATEST_SCAN_JOB_REDIS_KEY, SCAN_JOB_TTL_SECONDS, job_id)
 
     return job_id, len(new_magazine_ids)
 
@@ -146,3 +148,31 @@ def get_scan_job_magazine_ids(job_id: str) -> list[int] | None:
     if raw is None:
         return None
     return json.loads(raw)
+
+
+def get_latest_scan_job_id() -> str | None:
+    """The most recently triggered scan's job id, so the dashboard can resume
+    showing its progress after a page reload instead of only while the tab
+    that triggered it stays open."""
+    raw = redis_conn.get(LATEST_SCAN_JOB_REDIS_KEY)
+    return raw.decode() if isinstance(raw, bytes) else raw
+
+
+def backfill_collections(db: Session) -> list[int]:
+    """Assign a collection to every already-registered magazine that doesn't
+    have one yet, inferred from its stored file path - for magazines that
+    were scanned before collections were derived automatically. Returns the
+    ids of the magazines updated."""
+    collection_cache: dict[str, Collection] = {}
+    updated_ids: list[int] = []
+
+    magazines = db.query(Magazine).filter(Magazine.collection_id.is_(None)).all()
+    for magazine in magazines:
+        parent_name = Path(magazine.file_path).parent.name
+        if not parent_name:
+            continue
+        magazine.collection_id = _get_or_create_collection(db, parent_name, collection_cache).id
+        updated_ids.append(magazine.id)
+
+    db.commit()
+    return updated_ids

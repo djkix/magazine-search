@@ -30,9 +30,19 @@ export default function AdminDashboardPage() {
   useEffect(loadStats, []);
 
   useEffect(() => {
+    api
+      .get<{ job_id: string | null }>("/admin/scan/current")
+      .then((data) => {
+        if (data.job_id) {
+          setScanning(true);
+          poll(data.job_id);
+        }
+      })
+      .catch(() => {});
     return () => {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function triggerScan() {
@@ -75,23 +85,26 @@ export default function AdminDashboardPage() {
 
   function poll(jobId: string) {
     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-    const interval = setInterval(async () => {
+
+    async function check() {
       try {
         const status = await api.get<ScanStatusResponse>(`/admin/scan/${jobId}/status`);
         setScanJob(status);
         if (status.finished) {
-          clearInterval(interval);
+          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
           pollIntervalRef.current = null;
           setScanning(false);
           loadStats();
         }
       } catch {
-        clearInterval(interval);
+        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
         setScanning(false);
       }
-    }, 3000);
-    pollIntervalRef.current = interval;
+    }
+
+    check();
+    pollIntervalRef.current = setInterval(check, 3000);
   }
 
   return (
@@ -182,6 +195,11 @@ export default function AdminDashboardPage() {
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={m.scan_status} />
+                    {m.scan_status === "failed" && m.error_message && (
+                      <p className="mt-1 max-w-md truncate font-mono text-[10px] text-red-400" title={m.error_message}>
+                        {m.error_message}
+                      </p>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <button
