@@ -10,7 +10,7 @@ from app.database import SessionLocal
 from app.logging_config import configure_logging
 from app.models import User
 from app.rate_limit import limiter
-from app.routers import admin, articles, auth, categories, magazines, search
+from app.routers import admin, articles, auth, categories, collections, magazines, search
 from app.security import hash_password
 
 configure_logging("backend")
@@ -36,6 +36,7 @@ app.include_router(search.router, prefix="/api", tags=["search"])
 app.include_router(magazines.router, prefix="/api/magazines", tags=["magazines"])
 app.include_router(articles.router, prefix="/api/articles", tags=["articles"])
 app.include_router(categories.router, prefix="/api/categories", tags=["categories"])
+app.include_router(collections.router, prefix="/api/collections", tags=["collections"])
 
 
 def bootstrap_admin() -> None:

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_admin
-from app.models import Article, Category, Magazine, OcrStatus, Page, ScanStatus, User
+from app.models import Article, Category, Collection, Magazine, OcrStatus, Page, ScanStatus, User
 from app.queue import ingestion_queue
 from app.schemas import (
     AdminStatsResponse,
@@ -14,10 +14,13 @@ from app.schemas import (
     CategoryCreate,
     CategoryOut,
     CategoryUpdate,
+    CollectionCreate,
+    CollectionOut,
+    CollectionUpdate,
     GeminiSettingsResponse,
     GeminiSettingsUpdate,
     LogEntry,
-    MagazineCategoryUpdate,
+    MagazineCollectionUpdate,
     MagazineOut,
     PasswordReset,
     RetryFailedResponse,
@@ -315,20 +318,86 @@ def delete_category(category_id: int, db: Session = Depends(get_db)):
     db.commit()
 
 
-@router.patch("/magazines/{magazine_id}/category", response_model=MagazineOut)
-def set_magazine_category(magazine_id: int, payload: MagazineCategoryUpdate, db: Session = Depends(get_db)):
+# ---- Collections ----
+
+
+def _to_collection_out(collection: Collection) -> CollectionOut:
+    return CollectionOut(
+        id=collection.id,
+        name=collection.name,
+        category_id=collection.category_id,
+        category_name=collection.category.name if collection.category else None,
+    )
+
+
+@router.get("/collections", response_model=list[CollectionOut])
+def list_collections(db: Session = Depends(get_db)):
+    collections = db.query(Collection).order_by(Collection.name).all()
+    return [_to_collection_out(c) for c in collections]
+
+
+@router.post("/collections", response_model=CollectionOut, status_code=status.HTTP_201_CREATED)
+def create_collection(payload: CollectionCreate, db: Session = Depends(get_db)):
+    if db.query(Collection).filter(Collection.name == payload.name).first():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Collection already exists")
+    if payload.category_id is not None and not db.get(Category, payload.category_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    collection = Collection(name=payload.name, category_id=payload.category_id)
+    db.add(collection)
+    db.commit()
+    db.refresh(collection)
+    return _to_collection_out(collection)
+
+
+@router.patch("/collections/{collection_id}", response_model=CollectionOut)
+def update_collection(collection_id: int, payload: CollectionUpdate, db: Session = Depends(get_db)):
+    collection = db.get(Collection, collection_id)
+    if not collection:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
+    if payload.category_id is not None and not db.get(Category, payload.category_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+
+    if payload.name is not None:
+        collection.name = payload.name
+    if "category_id" in payload.model_fields_set:
+        collection.category_id = payload.category_id
+
+    db.commit()
+    db.refresh(collection)
+
+    magazine_ids = [m.id for m in db.query(Magazine.id).filter(Magazine.collection_id == collection_id).all()]
+    for magazine_id in magazine_ids:
+        ingestion_queue.enqueue(reindex_magazine, magazine_id, job_timeout="10m")
+
+    return _to_collection_out(collection)
+
+
+@router.delete("/collections/{collection_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_collection(collection_id: int, db: Session = Depends(get_db)):
+    collection = db.get(Collection, collection_id)
+    if not collection:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
+    magazine_ids = [m.id for m in db.query(Magazine.id).filter(Magazine.collection_id == collection_id).all()]
+    db.delete(collection)
+    db.commit()
+    for magazine_id in magazine_ids:
+        ingestion_queue.enqueue(reindex_magazine, magazine_id, job_timeout="10m")
+
+
+@router.patch("/magazines/{magazine_id}/collection", response_model=MagazineOut)
+def set_magazine_collection(magazine_id: int, payload: MagazineCollectionUpdate, db: Session = Depends(get_db)):
     magazine = db.get(Magazine, magazine_id)
     if not magazine:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Magazine not found")
-    if payload.category_id is not None and not db.get(Category, payload.category_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    if payload.collection_id is not None and not db.get(Collection, payload.collection_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
 
     targets = [magazine]
     if payload.apply_to_all_issues:
         targets = db.query(Magazine).filter(Magazine.title == magazine.title).all()
 
     for target in targets:
-        target.category_id = payload.category_id
+        target.collection_id = payload.collection_id
     db.commit()
     for target in targets:
         ingestion_queue.enqueue(reindex_magazine, target.id, job_timeout="10m")
