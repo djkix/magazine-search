@@ -3,18 +3,20 @@ import { fileUrl } from "@/lib/api";
 import Icon from "@/components/ui/Icon";
 
 export default function CollectionCard({
-  id,
+  href,
   name,
   count,
+  countLabel = "numéro",
   coverMagazineId,
 }: {
-  id: number | "none";
+  href: string;
   name: string;
   count: number;
+  countLabel?: string;
   coverMagazineId: number | null;
 }) {
   return (
-    <Link href={`/library/collection/${id}`} className="group block">
+    <Link href={href} className="group block">
       <div className="aspect-[3/4] w-full overflow-hidden rounded-lg border border-outline-variant bg-surface-hover">
         {coverMagazineId ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -32,7 +34,8 @@ export default function CollectionCard({
       <div className="mt-2 space-y-1">
         <p className="truncate font-serif text-sm font-semibold text-foreground">{name}</p>
         <p className="truncate font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
-          {count} numéro{count !== 1 ? "s" : ""}
+          {count} {countLabel}
+          {count !== 1 ? "s" : ""}
         </p>
       </div>
     </Link>
