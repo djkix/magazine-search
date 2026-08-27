@@ -17,6 +17,9 @@ export default function AdminDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const scanJobTotal = scanJob ? scanJob.detected + scanJob.processing + scanJob.done + scanJob.failed : 0;
+  const scanJobDone = scanJob ? scanJob.done + scanJob.failed : 0;
+
   function loadStats() {
     api
       .get<AdminStats>("/admin/stats")
@@ -109,10 +112,38 @@ export default function AdminDashboardPage() {
       {error && <p className="text-sm text-red-400">{error}</p>}
 
       {scanJob && (
-        <div className="rounded-xl border border-outline-variant bg-surface/60 p-4 font-mono text-xs uppercase tracking-wider text-foreground-muted">
-          Job {scanJob.job_id.slice(0, 8)} — détectés {scanJob.detected} · en cours {scanJob.processing} · terminés{" "}
-          {scanJob.done} · échecs {scanJob.failed}
-          {scanJob.finished ? " · terminé" : ""}
+        <div className="space-y-2 rounded-xl border border-outline-variant bg-surface/60 p-4">
+          <div className="flex items-center justify-between font-mono text-xs uppercase tracking-wider text-foreground-muted">
+            <span>Job {scanJob.job_id.slice(0, 8)}</span>
+            <span>
+              {scanJobTotal > 0 ? `${scanJobDone} / ${scanJobTotal}` : "—"}
+              {scanJob.finished ? " · terminé" : ""}
+            </span>
+          </div>
+          <div className="flex h-2 w-full overflow-hidden rounded-full bg-outline-variant/40">
+            {scanJobTotal > 0 && (
+              <>
+                <div
+                  className="h-full bg-emerald-400 transition-[width] duration-500"
+                  style={{ width: `${(scanJob.done / scanJobTotal) * 100}%` }}
+                />
+                <div
+                  className="h-full bg-primary transition-[width] duration-500"
+                  style={{ width: `${(scanJob.processing / scanJobTotal) * 100}%` }}
+                />
+                <div
+                  className="h-full bg-red-400 transition-[width] duration-500"
+                  style={{ width: `${(scanJob.failed / scanJobTotal) * 100}%` }}
+                />
+              </>
+            )}
+          </div>
+          <div className="flex gap-4 font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
+            <span>détectés {scanJob.detected}</span>
+            <span className="text-primary-light">en cours {scanJob.processing}</span>
+            <span className="text-emerald-400">terminés {scanJob.done}</span>
+            <span className="text-red-400">échecs {scanJob.failed}</span>
+          </div>
         </div>
       )}
 
