@@ -14,6 +14,7 @@ def list_articles(
     q: str | None = Query(None, description="Filter by article title (case-insensitive substring)"),
     category_id: int | None = Query(None, description="Restrict to magazines in this category"),
     collection_id: int | None = Query(None, description="Restrict to magazines in this collection"),
+    unassigned: bool = Query(False, description="Restrict to magazines with no collection assigned"),
     page: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
@@ -26,10 +27,12 @@ def list_articles(
     )
     if q:
         query = query.filter(Article.title.ilike(f"%{q}%"))
-    if category_id is not None:
-        query = query.filter(Collection.category_id == category_id)
-    if collection_id is not None:
+    if unassigned:
+        query = query.filter(Magazine.collection_id.is_(None))
+    elif collection_id is not None:
         query = query.filter(Magazine.collection_id == collection_id)
+    elif category_id is not None:
+        query = query.filter(Collection.category_id == category_id)
     rows = (
         query.order_by(Magazine.title, Magazine.publication_date.desc().nulls_last(), Article.start_page)
         .offset(page * limit)

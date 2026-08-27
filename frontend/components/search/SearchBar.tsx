@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import type { Category } from "@/lib/types";
+import type { Category, LibraryOverview } from "@/lib/types";
 import Icon from "@/components/ui/Icon";
 
 export interface SearchFilters {
@@ -11,6 +11,7 @@ export interface SearchFilters {
   year?: string;
   issue_number?: string;
   category_id?: string;
+  collection_id?: string;
 }
 
 export default function SearchBar({
@@ -25,11 +26,17 @@ export default function SearchBar({
   const [year, setYear] = useState(initial?.year ?? "");
   const [issueNumber, setIssueNumber] = useState(initial?.issue_number ?? "");
   const [categoryId, setCategoryId] = useState(initial?.category_id ?? "");
+  const [collectionId, setCollectionId] = useState(initial?.collection_id ?? "");
   const [categories, setCategories] = useState<Category[]>([]);
+  const [collections, setCollections] = useState<LibraryOverview["collections"]>([]);
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     api.get<Category[]>("/categories").then(setCategories).catch(() => {});
+    api
+      .get<LibraryOverview>("/collections")
+      .then((overview) => setCollections(overview.collections))
+      .catch(() => {});
   }, []);
 
   function submit(e: React.FormEvent) {
@@ -41,6 +48,7 @@ export default function SearchBar({
       year: year.trim() || undefined,
       issue_number: issueNumber.trim() || undefined,
       category_id: categoryId || undefined,
+      collection_id: collectionId || undefined,
     });
   }
 
@@ -81,6 +89,20 @@ export default function SearchBar({
             >
               <option value="">Toutes les catégories</option>
               {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          )}
+          {collections.length > 0 && (
+            <select
+              value={collectionId}
+              onChange={(e) => setCollectionId(e.target.value)}
+              className="rounded-lg border border-outline-variant bg-surface px-3 py-1.5 text-sm text-foreground"
+            >
+              <option value="">Toutes les collections</option>
+              {collections.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
