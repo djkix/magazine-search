@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
-import type { Article, Magazine } from "@/lib/types";
+import type { Article, Category, Magazine } from "@/lib/types";
 import { useUser } from "@/components/layout/UserContext";
 import Icon from "@/components/ui/Icon";
 import Button from "@/components/ui/Button";
@@ -31,6 +31,26 @@ export default function ViewerMetaPanel({
   const [retrying, setRetrying] = useState(false);
   const [editingId, setEditingId] = useState<number | "new" | null>(null);
   const [form, setForm] = useState({ title: "", start_page: "", end_page: "" });
+
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryId, setCategoryId] = useState(magazine.category_id);
+  const [categoryName, setCategoryName] = useState(magazine.category_name);
+  const [editingCategory, setEditingCategory] = useState(false);
+  const [applyToAllIssues, setApplyToAllIssues] = useState(false);
+
+  useEffect(() => {
+    if (user.is_admin) api.get<Category[]>("/admin/categories").then(setCategories).catch(() => {});
+  }, [user.is_admin]);
+
+  async function saveCategory(newCategoryId: number | null) {
+    const updated = await api.patch<Magazine>(`/admin/magazines/${magazine.id}/category`, {
+      category_id: newCategoryId,
+      apply_to_all_issues: applyToAllIssues,
+    });
+    setCategoryId(updated.category_id);
+    setCategoryName(updated.category_name);
+    setEditingCategory(false);
+  }
 
   function loadArticles() {
     api
@@ -109,6 +129,38 @@ export default function ViewerMetaPanel({
               <dd className="mt-0.5 truncate text-sm text-foreground">{row.value}</dd>
             </div>
           ))}
+          <div>
+            <dt className="font-mono text-[10px] uppercase tracking-wider text-foreground-muted">Catégorie</dt>
+            {user.is_admin && editingCategory ? (
+              <dd className="mt-1 space-y-2">
+                <select
+                  value={categoryId ?? ""}
+                  onChange={(e) => saveCategory(e.target.value ? Number(e.target.value) : null)}
+                  className="w-full rounded-lg border border-outline-variant bg-background px-2 py-1.5 text-sm text-foreground"
+                >
+                  <option value="">Aucune</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                <label className="flex items-center gap-2 text-xs text-foreground-muted">
+                  <input type="checkbox" checked={applyToAllIssues} onChange={(e) => setApplyToAllIssues(e.target.checked)} />
+                  Appliquer à tous les numéros de "{magazine.title}"
+                </label>
+              </dd>
+            ) : (
+              <dd className="mt-0.5 flex items-center gap-2 text-sm text-foreground">
+                <span className="truncate">{categoryName ?? "—"}</span>
+                {user.is_admin && (
+                  <button onClick={() => setEditingCategory(true)} className="text-foreground-muted hover:text-foreground">
+                    <Icon name="edit" className="text-sm" />
+                  </button>
+                )}
+              </dd>
+            )}
+          </div>
         </dl>
       </div>
 

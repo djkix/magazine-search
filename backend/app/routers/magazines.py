@@ -22,6 +22,13 @@ def _get_magazine_or_404(magazine_id: int, db: Session) -> Magazine:
     return magazine
 
 
+def _to_magazine_out(magazine: Magazine, page_count: int) -> MagazineOut:
+    out = MagazineOut.model_validate(magazine)
+    out.page_count = page_count
+    out.category_name = magazine.category.name if magazine.category else None
+    return out
+
+
 def _resolve_pdf_path(magazine: Magazine) -> Path:
     processed_path = Path(settings.processed_dir) / f"{magazine.id}.pdf"
     if processed_path.exists():
@@ -34,32 +41,21 @@ def list_magazines(
     page: int = Query(0, ge=0),
     limit: int = Query(30, ge=1, le=100),
     sort: str = Query("date", pattern="^(date|added)$"),
+    category_id: int | None = Query(None, description="Restrict to magazines in this category"),
     db: Session = Depends(get_db),
 ):
     order = Magazine.created_at.desc() if sort == "added" else Magazine.publication_date.desc().nulls_last()
-    rows = (
-        db.query(Magazine, func.count(Page.id))
-        .outerjoin(Page, Page.magazine_id == Magazine.id)
-        .group_by(Magazine.id)
-        .order_by(order, Magazine.title)
-        .offset(page * limit)
-        .limit(limit)
-        .all()
-    )
-    results = []
-    for magazine, page_count in rows:
-        out = MagazineOut.model_validate(magazine)
-        out.page_count = page_count
-        results.append(out)
-    return results
+    query = db.query(Magazine, func.count(Page.id)).outerjoin(Page, Page.magazine_id == Magazine.id)
+    if category_id is not None:
+        query = query.filter(Magazine.category_id == category_id)
+    rows = query.group_by(Magazine.id).order_by(order, Magazine.title).offset(page * limit).limit(limit).all()
+    return [_to_magazine_out(magazine, page_count) for magazine, page_count in rows]
 
 
 @router.get("/{magazine_id}", response_model=MagazineOut)
 def get_magazine(magazine_id: int, db: Session = Depends(get_db)):
     magazine = _get_magazine_or_404(magazine_id, db)
-    out = MagazineOut.model_validate(magazine)
-    out.page_count = len(magazine.pages)
-    return out
+    return _to_magazine_out(magazine, len(magazine.pages))
 
 
 @router.get("/{magazine_id}/articles", response_model=list[ArticleOut])

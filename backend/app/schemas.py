@@ -86,9 +86,31 @@ class MagazineOut(BaseModel):
     error_message: str | None = None
     toc_status: OcrStatus
     toc_error_message: str | None = None
+    category_id: int | None = None
+    category_name: str | None = None
     created_at: datetime
     file_size: int
     page_count: int = 0
+
+
+class CategoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+
+
+class CategoryCreate(BaseModel):
+    name: str
+
+
+class CategoryUpdate(BaseModel):
+    name: str
+
+
+class MagazineCategoryUpdate(BaseModel):
+    category_id: int | None
+    apply_to_all_issues: bool = False
 
 
 class ArticleOut(BaseModel):
@@ -104,6 +126,8 @@ class ArticleOut(BaseModel):
 class ArticleWithMagazine(ArticleOut):
     magazine_title: str
     magazine_issue_number: str | None = None
+    category_id: int | None = None
+    category_name: str | None = None
 
 
 class ArticleCreate(BaseModel):
