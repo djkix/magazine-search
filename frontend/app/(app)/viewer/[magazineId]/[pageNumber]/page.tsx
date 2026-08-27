@@ -28,7 +28,12 @@ function ViewerContent() {
   const initialQuery = searchParams.get("q") ?? "";
 
   const [magazine, setMagazine] = useState<Magazine | null>(null);
+  // pageNumber is the jump target PdfViewer scrolls to (URL-driven, changed
+  // only by explicit navigation). displayPage is what the toolbar shows and
+  // tracks free-scroll position too - keeping them separate means a scroll
+  // update never re-triggers PdfViewer's scrollIntoView on itself.
   const [pageNumber, setPageNumber] = useState(urlPageNumber);
+  const [displayPage, setDisplayPage] = useState(urlPageNumber);
   const [pageCount, setPageCount] = useState<number | null>(null);
   const [zoom, setZoom] = useState(1);
   const [highlightWords, setHighlightWords] = useState<WordBox[]>([]);
@@ -39,6 +44,7 @@ function ViewerContent() {
   // goToPage() / handleSelectHit() so a hit click isn't wiped by this effect.
   useEffect(() => {
     setPageNumber(urlPageNumber);
+    setDisplayPage(urlPageNumber);
   }, [urlPageNumber]);
 
   useEffect(() => {
@@ -65,12 +71,12 @@ function ViewerContent() {
   const handleSelectHit = useCallback(
     (hit: SearchHit) => {
       setHighlightWords(hit.words);
-      if (hit.page_number !== pageNumber) {
+      if (hit.page_number !== displayPage) {
         router.push(`/viewer/${magazineId}/${hit.page_number}${queryString}`);
       }
       setMobilePanel(null);
     },
-    [magazineId, pageNumber, router, queryString]
+    [magazineId, displayPage, router, queryString]
   );
 
   if (error) return <div className="p-8 text-sm text-red-400">{error}</div>;
@@ -82,13 +88,13 @@ function ViewerContent() {
     <div className="flex h-screen flex-col">
       <ViewerToolbar
         title={magazine.title}
-        pageNumber={pageNumber}
+        pageNumber={displayPage}
         pageCount={effectivePageCount}
         zoom={zoom}
         onZoomIn={() => setZoom((z) => Math.min(2.5, +(z + 0.25).toFixed(2)))}
         onZoomOut={() => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))}
-        onPrev={() => goToPage(pageNumber - 1)}
-        onNext={() => goToPage(pageNumber + 1)}
+        onPrev={() => goToPage(displayPage - 1)}
+        onNext={() => goToPage(displayPage + 1)}
         downloadHref={fileUrl(`/magazines/${magazineId}/download`)}
       />
 
@@ -97,7 +103,7 @@ function ViewerContent() {
           <ViewerSearchPanel
             magazineId={magazineId}
             initialQuery={initialQuery}
-            currentPage={pageNumber}
+            currentPage={displayPage}
             onSelectHit={handleSelectHit}
           />
         </aside>
@@ -109,6 +115,7 @@ function ViewerContent() {
             zoom={zoom}
             highlightWords={highlightWords}
             onPageCount={setPageCount}
+            onVisiblePageChange={setDisplayPage}
           />
         </div>
 
@@ -118,10 +125,10 @@ function ViewerContent() {
       </div>
 
       <ViewerMobileNav
-        pageNumber={pageNumber}
+        pageNumber={displayPage}
         pageCount={effectivePageCount}
-        onPrev={() => goToPage(pageNumber - 1)}
-        onNext={() => goToPage(pageNumber + 1)}
+        onPrev={() => goToPage(displayPage - 1)}
+        onNext={() => goToPage(displayPage + 1)}
         activePanel={mobilePanel}
         onTogglePanel={(panel) => setMobilePanel((p) => (p === panel ? null : panel))}
       >
@@ -129,7 +136,7 @@ function ViewerContent() {
           <ViewerSearchPanel
             magazineId={magazineId}
             initialQuery={initialQuery}
-            currentPage={pageNumber}
+            currentPage={displayPage}
             onSelectHit={handleSelectHit}
           />
         )}

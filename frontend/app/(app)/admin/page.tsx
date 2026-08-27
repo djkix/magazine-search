@@ -13,6 +13,7 @@ export default function AdminDashboardPage() {
   const [scanJob, setScanJob] = useState<ScanStatusResponse | null>(null);
   const [scanning, setScanning] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [reprocessingId, setReprocessingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -53,6 +54,19 @@ export default function AdminDashboardPage() {
       setError(err instanceof ApiError ? err.message : "Erreur lors de la relance");
     } finally {
       setRetrying(false);
+    }
+  }
+
+  async function reprocessMagazine(magazineId: number) {
+    setReprocessingId(magazineId);
+    setError(null);
+    try {
+      await api.post(`/admin/magazines/${magazineId}/reprocess`);
+      loadStats();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erreur lors de la relance");
+    } finally {
+      setReprocessingId(null);
     }
   }
 
@@ -125,6 +139,7 @@ export default function AdminDashboardPage() {
                 <th className="px-4 py-3">Titre</th>
                 <th className="px-4 py-3">Ajouté le</th>
                 <th className="px-4 py-3">Statut</th>
+                <th className="px-4 py-3">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant">
@@ -137,11 +152,20 @@ export default function AdminDashboardPage() {
                   <td className="px-4 py-3">
                     <StatusBadge status={m.scan_status} />
                   </td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => reprocessMagazine(m.id)}
+                      disabled={reprocessingId === m.id}
+                      className="text-xs text-primary-light hover:underline disabled:opacity-50"
+                    >
+                      {reprocessingId === m.id ? "Relance..." : "Relancer"}
+                    </button>
+                  </td>
                 </tr>
               ))}
               {stats && stats.recent.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="px-4 py-8 text-center text-foreground-muted">
+                  <td colSpan={4} className="px-4 py-8 text-center text-foreground-muted">
                     Aucun scan effectué pour le moment.
                   </td>
                 </tr>

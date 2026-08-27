@@ -10,6 +10,7 @@ interface PdfViewerProps {
   zoom: number;
   highlightWords: WordBox[];
   onPageCount?: (count: number) => void;
+  onVisiblePageChange?: (page: number) => void;
 }
 
 interface PageSize {
@@ -33,7 +34,7 @@ function PdfPage({
   registerNode: (pageNumber: number, node: HTMLDivElement | null) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState<PageSize | null>(null);
   const [visible, setVisible] = useState(false);
 
@@ -112,7 +113,14 @@ function PdfPage({
   );
 }
 
-export default function PdfViewer({ fileUrl, pageNumber, zoom, highlightWords, onPageCount }: PdfViewerProps) {
+export default function PdfViewer({
+  fileUrl,
+  pageNumber,
+  zoom,
+  highlightWords,
+  onPageCount,
+  onVisiblePageChange,
+}: PdfViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const pageNodesRef = useRef<Map<number, HTMLDivElement>>(new Map());
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null);
@@ -176,6 +184,26 @@ export default function PdfViewer({ fileUrl, pageNumber, zoom, highlightWords, o
     target?.scrollIntoView({ behavior: "smooth", block: "start" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageNumber, loading]);
+
+  // Track which page is centered in the viewport during free scrolling, so
+  // the toolbar's page counter stays accurate even without an explicit jump.
+  useEffect(() => {
+    if (loading || !containerRef.current || !onVisiblePageChange) return;
+    const root = containerRef.current;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting);
+        if (visible.length === 0) return;
+        const topMost = visible.reduce((a, b) => (a.boundingClientRect.top < b.boundingClientRect.top ? a : b));
+        const page = Number((topMost.target as HTMLElement).dataset.pageNumber);
+        if (page) onVisiblePageChange(page);
+      },
+      { root, rootMargin: "-45% 0px -45% 0px", threshold: 0 }
+    );
+    pageNodesRef.current.forEach((node) => observer.observe(node));
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, numPages]);
 
   return (
     <div ref={containerRef} className="h-full w-full overflow-auto p-6 text-center">
