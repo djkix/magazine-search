@@ -22,7 +22,7 @@ def _refresh_table_of_contents(db, magazine: Magazine, last_page_number: int) ->
         db.commit()
 
         pages = db.query(Page).filter(Page.magazine_id == magazine.id).order_by(Page.page_number).all()
-        entries = sorted(extract_toc(magazine, pages), key=lambda e: e["start_page"])
+        entries = sorted(extract_toc(db, magazine, pages), key=lambda e: e["start_page"])
 
         db.query(Article).filter(Article.magazine_id == magazine.id).delete()
         for i, entry in enumerate(entries):

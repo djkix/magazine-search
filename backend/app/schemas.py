@@ -147,6 +147,20 @@ class LogEntry(BaseModel):
     component: str
 
 
+class GeminiModelOption(BaseModel):
+    id: str
+    label: str
+
+
+class GeminiSettingsResponse(BaseModel):
+    model: str
+    available_models: list[GeminiModelOption]
+
+
+class GeminiSettingsUpdate(BaseModel):
+    model: str
+
+
 class AdminStatsResponse(BaseModel):
     total: int
     done: int

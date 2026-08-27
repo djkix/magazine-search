@@ -9,6 +9,7 @@ const TABS = [
   { href: "/admin", label: "Tableau de bord" },
   { href: "/admin/users", label: "Utilisateurs" },
   { href: "/admin/logs", label: "Logs" },
+  { href: "/admin/settings", label: "Réglages" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
