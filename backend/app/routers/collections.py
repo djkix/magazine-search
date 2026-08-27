@@ -3,21 +3,51 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Collection
-from app.schemas import CollectionOut
+from app.models import Collection, Magazine
+from app.schemas import CollectionSummary, LibraryOverview
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
-@router.get("", response_model=list[CollectionOut])
-def list_collections(db: Session = Depends(get_db)):
+def _summarize(magazines: list[Magazine]) -> tuple[int, int | None]:
+    cover = next((m.id for m in magazines if m.cover_thumbnail_path), None)
+    return len(magazines), cover
+
+
+@router.get("", response_model=LibraryOverview)
+def library_overview(db: Session = Depends(get_db)):
+    """Level-1 view of the library: every collection with its magazine count
+    and a representative cover, plus a bucket for magazines not yet assigned
+    to any collection."""
     collections = db.query(Collection).order_by(Collection.name).all()
-    return [
-        CollectionOut(
-            id=c.id,
-            name=c.name,
-            category_id=c.category_id,
-            category_name=c.category.name if c.category else None,
+    magazines = (
+        db.query(Magazine)
+        .order_by(Magazine.publication_date.desc().nulls_last(), Magazine.created_at.desc())
+        .all()
+    )
+
+    by_collection: dict[int | None, list[Magazine]] = {}
+    for magazine in magazines:
+        by_collection.setdefault(magazine.collection_id, []).append(magazine)
+
+    summaries = []
+    for collection in collections:
+        count, cover_id = _summarize(by_collection.get(collection.id, []))
+        summaries.append(
+            CollectionSummary(
+                id=collection.id,
+                name=collection.name,
+                category_id=collection.category_id,
+                category_name=collection.category.name if collection.category else None,
+                magazine_count=count,
+                cover_magazine_id=cover_id,
+            )
         )
-        for c in collections
-    ]
+
+    unassigned_count, unassigned_cover = _summarize(by_collection.get(None, []))
+
+    return LibraryOverview(
+        collections=summaries,
+        unassigned_count=unassigned_count,
+        unassigned_cover_magazine_id=unassigned_cover,
+    )

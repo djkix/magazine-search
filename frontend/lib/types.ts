@@ -63,6 +63,17 @@ export interface Collection {
   category_name: string | null;
 }
 
+export interface CollectionSummary extends Collection {
+  magazine_count: number;
+  cover_magazine_id: number | null;
+}
+
+export interface LibraryOverview {
+  collections: CollectionSummary[];
+  unassigned_count: number;
+  unassigned_cover_magazine_id: number | null;
+}
+
 export interface GeminiModelOption {
   id: string;
   label: string;

@@ -119,6 +119,17 @@ class CollectionOut(BaseModel):
     category_name: str | None = None
 
 
+class CollectionSummary(CollectionOut):
+    magazine_count: int
+    cover_magazine_id: int | None = None
+
+
+class LibraryOverview(BaseModel):
+    collections: list[CollectionSummary]
+    unassigned_count: int
+    unassigned_cover_magazine_id: int | None = None
+
+
 class CollectionCreate(BaseModel):
     name: str
     category_id: int | None = None
