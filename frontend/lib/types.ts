@@ -71,6 +71,10 @@ export interface ScanStatusResponse {
   finished: boolean;
 }
 
+export interface RetryFailedResponse {
+  retried: number;
+}
+
 export interface AdminStats {
   total: number;
   done: number;
