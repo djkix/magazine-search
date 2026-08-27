@@ -22,8 +22,6 @@ export default function AdminSettingsPage() {
   const [reindexMessage, setReindexMessage] = useState<string | null>(null);
 
   const [collections, setCollections] = useState<Collection[]>([]);
-  const [newCollection, setNewCollection] = useState("");
-  const [newCollectionCategoryId, setNewCollectionCategoryId] = useState("");
   const [editingCollectionId, setEditingCollectionId] = useState<number | null>(null);
   const [editingCollectionName, setEditingCollectionName] = useState("");
   const [collectionError, setCollectionError] = useState<string | null>(null);
@@ -83,22 +81,6 @@ export default function AdminSettingsPage() {
     if (!window.confirm("Supprimer cette catégorie ? Les magazines associés ne seront plus catégorisés.")) return;
     await api.delete(`/admin/categories/${id}`);
     loadCategories();
-  }
-
-  async function createCollection() {
-    if (!newCollection.trim()) return;
-    setCollectionError(null);
-    try {
-      await api.post("/admin/collections", {
-        name: newCollection.trim(),
-        category_id: newCollectionCategoryId ? Number(newCollectionCategoryId) : null,
-      });
-      setNewCollection("");
-      setNewCollectionCategoryId("");
-      loadCollections();
-    } catch (err) {
-      setCollectionError(err instanceof ApiError ? err.message : "Erreur");
-    }
   }
 
   async function saveCollection(id: number) {
@@ -270,8 +252,9 @@ export default function AdminSettingsPage() {
         <div>
           <p className="text-sm font-medium text-foreground">Collections</p>
           <p className="mt-1 text-xs text-foreground-muted">
-            Un titre de magazine (ex: "Que Choisir") regroupant tous ses numéros. Rattache chaque collection à une
-            catégorie pour que ses numéros soient inclus dans les recherches filtrées sur cette catégorie.
+            Créées automatiquement au scan (une collection par répertoire du NAS, ex: "Que Choisir"). Rattache
+            chaque collection à une catégorie pour que ses numéros soient inclus dans les recherches filtrées sur
+            cette catégorie.
           </p>
         </div>
 
@@ -326,31 +309,9 @@ export default function AdminSettingsPage() {
             </li>
           ))}
         </ul>
-
-        <div className="flex gap-2 pt-2">
-          <input
-            value={newCollection}
-            onChange={(e) => setNewCollection(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && createCollection()}
-            placeholder="Nouvelle collection..."
-            className="min-w-0 flex-1 rounded-lg border border-outline-variant bg-background px-3 py-2 text-sm text-foreground"
-          />
-          <select
-            value={newCollectionCategoryId}
-            onChange={(e) => setNewCollectionCategoryId(e.target.value)}
-            className="shrink-0 rounded-lg border border-outline-variant bg-background px-2 py-2 text-sm text-foreground"
-          >
-            <option value="">Aucune catégorie</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.name}
-              </option>
-            ))}
-          </select>
-          <Button onClick={createCollection} disabled={!newCollection.trim()} variant="secondary">
-            Ajouter
-          </Button>
-        </div>
+        {collections.length === 0 && (
+          <p className="text-sm text-foreground-muted">Aucune collection pour le moment — elles apparaissent après un scan du NAS.</p>
+        )}
       </div>
 
       <div className="space-y-3 rounded-xl border border-outline-variant bg-surface/60 p-6">

@@ -20,7 +20,6 @@ from app.schemas import (
     GeminiSettingsResponse,
     GeminiSettingsUpdate,
     LogEntry,
-    MagazineCollectionUpdate,
     MagazineOut,
     PasswordReset,
     RetryFailedResponse,
@@ -30,7 +29,6 @@ from app.schemas import (
     UserOut,
     UserUpdate,
 )
-from app.routers.magazines import _to_magazine_out
 from app.security import hash_password
 from app.services.logs import read_logs
 from app.services.scan import get_scan_job_magazine_ids, run_scan
@@ -382,27 +380,6 @@ def delete_collection(collection_id: int, db: Session = Depends(get_db)):
     db.commit()
     for magazine_id in magazine_ids:
         ingestion_queue.enqueue(reindex_magazine, magazine_id, job_timeout="10m")
-
-
-@router.patch("/magazines/{magazine_id}/collection", response_model=MagazineOut)
-def set_magazine_collection(magazine_id: int, payload: MagazineCollectionUpdate, db: Session = Depends(get_db)):
-    magazine = db.get(Magazine, magazine_id)
-    if not magazine:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Magazine not found")
-    if payload.collection_id is not None and not db.get(Collection, payload.collection_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
-
-    targets = [magazine]
-    if payload.apply_to_all_issues:
-        targets = db.query(Magazine).filter(Magazine.title == magazine.title).all()
-
-    for target in targets:
-        target.collection_id = payload.collection_id
-    db.commit()
-    for target in targets:
-        ingestion_queue.enqueue(reindex_magazine, target.id, job_timeout="10m")
-    db.refresh(magazine)
-    return _to_magazine_out(magazine, len(magazine.pages))
 
 
 @router.post("/search-index/reindex-all")
