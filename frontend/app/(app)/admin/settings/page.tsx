@@ -20,6 +20,7 @@ export default function AdminSettingsPage() {
   const [categoryError, setCategoryError] = useState<string | null>(null);
   const [reindexing, setReindexing] = useState(false);
   const [reindexMessage, setReindexMessage] = useState<string | null>(null);
+  const [backfilling, setBackfilling] = useState(false);
 
   const [collections, setCollections] = useState<Collection[]>([]);
   const [editingCollectionId, setEditingCollectionId] = useState<number | null>(null);
@@ -119,6 +120,20 @@ export default function AdminSettingsPage() {
       setCategoryError(err instanceof ApiError ? err.message : "Erreur");
     } finally {
       setReindexing(false);
+    }
+  }
+
+  async function backfillCollections() {
+    setBackfilling(true);
+    setReindexMessage(null);
+    try {
+      const data = await api.post<{ updated: number }>("/admin/collections/backfill");
+      setReindexMessage(`${data.updated} magazine(s) rattaché(s) à une collection.`);
+      loadCollections();
+    } catch (err) {
+      setCollectionError(err instanceof ApiError ? err.message : "Erreur");
+    } finally {
+      setBackfilling(false);
     }
   }
 
@@ -323,10 +338,16 @@ export default function AdminSettingsPage() {
           </p>
         </div>
         {reindexMessage && <p className="text-sm text-emerald-400">{reindexMessage}</p>}
-        <Button onClick={reindexAll} disabled={reindexing} variant="secondary">
-          <Icon name="sync" className={reindexing ? "animate-spin" : ""} />
-          {reindexing ? "Lancement..." : "Réindexer tous les magazines"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={backfillCollections} disabled={backfilling} variant="secondary">
+            <Icon name="folder_copy" className={backfilling ? "animate-spin" : ""} />
+            {backfilling ? "Lancement..." : "Rattacher les magazines existants à leur collection"}
+          </Button>
+          <Button onClick={reindexAll} disabled={reindexing} variant="secondary">
+            <Icon name="sync" className={reindexing ? "animate-spin" : ""} />
+            {reindexing ? "Lancement..." : "Réindexer tous les magazines"}
+          </Button>
+        </div>
       </div>
     </div>
   );

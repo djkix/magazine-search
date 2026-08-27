@@ -31,7 +31,7 @@ from app.schemas import (
 )
 from app.security import hash_password
 from app.services.logs import read_logs
-from app.services.scan import get_scan_job_magazine_ids, run_scan
+from app.services.scan import backfill_collections, get_latest_scan_job_id, get_scan_job_magazine_ids, run_scan
 from app.services.toc import AVAILABLE_GEMINI_MODELS, get_gemini_model, set_gemini_model
 from app.worker.tasks import process_magazine, reindex_magazine, retry_toc
 
@@ -140,6 +140,13 @@ def reprocess_magazine(magazine_id: int, db: Session = Depends(get_db)):
     db.commit()
     ingestion_queue.enqueue(process_magazine, magazine_id, job_timeout="30m")
     return {"status": "queued"}
+
+
+@router.get("/scan/current")
+def current_scan():
+    """The most recently triggered scan's job id, if any, so the dashboard can
+    resume showing its progress after a page reload."""
+    return {"job_id": get_latest_scan_job_id()}
 
 
 @router.get("/scan/{job_id}/status", response_model=ScanStatusResponse)
@@ -391,3 +398,18 @@ def reindex_all(db: Session = Depends(get_db)):
     for magazine_id in magazine_ids:
         ingestion_queue.enqueue(reindex_magazine, magazine_id, job_timeout="10m")
     return {"enqueued": len(magazine_ids)}
+
+
+@router.post("/collections/backfill")
+def backfill_collections_endpoint(db: Session = Depends(get_db)):
+    """Assign a collection to magazines scanned before collections were
+    derived automatically from the NAS directory structure."""
+    updated_ids = backfill_collections(db)
+    done_ids = {
+        m.id
+        for m in db.query(Magazine.id).filter(Magazine.scan_status == ScanStatus.done, Magazine.id.in_(updated_ids)).all()
+    }
+    for magazine_id in updated_ids:
+        if magazine_id in done_ids:
+            ingestion_queue.enqueue(reindex_magazine, magazine_id, job_timeout="10m")
+    return {"updated": len(updated_ids)}
