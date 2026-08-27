@@ -33,11 +33,17 @@ export default function LibraryPage() {
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {overview?.collections.map((c) => (
-          <CollectionCard key={c.id} id={c.id} name={c.name} count={c.magazine_count} coverMagazineId={c.cover_magazine_id} />
+          <CollectionCard
+            key={c.id}
+            href={`/library/collection/${c.id}`}
+            name={c.name}
+            count={c.magazine_count}
+            coverMagazineId={c.cover_magazine_id}
+          />
         ))}
         {overview && overview.unassigned_count > 0 && (
           <CollectionCard
-            id="none"
+            href="/library/collection/none"
             name="Sans collection"
             count={overview.unassigned_count}
             coverMagazineId={overview.unassigned_cover_magazine_id}
