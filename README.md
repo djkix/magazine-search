@@ -75,6 +75,7 @@ Un `docker-compose.yml` complet est le moyen recommandé de lancer l'ensemble de
 - Le workflow `Build and publish images` calcule le numéro de version à partir du tag Git de la release et le publie :
   - comme tag d'image Docker sur GHCR (`ghcr.io/<user>/<repo>-backend:<version>`, `...-frontend:<version>`, en plus de `:latest`) ;
   - comme variable d'environnement de build `NEXT_PUBLIC_APP_VERSION` du frontend, affichée dans l'interface (sidebar, sous le logo) — pratique pour vérifier en un coup d'œil quelle version tourne sur un déploiement donné.
+- L'historique complet des changements par version est dans [`CHANGELOG.md`](./CHANGELOG.md), généré et mis à jour automatiquement par `release-please` à chaque release.
 
 ## Hors scope V1
 
