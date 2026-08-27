@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
-import type { Magazine } from "@/lib/types";
+import type { Category, Magazine } from "@/lib/types";
 import PageContainer from "@/components/layout/PageContainer";
 import MagazineCard from "@/components/library/MagazineCard";
 
@@ -10,14 +10,22 @@ const PAGE_SIZE = 24;
 
 export default function LibraryPage() {
   const [items, setItems] = useState<Magazine[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryId, setCategoryId] = useState("");
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    api.get<Category[]>("/categories").then(setCategories).catch(() => {});
+  }, []);
+
   async function loadPage(targetPage: number) {
     setLoading(true);
     try {
-      const data = await api.get<Magazine[]>(`/magazines?page=${targetPage}&limit=${PAGE_SIZE}`);
+      const params = new URLSearchParams({ page: String(targetPage), limit: String(PAGE_SIZE) });
+      if (categoryId) params.set("category_id", categoryId);
+      const data = await api.get<Magazine[]>(`/magazines?${params.toString()}`);
       setItems((prev) => (targetPage === 0 ? data : [...prev, ...data]));
       setHasMore(data.length === PAGE_SIZE);
       setPage(targetPage);
@@ -31,11 +39,27 @@ export default function LibraryPage() {
   useEffect(() => {
     loadPage(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [categoryId]);
 
   return (
     <PageContainer>
-      <h1 className="mb-6 text-2xl font-semibold text-foreground">Bibliothèque</h1>
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-2xl font-semibold text-foreground">Bibliothèque</h1>
+        {categories.length > 0 && (
+          <select
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+            className="rounded-xl border border-outline-variant bg-surface px-3 py-2 text-sm text-foreground"
+          >
+            <option value="">Toutes les catégories</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
 
       {items.length === 0 && !loading && <p className="text-sm text-foreground-muted">Aucun magazine indexé pour le moment.</p>}
 

@@ -4,16 +4,20 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_admin
-from app.models import Article, Magazine, OcrStatus, Page, ScanStatus, User
+from app.models import Article, Category, Magazine, OcrStatus, Page, ScanStatus, User
 from app.queue import ingestion_queue
 from app.schemas import (
     AdminStatsResponse,
     ArticleCreate,
     ArticleOut,
     ArticleUpdate,
+    CategoryCreate,
+    CategoryOut,
+    CategoryUpdate,
     GeminiSettingsResponse,
     GeminiSettingsUpdate,
     LogEntry,
+    MagazineCategoryUpdate,
     MagazineOut,
     PasswordReset,
     RetryFailedResponse,
@@ -23,6 +27,7 @@ from app.schemas import (
     UserOut,
     UserUpdate,
 )
+from app.routers.magazines import _to_magazine_out
 from app.security import hash_password
 from app.services.logs import read_logs
 from app.services.scan import get_scan_job_magazine_ids, run_scan
@@ -269,3 +274,61 @@ def get_gemini_settings(db: Session = Depends(get_db)):
 def update_gemini_settings(payload: GeminiSettingsUpdate, db: Session = Depends(get_db)):
     set_gemini_model(db, payload.model)
     return GeminiSettingsResponse(model=get_gemini_model(db), available_models=AVAILABLE_GEMINI_MODELS)
+
+
+# ---- Categories ----
+
+
+@router.get("/categories", response_model=list[CategoryOut])
+def list_categories(db: Session = Depends(get_db)):
+    return db.query(Category).order_by(Category.name).all()
+
+
+@router.post("/categories", response_model=CategoryOut, status_code=status.HTTP_201_CREATED)
+def create_category(payload: CategoryCreate, db: Session = Depends(get_db)):
+    if db.query(Category).filter(Category.name == payload.name).first():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Category already exists")
+    category = Category(name=payload.name)
+    db.add(category)
+    db.commit()
+    db.refresh(category)
+    return category
+
+
+@router.patch("/categories/{category_id}", response_model=CategoryOut)
+def update_category(category_id: int, payload: CategoryUpdate, db: Session = Depends(get_db)):
+    category = db.get(Category, category_id)
+    if not category:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    category.name = payload.name
+    db.commit()
+    db.refresh(category)
+    return category
+
+
+@router.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_category(category_id: int, db: Session = Depends(get_db)):
+    category = db.get(Category, category_id)
+    if not category:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    db.delete(category)
+    db.commit()
+
+
+@router.patch("/magazines/{magazine_id}/category", response_model=MagazineOut)
+def set_magazine_category(magazine_id: int, payload: MagazineCategoryUpdate, db: Session = Depends(get_db)):
+    magazine = db.get(Magazine, magazine_id)
+    if not magazine:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Magazine not found")
+    if payload.category_id is not None and not db.get(Category, payload.category_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+
+    targets = [magazine]
+    if payload.apply_to_all_issues:
+        targets = db.query(Magazine).filter(Magazine.title == magazine.title).all()
+
+    for target in targets:
+        target.category_id = payload.category_id
+    db.commit()
+    db.refresh(magazine)
+    return _to_magazine_out(magazine, len(magazine.pages))

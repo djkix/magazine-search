@@ -1,5 +1,6 @@
 import enum
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import (
     JSON,
@@ -78,12 +79,17 @@ class Magazine(Base):
     )
     toc_error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    category_id: Mapped[int | None] = mapped_column(
+        ForeignKey("categories.id", ondelete="SET NULL"), nullable=True
+    )
+
     pages: Mapped[list["Page"]] = relationship(
         "Page", back_populates="magazine", cascade="all, delete-orphan", order_by="Page.page_number"
     )
     articles: Mapped[list["Article"]] = relationship(
         "Article", back_populates="magazine", cascade="all, delete-orphan", order_by="Article.start_page"
     )
+    category: Mapped[Optional["Category"]] = relationship("Category", back_populates="magazines")
 
 
 class Page(Base):
@@ -118,6 +124,20 @@ class Article(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     magazine: Mapped["Magazine"] = relationship("Magazine", back_populates="articles")
+
+
+class Category(Base):
+    """Admin-defined grouping of magazines by theme (e.g. "Étude produit"),
+    used to scope the sommaires view and library browsing to a subset of
+    titles instead of the whole collection."""
+
+    __tablename__ = "categories"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    magazines: Mapped[list["Magazine"]] = relationship("Magazine", back_populates="category")
 
 
 class Setting(Base):

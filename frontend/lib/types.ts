@@ -27,6 +27,8 @@ export interface Magazine {
   error_message: string | null;
   toc_status: "pending" | "processing" | "done" | "failed";
   toc_error_message: string | null;
+  category_id: number | null;
+  category_name: string | null;
   created_at: string;
   file_size: number;
   page_count: number;
@@ -43,6 +45,13 @@ export interface Article {
 export interface ArticleWithMagazine extends Article {
   magazine_title: string;
   magazine_issue_number: string | null;
+  category_id: number | null;
+  category_name: string | null;
+}
+
+export interface Category {
+  id: number;
+  name: string;
 }
 
 export interface GeminiModelOption {
