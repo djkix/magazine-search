@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/djkix/magazine-search/compare/v0.3.1...v0.4.0) (2026-08-27)
+
+
+### Features
+
+* add a retry button for magazines that failed processing ([9ff9fc3](https://github.com/djkix/magazine-search/commit/9ff9fc3a2b33fb7a83e3ee683036f5f655f057cb))
+
+
+### Bug Fixes
+
+* stop NAS_MOUNT_PATH host value leaking into the container ([b1a7ff5](https://github.com/djkix/magazine-search/commit/b1a7ff532bf95cbb3fb5ac3c79941dbcc0989112))
+
 ## [0.3.1](https://github.com/djkix/magazine-search/compare/v0.3.0...v0.3.1) (2026-08-26)
 
 
