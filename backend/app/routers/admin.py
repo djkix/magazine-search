@@ -122,6 +122,20 @@ def retry_failed(db: Session = Depends(get_db)):
     return RetryFailedResponse(retried=len(failed))
 
 
+@router.post("/magazines/{magazine_id}/reprocess")
+def reprocess_magazine(magazine_id: int, db: Session = Depends(get_db)):
+    """Force a full re-run (OCR + indexing + TOC extraction) of an already-processed
+    magazine, e.g. to pick up a feature added after it was first ingested."""
+    magazine = db.get(Magazine, magazine_id)
+    if not magazine:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Magazine not found")
+    magazine.scan_status = ScanStatus.queued
+    magazine.error_message = None
+    db.commit()
+    ingestion_queue.enqueue(process_magazine, magazine_id, job_timeout="30m")
+    return {"status": "queued"}
+
+
 @router.get("/scan/{job_id}/status", response_model=ScanStatusResponse)
 def scan_status(job_id: str, db: Session = Depends(get_db)):
     magazine_ids = get_scan_job_magazine_ids(job_id)
