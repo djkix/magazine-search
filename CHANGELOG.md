@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.5.0](https://github.com/djkix/magazine-search/compare/v0.4.0...v0.5.0) (2026-08-27)
+
+
+### Features
+
+* add a progress bar to the admin dashboard scan job status ([dfa355c](https://github.com/djkix/magazine-search/commit/dfa355cf224d79263b66223016c9fd3a6399af50))
+* add an admin Logs page with level/component filters and rotation ([e96adf0](https://github.com/djkix/magazine-search/commit/e96adf095fb46427b405355ba5bece3cbdf31334))
+* derive collections automatically from the NAS directory structure ([7afe086](https://github.com/djkix/magazine-search/commit/7afe08696a5207642463d736dff428b4378e5917))
+* extract per-magazine table of contents via Gemini ([43b8c3d](https://github.com/djkix/magazine-search/commit/43b8c3df4d5d3d0f2bf6414f825bf86a8a962dcb))
+* group magazines by category (theme) across sommaires and library ([2255a50](https://github.com/djkix/magazine-search/commit/2255a5084c6cf6b1f959c7b3cbcad4e7c5c56b4c))
+* publish images directly on push to main, cap worker CPU/memory ([56ac8e6](https://github.com/djkix/magazine-search/commit/56ac8e68103cae9eea15d502c7776b1fc0e0d9cf))
+* restructure categories into a two-level category/collection hierarchy ([36dfea0](https://github.com/djkix/magazine-search/commit/36dfea04bafe53ecc93aeb1b025927a2d1881fb7))
+* search filter by collection, rank results by magazine relevance and recency ([674f9f6](https://github.com/djkix/magazine-search/commit/674f9f61ed1d150fca44f7d872ab044b7e1a6549))
+* two-level library view grouped by collection ([a1e6693](https://github.com/djkix/magazine-search/commit/a1e6693c9bda923c9c0743be062336ed94d6556a))
+* two-level sommaires view grouped by collection ([c67a1b8](https://github.com/djkix/magazine-search/commit/c67a1b88459d1d02dfa8d626ca3169c3fdda482a))
+* wire category filtering into full-text search ([9080dea](https://github.com/djkix/magazine-search/commit/9080dea6591640e038bab7d59f551c7ef8a300b4))
+
+
+### Bug Fixes
+
+* bump pydantic to satisfy google-genai's dependency constraint ([526153c](https://github.com/djkix/magazine-search/commit/526153c058ddc483fb360ff5de7c1ad2b86edb7a))
+* capture uvicorn logs, add Gemini model picker, restore version badge, continuous-scroll viewer ([3787fb9](https://github.com/djkix/magazine-search/commit/3787fb90d9d62a9d94f2d0844d1fa6b523ee8c0e))
+* pin pikepdf&lt;10 and preserve search query across viewer navigation ([60c42a0](https://github.com/djkix/magazine-search/commit/60c42a05a206c298eb567d9d75042b7f9b06cad6))
+* show the last real release version instead of dev-&lt;sha&gt; in the UI ([cc5b873](https://github.com/djkix/magazine-search/commit/cc5b873da991443cd961af9c46f706eb9200ac82))
+* TS build error in PdfViewer, sync page counter to scroll, add reprocess action ([976466a](https://github.com/djkix/magazine-search/commit/976466a755abe98bd14886d1215c22136ae9c974))
+
 ## [0.4.0](https://github.com/djkix/magazine-search/compare/v0.3.1...v0.4.0) (2026-08-27)
 
 
