@@ -47,16 +47,19 @@ def list_magazines(
     sort: str = Query("date", pattern="^(date|added)$"),
     category_id: int | None = Query(None, description="Restrict to magazines in this category"),
     collection_id: int | None = Query(None, description="Restrict to magazines in this collection"),
+    unassigned: bool = Query(False, description="Restrict to magazines with no collection assigned"),
     db: Session = Depends(get_db),
 ):
     order = Magazine.created_at.desc() if sort == "added" else Magazine.publication_date.desc().nulls_last()
     query = db.query(Magazine, func.count(Page.id)).outerjoin(Page, Page.magazine_id == Magazine.id)
-    if category_id is not None:
+    if unassigned:
+        query = query.filter(Magazine.collection_id.is_(None))
+    elif collection_id is not None:
+        query = query.filter(Magazine.collection_id == collection_id)
+    elif category_id is not None:
         query = query.join(Collection, Collection.id == Magazine.collection_id).filter(
             Collection.category_id == category_id
         )
-    if collection_id is not None:
-        query = query.filter(Magazine.collection_id == collection_id)
     rows = query.group_by(Magazine.id).order_by(order, Magazine.title).offset(page * limit).limit(limit).all()
     return [_to_magazine_out(magazine, page_count) for magazine, page_count in rows]
 

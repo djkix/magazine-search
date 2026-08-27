@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { fileUrl } from "@/lib/api";
 import type { Magazine } from "@/lib/types";
-import StatusBadge from "@/components/ui/StatusBadge";
 import Icon from "@/components/ui/Icon";
 
 export default function MagazineCard({ magazine }: { magazine: Magazine }) {
@@ -29,7 +28,11 @@ export default function MagazineCard({ magazine }: { magazine: Magazine }) {
       <div className="mt-2 space-y-1">
         <p className="truncate font-serif text-sm font-semibold text-foreground">{magazine.title}</p>
         {meta && <p className="truncate font-mono text-[10px] uppercase tracking-wider text-foreground-muted">{meta}</p>}
-        <StatusBadge status={magazine.scan_status} />
+        {magazine.collection_name && (
+          <p className="truncate font-mono text-[10px] uppercase tracking-wider text-primary-light">
+            {magazine.collection_name}
+          </p>
+        )}
       </div>
     </>
   );
