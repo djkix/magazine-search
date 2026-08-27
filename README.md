@@ -1,34 +1,71 @@
 # Magazine Search
 
-Application web auto-hébergée de gestion, OCR et recherche plein texte d'une collection de magazines PDF stockés sur un NAS (NFS). Voir [`cahier-des-charges-v2.md`](./cahier-des-charges-v2.md) pour la spécification complète.
+Application web auto-hébergée de gestion, OCR et recherche plein texte d'une collection de magazines PDF stockés sur un NAS (NFS).
+
+Voir [`cahier-des-charges-v2.md`](./cahier-des-charges-v2.md) pour la spécification complète.
+
+## Sommaire
+
+- [Fonctionnalités](#fonctionnalités)
+- [Architecture](#architecture)
+- [Stack technique](#stack-technique)
+- [Prérequis](#prérequis)
+- [Déploiement](#déploiement)
+- [Configuration](#configuration)
+- [Utilisation](#utilisation)
+- [Développement local](#développement-local)
+- [CI/CD](#cicd)
+- [Versioning et changelog](#versioning-et-changelog)
+- [Hors scope V1](#hors-scope-v1)
+- [Licence](#licence)
 
 ## Fonctionnalités
 
-- Scan manuel du NAS (déduplication par hash, détection de fichiers stables).
-- Pipeline d'ingestion asynchrone : détection de texte natif, OCR conditionnel (`fra+eng`) via `ocrmypdf`/Tesseract, extraction des bounding boxes mot par mot, miniature de couverture.
-- Recherche plein texte (Meilisearch) avec surlignage et filtres (titre, année, numéro).
-- Viewer PDF intégré (`pdf.js`) avec saut direct à la page et overlay de surlignage des termes trouvés.
-- Extraction automatique du sommaire de chaque magazine via l'API Gemini (titre + page de chaque article), avec sommaire par magazine, vue globale de tous les articles de la collection, et correction manuelle depuis le viewer (admin).
-- Authentification multi-utilisateurs (admin + comptes standards), backoffice admin pour la gestion des comptes et du scan.
+- **Scan du NAS** : détection des nouveaux PDF, déduplication par hash de contenu, attente de stabilité du fichier avant traitement (évite de traiter un fichier encore en cours de copie).
+- **Pipeline d'ingestion asynchrone** (file RQ) : détection de texte natif, OCR conditionnel (`fra+eng`) via `ocrmypdf`/Tesseract, extraction des bounding boxes mot par mot pour le surlignage, génération d'une miniature de couverture.
+- **Collections et catégories à deux niveaux** :
+  - une **collection** (ex. « Que Choisir ») regroupe automatiquement tous les numéros d'un même titre, déduite du nom du répertoire NAS lors du scan ;
+  - une **catégorie** (ex. « Bricolage », « Guide achat ») est créée et gérée à la main dans l'admin, et regroupe une ou plusieurs collections.
+- **Bibliothèque et sommaires en deux niveaux** : parcours par collection (couverture représentative + nombre de numéros), puis détail des numéros ou du sommaire de la collection sélectionnée.
+- **Recherche plein texte** (Meilisearch) avec surlignage des termes, filtres (titre, année, numéro, catégorie, collection), et un classement des résultats qui privilégie d'abord le magazine ayant le plus d'occurrences du terme recherché, puis les numéros les plus récents.
+- **Extraction automatique du sommaire** de chaque magazine via l'API Gemini (titre + page de chaque article), avec vue globale de tous les articles, et correction manuelle depuis le viewer (admin). Modèle Gemini configurable depuis l'admin.
+- **Viewer PDF intégré** (`pdf.js`) en défilement continu, saut direct à une page ou à un article du sommaire, overlay de surlignage des termes recherchés.
+- **Authentification multi-utilisateurs** (admin + comptes standards), sessions JWT invalidées automatiquement à la réinitialisation d'un mot de passe.
+- **Backoffice admin** : tableau de bord avec barre de progression du scan en cours, gestion des comptes, relance d'un scan/OCR par magazine, page de logs applicatifs filtrable (niveau, composant) avec rotation, réglages (modèle Gemini, catégories, réindexation manuelle du moteur de recherche).
 
 ## Architecture
 
 ```
 ├── app-backend         FastAPI : API, auth, scan, admin
-├── app-frontend         Next.js
-├── worker               RQ : OCR + indexation
-├── redis
-├── postgres             Users, Magazines, Pages
-├── meilisearch
+├── app-frontend        Next.js
+├── worker               RQ : OCR + indexation + extraction du sommaire
+├── redis                 file de tâches RQ
+├── postgres              utilisateurs, magazines, pages, catégories, collections
+├── meilisearch            index de recherche plein texte
 ```
 
 Le reverse proxy et la terminaison TLS (Let's Encrypt) ne sont **pas** gérés par ce `docker-compose.yml` : ils sont délégués à **Nginx Proxy Manager (NPM)**, déployé séparément sur l'hôte. Le navigateur ne parle qu'au frontend : `app-frontend` relaie en interne (via `next.config.js` → `rewrites()`) les appels `/api/*` vers `app-backend` sur le réseau Docker interne — NPM n'a donc besoin de forwarder qu'**un seul port** (`FRONTEND_PORT`), sans routage par chemin.
 
+## Stack technique
+
+| Composant | Techno |
+| --- | --- |
+| Backend | Python 3.12, FastAPI, SQLAlchemy 2.0, Alembic, Pydantic v2 |
+| Frontend | Next.js 14 (App Router), React 18, Tailwind CSS |
+| Files d'attente | RQ (Redis Queue) |
+| Recherche | Meilisearch |
+| OCR | `ocrmypdf` / Tesseract (`fra+eng`) |
+| Extraction de sommaire | API Google Gemini (`google-genai`) |
+| Viewer PDF | `pdf.js` |
+| Base de données | PostgreSQL 16 |
+| Déploiement | Docker Compose, images publiées sur GHCR |
+
 ## Prérequis
 
 - Docker + Docker Compose v2.
-- Un partage NAS monté en NFS sur l'hôte (lecture seule), contenant les PDF.
+- Un partage NAS monté en NFS sur l'hôte (lecture seule), contenant les PDF, organisé en un répertoire par titre de magazine (ce nom de répertoire devient automatiquement le nom de la collection).
 - Nginx Proxy Manager (ou équivalent) déjà installé sur l'hôte, avec un nom de domaine pointant dessus si exposition hors LAN.
+- Une clé API Google Gemini si vous souhaitez l'extraction automatique des sommaires (fonctionnalité optionnelle).
 
 ## Déploiement
 
@@ -37,7 +74,7 @@ Le reverse proxy et la terminaison TLS (Let's Encrypt) ne sont **pas** gérés p
 3. Démarrer la stack :
 
    ```bash
-   docker compose up -d --build
+   docker compose up -d
    ```
 
 4. Dans NPM, créer un **Proxy Host** pour votre domaine :
@@ -45,6 +82,27 @@ Le reverse proxy et la terminaison TLS (Let's Encrypt) ne sont **pas** gérés p
    - Onglet *SSL* : activer Let's Encrypt + *Force SSL* (le cookie de session est `Secure`, donc l'app doit être servie en HTTPS).
 5. Un compte admin est créé automatiquement au premier démarrage du backend à partir de `ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PASSWORD` (changez le mot de passe ensuite depuis le backoffice).
 6. Se connecter, puis déclencher un premier scan depuis `/admin`.
+
+## Configuration
+
+Toutes les variables sont documentées dans [`.env.example`](./.env.example). Les principales :
+
+| Variable | Description |
+| --- | --- |
+| `NAS_MOUNT_PATH` | Chemin hôte du partage NAS monté en NFS (lecture seule). |
+| `FRONTEND_PORT` | Seul port à forwarder depuis le reverse proxy. |
+| `BACKEND_CORS_ORIGINS` | Domaine public exact (schéma inclus) sur lequel l'app est exposée. |
+| `JWT_SECRET_KEY` | Secret de signature des sessions — à générer aléatoirement. |
+| `MEILI_MASTER_KEY` | Clé maître Meilisearch — à générer aléatoirement. |
+| `ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PASSWORD` | Compte admin créé au premier démarrage. |
+| `GEMINI_API_KEY` / `GEMINI_MODEL` | Optionnel — active l'extraction automatique des sommaires. Le modèle est aussi modifiable depuis l'admin sans redéploiement. |
+
+## Utilisation
+
+- **Scanner le NAS** : depuis `/admin`, bouton « Scanner le NAS ». Les nouveaux PDF stables sont détectés, dédupliqués par hash, puis OCRisés et indexés en tâche de fond ; la progression s'affiche en temps réel sur le tableau de bord.
+- **Organiser en catégories** : depuis `/admin/settings`, créez vos catégories (ex. « Bricolage ») et rattachez-y les collections détectées automatiquement (ex. « Que Choisir », « 60 Millions de consommateurs »).
+- **Rechercher** : `/search` — recherche plein texte avec filtres par titre, année, numéro, catégorie ou collection ; les résultats sont classés par pertinence par magazine puis par fraîcheur.
+- **Parcourir** : `/library` et `/articles` (sommaires) présentent d'abord les collections, puis le détail des numéros ou des sommaires de la collection choisie.
 
 ## Développement local
 
@@ -65,21 +123,19 @@ Un `docker-compose.yml` complet est le moyen recommandé de lancer l'ensemble de
 
 ## CI/CD
 
-- GitHub Actions construit et publie les images multi-stage sur GHCR (`ghcr.io/<user>/<repo>`) à chaque tag de version.
-- Les releases (changelog + tag semver) sont gérées par `release-please` à partir des commits [Conventional Commits](https://www.conventionalcommits.org/).
+- Chaque push sur `main` construit et publie les images `backend`/`frontend` sur GHCR (`ghcr.io/<user>/<repo>-backend:latest`, `...-frontend:latest`) — pas de workflow de pull request bloquant, publication directe.
+- `release-please` propose périodiquement une pull request de release regroupant les commits [Conventional Commits](https://www.conventionalcommits.org/) depuis la dernière version ; la fusionner crée un tag semver, met à jour `CHANGELOG.md`, et republie les images taguées avec ce numéro de version (en plus de `:latest`).
 - `gitleaks` tourne en pre-commit et en CI pour éviter toute fuite de secret.
 
-## Versioning
+## Versioning et changelog
 
-- La version courante du projet est suivie dans [`.release-please-manifest.json`](./.release-please-manifest.json) et incrémentée automatiquement par `release-please` à chaque release (semver, déduit des [Conventional Commits](https://www.conventionalcommits.org/)).
-- Le workflow `Build and publish images` calcule le numéro de version à partir du tag Git de la release et le publie :
-  - comme tag d'image Docker sur GHCR (`ghcr.io/<user>/<repo>-backend:<version>`, `...-frontend:<version>`, en plus de `:latest`) ;
-  - comme variable d'environnement de build `NEXT_PUBLIC_APP_VERSION` du frontend, affichée dans l'interface (sidebar, sous le logo) — pratique pour vérifier en un coup d'œil quelle version tourne sur un déploiement donné.
-- L'historique complet des changements par version est dans [`CHANGELOG.md`](./CHANGELOG.md), généré et mis à jour automatiquement par `release-please` à chaque release.
+- La version courante est suivie dans [`.release-please-manifest.json`](./.release-please-manifest.json).
+- **L'historique complet des changements par version est dans [`CHANGELOG.md`](./CHANGELOG.md)**, généré et mis à jour automatiquement par `release-please` à chaque release fusionnée.
+- La version affichée dans l'interface (sidebar, sous le logo) correspond à la dernière release réellement publiée, pas au dernier commit poussé sur `main` — les changements les plus récents peuvent donc être en avance sur ce numéro tant que la PR de release correspondante n'a pas été fusionnée.
 
 ## Hors scope V1
 
-Segmentation en articles, auto-inscription/mot de passe oublié par email, watcher automatique du NAS, rôles avancés, écriture sur le NAS. Voir la section 6 du cahier des charges.
+Segmentation en articles par OCR structurel (remplacée par l'extraction Gemini du sommaire), auto-inscription/mot de passe oublié par email, watcher automatique du NAS (le scan reste déclenché manuellement), rôles avancés, écriture sur le NAS. Voir la section 6 du cahier des charges.
 
 ## Licence
 
