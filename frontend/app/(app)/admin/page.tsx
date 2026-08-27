@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
-import type { AdminStats, ScanStatusResponse, ScanTriggerResponse } from "@/lib/types";
+import type { AdminStats, RetryFailedResponse, ScanStatusResponse, ScanTriggerResponse } from "@/lib/types";
 import StatCard from "@/components/admin/StatCard";
 import StatusBadge from "@/components/ui/StatusBadge";
 import Icon from "@/components/ui/Icon";
@@ -12,6 +12,7 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [scanJob, setScanJob] = useState<ScanStatusResponse | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -39,6 +40,19 @@ export default function AdminDashboardPage() {
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Erreur de scan");
       setScanning(false);
+    }
+  }
+
+  async function retryFailed() {
+    setRetrying(true);
+    setError(null);
+    try {
+      await api.post<RetryFailedResponse>("/admin/scan/retry-failed");
+      loadStats();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erreur lors de la relance");
+    } finally {
+      setRetrying(false);
     }
   }
 
@@ -94,6 +108,13 @@ export default function AdminDashboardPage() {
         <StatCard icon="autorenew" label="En cours" value={stats?.processing} accent="text-primary-light" />
         <StatCard icon="error" label="Échecs" value={stats?.failed} accent="text-red-400" />
       </div>
+
+      {!!stats?.failed && (
+        <Button onClick={retryFailed} disabled={retrying} variant="secondary" className="w-fit">
+          <Icon name="replay" className={retrying ? "animate-spin" : ""} />
+          {retrying ? "Relance en cours..." : `Réessayer les ${stats.failed} échec(s)`}
+        </Button>
+      )}
 
       <div>
         <h2 className="mb-3 text-lg font-semibold text-foreground">Activité récente</h2>

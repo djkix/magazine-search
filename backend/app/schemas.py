@@ -106,6 +106,10 @@ class ScanStatusResponse(BaseModel):
     finished: bool
 
 
+class RetryFailedResponse(BaseModel):
+    retried: int
+
+
 class AdminStatsResponse(BaseModel):
     total: int
     done: int

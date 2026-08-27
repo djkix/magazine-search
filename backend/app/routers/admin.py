@@ -5,10 +5,12 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import get_current_admin
 from app.models import Magazine, Page, ScanStatus, User
+from app.queue import ingestion_queue
 from app.schemas import (
     AdminStatsResponse,
     MagazineOut,
     PasswordReset,
+    RetryFailedResponse,
     ScanStatusResponse,
     ScanTriggerResponse,
     UserCreate,
@@ -17,6 +19,7 @@ from app.schemas import (
 )
 from app.security import hash_password
 from app.services.scan import get_scan_job_magazine_ids, run_scan
+from app.worker.tasks import process_magazine
 
 router = APIRouter(dependencies=[Depends(get_current_admin)])
 
@@ -98,6 +101,17 @@ def trigger_scan(db: Session = Depends(get_db)):
     except FileNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
     return ScanTriggerResponse(job_id=job_id, new_files_detected=new_files)
+
+
+@router.post("/scan/retry-failed", response_model=RetryFailedResponse)
+def retry_failed(db: Session = Depends(get_db)):
+    failed = db.query(Magazine).filter(Magazine.scan_status == ScanStatus.failed).all()
+    for magazine in failed:
+        magazine.scan_status = ScanStatus.queued
+        magazine.error_message = None
+        db.commit()
+        ingestion_queue.enqueue(process_magazine, magazine.id, job_timeout="30m")
+    return RetryFailedResponse(retried=len(failed))
 
 
 @router.get("/scan/{job_id}/status", response_model=ScanStatusResponse)
