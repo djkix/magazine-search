@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
-import type { Category, GeminiSettings } from "@/lib/types";
+import type { Category, Collection, GeminiSettings } from "@/lib/types";
 import Button from "@/components/ui/Button";
 import Icon from "@/components/ui/Icon";
 
@@ -21,6 +21,13 @@ export default function AdminSettingsPage() {
   const [reindexing, setReindexing] = useState(false);
   const [reindexMessage, setReindexMessage] = useState<string | null>(null);
 
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [newCollection, setNewCollection] = useState("");
+  const [newCollectionCategoryId, setNewCollectionCategoryId] = useState("");
+  const [editingCollectionId, setEditingCollectionId] = useState<number | null>(null);
+  const [editingCollectionName, setEditingCollectionName] = useState("");
+  const [collectionError, setCollectionError] = useState<string | null>(null);
+
   function load() {
     api
       .get<GeminiSettings>("/admin/settings/gemini")
@@ -38,8 +45,16 @@ export default function AdminSettingsPage() {
       .catch((err) => setCategoryError(err instanceof ApiError ? err.message : "Erreur"));
   }
 
+  function loadCollections() {
+    api
+      .get<Collection[]>("/admin/collections")
+      .then(setCollections)
+      .catch((err) => setCollectionError(err instanceof ApiError ? err.message : "Erreur"));
+  }
+
   useEffect(load, []);
   useEffect(loadCategories, []);
+  useEffect(loadCollections, []);
 
   async function createCategory() {
     if (!newCategory.trim()) return;
@@ -68,6 +83,48 @@ export default function AdminSettingsPage() {
     if (!window.confirm("Supprimer cette catégorie ? Les magazines associés ne seront plus catégorisés.")) return;
     await api.delete(`/admin/categories/${id}`);
     loadCategories();
+  }
+
+  async function createCollection() {
+    if (!newCollection.trim()) return;
+    setCollectionError(null);
+    try {
+      await api.post("/admin/collections", {
+        name: newCollection.trim(),
+        category_id: newCollectionCategoryId ? Number(newCollectionCategoryId) : null,
+      });
+      setNewCollection("");
+      setNewCollectionCategoryId("");
+      loadCollections();
+    } catch (err) {
+      setCollectionError(err instanceof ApiError ? err.message : "Erreur");
+    }
+  }
+
+  async function saveCollection(id: number) {
+    if (!editingCollectionName.trim()) return;
+    try {
+      await api.patch(`/admin/collections/${id}`, { name: editingCollectionName.trim() });
+      setEditingCollectionId(null);
+      loadCollections();
+    } catch (err) {
+      setCollectionError(err instanceof ApiError ? err.message : "Erreur");
+    }
+  }
+
+  async function setCollectionCategory(id: number, categoryId: string) {
+    try {
+      await api.patch(`/admin/collections/${id}`, { category_id: categoryId ? Number(categoryId) : null });
+      loadCollections();
+    } catch (err) {
+      setCollectionError(err instanceof ApiError ? err.message : "Erreur");
+    }
+  }
+
+  async function deleteCollection(id: number) {
+    if (!window.confirm("Supprimer cette collection ? Les magazines associés ne seront plus rattachés.")) return;
+    await api.delete(`/admin/collections/${id}`);
+    loadCollections();
   }
 
   async function reindexAll() {
@@ -150,7 +207,8 @@ export default function AdminSettingsPage() {
         <div>
           <p className="text-sm font-medium text-foreground">Catégories</p>
           <p className="mt-1 text-xs text-foreground-muted">
-            Regroupe des magazines par thématique (ex: "Étude produit") pour filtrer la bibliothèque et les sommaires.
+            Thématiques (ex: "Bricolage", "Guide achat") utilisées pour filtrer la bibliothèque, les sommaires et la
+            recherche. Chaque catégorie regroupe une ou plusieurs collections.
           </p>
         </div>
 
@@ -203,6 +261,93 @@ export default function AdminSettingsPage() {
             className="min-w-0 flex-1 rounded-lg border border-outline-variant bg-background px-3 py-2 text-sm text-foreground"
           />
           <Button onClick={createCategory} disabled={!newCategory.trim()} variant="secondary">
+            Ajouter
+          </Button>
+        </div>
+      </div>
+
+      <div className="space-y-3 rounded-xl border border-outline-variant bg-surface/60 p-6">
+        <div>
+          <p className="text-sm font-medium text-foreground">Collections</p>
+          <p className="mt-1 text-xs text-foreground-muted">
+            Un titre de magazine (ex: "Que Choisir") regroupant tous ses numéros. Rattache chaque collection à une
+            catégorie pour que ses numéros soient inclus dans les recherches filtrées sur cette catégorie.
+          </p>
+        </div>
+
+        {collectionError && <p className="text-sm text-red-400">{collectionError}</p>}
+
+        <ul className="space-y-1">
+          {collections.map((c) => (
+            <li key={c.id} className="group flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-hover">
+              {editingCollectionId === c.id ? (
+                <input
+                  value={editingCollectionName}
+                  onChange={(e) => setEditingCollectionName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && saveCollection(c.id)}
+                  autoFocus
+                  className="min-w-0 flex-1 rounded-lg border border-outline-variant bg-background px-2 py-1 text-sm text-foreground"
+                />
+              ) : (
+                <span className="min-w-0 flex-1 truncate text-sm text-foreground">{c.name}</span>
+              )}
+              <select
+                value={c.category_id ?? ""}
+                onChange={(e) => setCollectionCategory(c.id, e.target.value)}
+                className="shrink-0 rounded-lg border border-outline-variant bg-background px-2 py-1 text-xs text-foreground"
+              >
+                <option value="">Aucune catégorie</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+              <span className="hidden shrink-0 gap-2 group-hover:flex">
+                {editingCollectionId === c.id ? (
+                  <button onClick={() => saveCollection(c.id)} className="text-primary-light hover:underline">
+                    <Icon name="check" className="text-sm" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setEditingCollectionId(c.id);
+                      setEditingCollectionName(c.name);
+                    }}
+                    className="text-foreground-muted hover:text-foreground"
+                  >
+                    <Icon name="edit" className="text-sm" />
+                  </button>
+                )}
+                <button onClick={() => deleteCollection(c.id)} className="text-foreground-muted hover:text-red-400">
+                  <Icon name="delete" className="text-sm" />
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        <div className="flex gap-2 pt-2">
+          <input
+            value={newCollection}
+            onChange={(e) => setNewCollection(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && createCollection()}
+            placeholder="Nouvelle collection..."
+            className="min-w-0 flex-1 rounded-lg border border-outline-variant bg-background px-3 py-2 text-sm text-foreground"
+          />
+          <select
+            value={newCollectionCategoryId}
+            onChange={(e) => setNewCollectionCategoryId(e.target.value)}
+            className="shrink-0 rounded-lg border border-outline-variant bg-background px-2 py-2 text-sm text-foreground"
+          >
+            <option value="">Aucune catégorie</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.name}
+              </option>
+            ))}
+          </select>
+          <Button onClick={createCollection} disabled={!newCollection.trim()} variant="secondary">
             Ajouter
           </Button>
         </div>

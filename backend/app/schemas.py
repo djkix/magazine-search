@@ -86,6 +86,8 @@ class MagazineOut(BaseModel):
     error_message: str | None = None
     toc_status: OcrStatus
     toc_error_message: str | None = None
+    collection_id: int | None = None
+    collection_name: str | None = None
     category_id: int | None = None
     category_name: str | None = None
     created_at: datetime
@@ -108,8 +110,27 @@ class CategoryUpdate(BaseModel):
     name: str
 
 
-class MagazineCategoryUpdate(BaseModel):
-    category_id: int | None
+class CollectionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    category_id: int | None = None
+    category_name: str | None = None
+
+
+class CollectionCreate(BaseModel):
+    name: str
+    category_id: int | None = None
+
+
+class CollectionUpdate(BaseModel):
+    name: str | None = None
+    category_id: int | None = None
+
+
+class MagazineCollectionUpdate(BaseModel):
+    collection_id: int | None
     apply_to_all_issues: bool = False
 
 

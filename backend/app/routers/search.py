@@ -31,6 +31,7 @@ def search(
     year: int | None = None,
     issue_number: str | None = None,
     category_id: int | None = Query(None, description="Restrict to magazines in this category"),
+    collection_id: int | None = Query(None, description="Restrict to magazines in this collection"),
     page: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -46,6 +47,8 @@ def search(
         filters.append(f'issue_number = "{_escape_filter_value(issue_number)}"')
     if category_id is not None:
         filters.append(f"category_id = {category_id}")
+    if collection_id is not None:
+        filters.append(f"collection_id = {collection_id}")
 
     try:
         results = get_index().search(

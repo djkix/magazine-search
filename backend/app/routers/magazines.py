@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Article, Magazine, Page
+from app.models import Article, Collection, Magazine, Page
 from app.schemas import ArticleOut, MagazineOut, PageOut
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
@@ -25,7 +25,11 @@ def _get_magazine_or_404(magazine_id: int, db: Session) -> Magazine:
 def _to_magazine_out(magazine: Magazine, page_count: int) -> MagazineOut:
     out = MagazineOut.model_validate(magazine)
     out.page_count = page_count
-    out.category_name = magazine.category.name if magazine.category else None
+    out.collection_name = magazine.collection.name if magazine.collection else None
+    out.category_id = magazine.collection.category_id if magazine.collection else None
+    out.category_name = (
+        magazine.collection.category.name if magazine.collection and magazine.collection.category else None
+    )
     return out
 
 
@@ -42,12 +46,17 @@ def list_magazines(
     limit: int = Query(30, ge=1, le=100),
     sort: str = Query("date", pattern="^(date|added)$"),
     category_id: int | None = Query(None, description="Restrict to magazines in this category"),
+    collection_id: int | None = Query(None, description="Restrict to magazines in this collection"),
     db: Session = Depends(get_db),
 ):
     order = Magazine.created_at.desc() if sort == "added" else Magazine.publication_date.desc().nulls_last()
     query = db.query(Magazine, func.count(Page.id)).outerjoin(Page, Page.magazine_id == Magazine.id)
     if category_id is not None:
-        query = query.filter(Magazine.category_id == category_id)
+        query = query.join(Collection, Collection.id == Magazine.collection_id).filter(
+            Collection.category_id == category_id
+        )
+    if collection_id is not None:
+        query = query.filter(Magazine.collection_id == collection_id)
     rows = query.group_by(Magazine.id).order_by(order, Magazine.title).offset(page * limit).limit(limit).all()
     return [_to_magazine_out(magazine, page_count) for magazine, page_count in rows]
 
