@@ -6,6 +6,12 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+      # NAS_MOUNT_PATH in .env is the HOST path used above to source the
+      # volume mount; env_file also injects that same var into the
+      # container, where the app would otherwise read it and override its
+      # own /mnt/nas default with a path that doesn't exist in here. Pin it
+      # back to the container-side mount point.
+      NAS_MOUNT_PATH: /mnt/nas
     volumes:
       - app_data:/data
       - ${NAS_MOUNT_PATH}:/mnt/nas:ro
@@ -28,6 +34,12 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+      # NAS_MOUNT_PATH in .env is the HOST path used above to source the
+      # volume mount; env_file also injects that same var into the
+      # container, where the app would otherwise read it and override its
+      # own /mnt/nas default with a path that doesn't exist in here. Pin it
+      # back to the container-side mount point.
+      NAS_MOUNT_PATH: /mnt/nas
     volumes:
       - app_data:/data
       - ${NAS_MOUNT_PATH}:/mnt/nas:ro
