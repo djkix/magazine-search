@@ -28,7 +28,7 @@ export default function MagazineCard({
           <img
             src={fileUrl(`/magazines/${magazine.id}/cover`)}
             alt={magazine.title}
-            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+            className="h-full w-full object-cover"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-foreground-muted">
