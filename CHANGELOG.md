@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/djkix/magazine-search/compare/v0.7.1...v0.8.0) (2026-08-28)
+
+
+### Features
+
+* parse issue number/date/month from title, add Gemini thematic sommaire ([33139e1](https://github.com/djkix/magazine-search/commit/33139e12ad4a8f8de7e08c4859d980fb00d94d66))
+
 ## [0.7.1](https://github.com/djkix/magazine-search/compare/v0.7.0...v0.7.1) (2026-08-28)
 
 
