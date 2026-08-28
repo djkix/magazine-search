@@ -24,7 +24,7 @@ Voir [`cahier-des-charges-v2.md`](./cahier-des-charges-v2.md) pour la spécifica
 - **Scan du NAS** : détection des nouveaux PDF, déduplication par hash de contenu, attente de stabilité du fichier avant traitement (évite de traiter un fichier encore en cours de copie).
 - **Pipeline d'ingestion asynchrone** (file RQ) : détection de texte natif, OCR conditionnel (`fra+eng`) via `ocrmypdf`/Tesseract, extraction des bounding boxes mot par mot pour le surlignage, génération d'une miniature de couverture.
 - **Collections et tags** :
-  - une **collection** (ex. « Que Choisir ») regroupe automatiquement tous les numéros d'un même titre, déduite du nom du répertoire NAS lors du scan (y compris si un numéro est déplacé vers un autre répertoire par la suite) ;
+  - une **collection** (ex. « Que Choisir ») regroupe automatiquement tous les numéros d'un même titre, déduite du répertoire de premier niveau sous la racine du NAS lors du scan (y compris si un numéro est déplacé vers un autre répertoire par la suite, ou rangé dans un sous-dossier par année/Hors-Séries) ;
   - un **tag** (ex. « Bricolage », « Guide achat ») est créé et géré à la main dans l'admin, et peut regrouper plusieurs collections — une collection peut elle-même porter plusieurs tags.
 - **Bibliothèque et sommaires en deux niveaux** : parcours par collection (couverture représentative + nombre de numéros), puis détail des numéros — avec numéro, mois, année (cliquable pour filtrer) et indicateur Hors-Série/Spécial détecté automatiquement — ou du sommaire de la collection sélectionnée, triable par date ou par type.
 - **Recherche plein texte** (Meilisearch) avec surlignage des termes, filtres (titre, année, numéro, tags avec sélection des collections associées), un résultat par magazine (avec son nombre d'occurrences du terme recherché) plutôt qu'un par page, classés par pertinence puis par fraîcheur.
@@ -63,7 +63,7 @@ Le reverse proxy et la terminaison TLS (Let's Encrypt) ne sont **pas** gérés p
 ## Prérequis
 
 - Docker + Docker Compose v2.
-- Un partage NAS monté en NFS sur l'hôte (lecture seule), contenant les PDF, organisé en un répertoire par titre de magazine (ce nom de répertoire devient automatiquement le nom de la collection).
+- Un partage NAS monté en NFS sur l'hôte (lecture seule), contenant les PDF, organisé en un répertoire de premier niveau par titre de magazine (ce nom devient automatiquement le nom de la collection) — les PDF peuvent être rangés directement dedans ou dans des sous-dossiers (par année, Hors-Séries, etc.), ces sous-dossiers n'affectent pas le nom de la collection mais un sous-dossier "Hors Séries"/"Numéros Spéciaux" est détecté pour marquer le numéro comme tel.
 - Nginx Proxy Manager (ou équivalent) déjà installé sur l'hôte, avec un nom de domaine pointant dessus si exposition hors LAN.
 - Une clé API Google Gemini si vous souhaitez l'extraction automatique des sommaires (fonctionnalité optionnelle).
 

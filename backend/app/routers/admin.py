@@ -397,8 +397,9 @@ def reindex_all(db: Session = Depends(get_db)):
 
 @router.post("/collections/backfill")
 def backfill_collections_endpoint(db: Session = Depends(get_db)):
-    """Assign a collection to magazines scanned before collections were
-    derived automatically from the NAS directory structure."""
+    """Recompute every magazine's collection and issue_type from its stored
+    file path, fixing magazines scanned before collections were derived
+    automatically as well as ones mis-assigned by an older heuristic."""
     updated_ids = backfill_collections(db)
     done_ids = {
         m.id

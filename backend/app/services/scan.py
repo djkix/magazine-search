@@ -23,14 +23,19 @@ SCAN_JOB_TTL_SECONDS = 24 * 3600
 SCAN_JOB_REDIS_PREFIX = "scan_job"
 LATEST_SCAN_JOB_REDIS_KEY = "scan_job:latest"
 
-_HS_RE = re.compile(r"\bhors[- ]s[ée]rie\b|\bhs\b", re.IGNORECASE)
-_SP_RE = re.compile(r"\bsp[ée]cial\b|\bsp\b", re.IGNORECASE)
+_HS_RE = re.compile(r"\bhors[- ]s[ée]ries?\b|\bhs\b", re.IGNORECASE)
+_SP_RE = re.compile(r"\bsp[ée]cia(?:l|ux)\b|\bsp\b", re.IGNORECASE)
 
 
-def _detect_issue_type(title: str) -> IssueType:
-    if _HS_RE.search(title):
+def _detect_issue_type(title: str, dir_parts: tuple[str, ...] = ()) -> IssueType:
+    """Checks the magazine title as well as any sub-directory it sits under
+    within its collection (e.g. a "Hors Séries" or "Numéros Spéciaux"
+    folder), since some collections are physically organized that way on
+    the NAS instead of naming it in the file itself."""
+    haystack = " ".join([title, *dir_parts])
+    if _HS_RE.search(haystack):
         return IssueType.hs
-    if _SP_RE.search(title):
+    if _SP_RE.search(haystack):
         return IssueType.sp
     return IssueType.normal
 
@@ -49,9 +54,10 @@ def _stat_snapshot(path: Path) -> tuple[int, float]:
 
 
 def _get_or_create_collection(db: Session, name: str, cache: dict[str, Collection]) -> Collection:
-    """The directory a PDF lives in (immediately under the NAS root or deeper)
-    names its collection - e.g. every issue under ".../Que Choisir/" belongs
-    to the "Que Choisir" collection. Created on first sight, reused after."""
+    """The top-level directory a PDF lives under (directly under the NAS
+    root) names its collection - e.g. every issue under ".../Que Choisir/",
+    including in any year or "Hors Séries" sub-folder beneath it, belongs to
+    the "Que Choisir" collection. Created on first sight, reused after."""
     if name in cache:
         return cache[name]
 
@@ -69,10 +75,16 @@ def _get_or_create_collection(db: Session, name: str, cache: dict[str, Collectio
     return collection
 
 
-def _collection_id_for(db: Session, nas_root: Path, path: Path, cache: dict[str, Collection]) -> int | None:
-    if path.parent == nas_root:
+def _dir_parts(nas_root: Path, path: Path) -> tuple[str, ...]:
+    """Directory components of `path` relative to `nas_root`, excluding the
+    filename itself - e.g. ("Que Choisir", "Hors Séries")."""
+    return path.relative_to(nas_root).parts[:-1]
+
+
+def _collection_id_for(db: Session, dir_parts: tuple[str, ...], cache: dict[str, Collection]) -> int | None:
+    if not dir_parts:
         return None
-    return _get_or_create_collection(db, path.parent.name, cache).id
+    return _get_or_create_collection(db, dir_parts[0], cache).id
 
 
 def run_scan(db: Session) -> tuple[str, int]:
@@ -126,12 +138,14 @@ def run_scan(db: Session) -> tuple[str, int]:
         if existing is not None:
             if existing.file_path != relative_path:
                 size, mtime = candidates[path]
+                dir_parts = _dir_parts(nas_root, path)
                 logger.info("Magazine %s relocated: %s -> %s", existing.id, existing.file_path, relative_path)
                 existing.filename = path.name
                 existing.file_path = relative_path
                 existing.file_size = size
                 existing.file_mtime = datetime.fromtimestamp(mtime, tz=timezone.utc)
-                existing.collection_id = _collection_id_for(db, nas_root, path, collection_cache)
+                existing.collection_id = _collection_id_for(db, dir_parts, collection_cache)
+                existing.issue_type = _detect_issue_type(existing.title, dir_parts[1:])
                 if existing.scan_status == ScanStatus.failed:
                     existing.scan_status = ScanStatus.queued
                     existing.error_message = None
@@ -141,6 +155,7 @@ def run_scan(db: Session) -> tuple[str, int]:
             continue
 
         size, mtime = candidates[path]
+        dir_parts = _dir_parts(nas_root, path)
         magazine = Magazine(
             title=path.stem,
             filename=path.name,
@@ -149,8 +164,8 @@ def run_scan(db: Session) -> tuple[str, int]:
             file_size=size,
             file_mtime=datetime.fromtimestamp(mtime, tz=timezone.utc),
             scan_status=ScanStatus.stable,
-            collection_id=_collection_id_for(db, nas_root, path, collection_cache),
-            issue_type=_detect_issue_type(path.stem),
+            collection_id=_collection_id_for(db, dir_parts, collection_cache),
+            issue_type=_detect_issue_type(path.stem, dir_parts[1:]),
         )
         try:
             with db.begin_nested():
@@ -207,20 +222,24 @@ def get_latest_scan_job_id() -> str | None:
 
 
 def backfill_collections(db: Session) -> list[int]:
-    """Assign a collection to every already-registered magazine that doesn't
-    have one yet, inferred from its stored file path - for magazines that
-    were scanned before collections were derived automatically. Returns the
-    ids of the magazines updated."""
+    """Recompute every magazine's collection and issue_type from its stored
+    file path using the current top-level-directory rule. Covers both
+    magazines scanned before collections were derived automatically, and
+    ones mis-assigned by an older version of this heuristic (e.g. to a year
+    or "Hors Séries" sub-directory instead of the collection's own
+    top-level folder). Returns the ids of the magazines actually changed."""
     collection_cache: dict[str, Collection] = {}
     updated_ids: list[int] = []
 
-    magazines = db.query(Magazine).filter(Magazine.collection_id.is_(None)).all()
-    for magazine in magazines:
-        parent_name = Path(magazine.file_path).parent.name
-        if not parent_name:
-            continue
-        magazine.collection_id = _get_or_create_collection(db, parent_name, collection_cache).id
-        updated_ids.append(magazine.id)
+    for magazine in db.query(Magazine).all():
+        dir_parts = Path(magazine.file_path).parts[:-1]
+        new_collection_id = _collection_id_for(db, dir_parts, collection_cache)
+        new_issue_type = _detect_issue_type(magazine.title, dir_parts[1:])
+
+        if magazine.collection_id != new_collection_id or magazine.issue_type != new_issue_type:
+            magazine.collection_id = new_collection_id
+            magazine.issue_type = new_issue_type
+            updated_ids.append(magazine.id)
 
     db.commit()
     return updated_ids

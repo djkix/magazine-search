@@ -132,7 +132,7 @@ export default function AdminSettingsPage() {
     setReindexMessage(null);
     try {
       const data = await api.post<{ updated: number }>("/admin/collections/backfill");
-      setReindexMessage(`${data.updated} magazine(s) rattaché(s) à une collection.`);
+      setReindexMessage(`${data.updated} magazine(s) recalculé(s).`);
       loadCollections();
     } catch (err) {
       setCollectionError(err instanceof ApiError ? err.message : "Erreur");
@@ -354,7 +354,7 @@ export default function AdminSettingsPage() {
         <div className="flex flex-wrap gap-2">
           <Button onClick={backfillCollections} disabled={backfilling} variant="secondary">
             <Icon name="folder_copy" className={backfilling ? "animate-spin" : ""} />
-            {backfilling ? "Lancement..." : "Rattacher les magazines existants à leur collection"}
+            {backfilling ? "Lancement..." : "Recalculer les collections et types de numéro"}
           </Button>
           <Button onClick={reindexAll} disabled={reindexing} variant="secondary">
             <Icon name="sync" className={reindexing ? "animate-spin" : ""} />
