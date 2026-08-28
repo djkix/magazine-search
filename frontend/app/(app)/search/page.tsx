@@ -31,6 +31,7 @@ function SearchResultsContent() {
   const [results, setResults] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const maxOccurrence = Math.max(0, ...(results?.hits.map((h) => h.occurrence_count) ?? []));
 
   useEffect(() => {
     if (!q) return;
@@ -83,7 +84,7 @@ function SearchResultsContent() {
 
           <div className="space-y-3">
             {results.hits.map((hit) => (
-              <ResultCard key={hit.page_id} hit={hit} query={q} />
+              <ResultCard key={hit.page_id} hit={hit} query={q} maxOccurrence={maxOccurrence} />
             ))}
           </div>
         </div>
