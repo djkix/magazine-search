@@ -2,27 +2,22 @@ import Link from "next/link";
 import Icon from "@/components/ui/Icon";
 import type { SearchHit } from "@/lib/types";
 import { sanitizeHighlightedSnippet } from "@/lib/sanitize";
+import { occurrenceColorRgb } from "@/lib/occurrenceColor";
 
-// Endpoints of the occurrence-count color scale: low occurrence counts read
-// as the app's neutral muted gray, high counts ramp toward its emerald
-// "success" green, so the most relevant results visually pop the most.
-const LOW = { r: 0x8b, g: 0xa0, b: 0xc2 }; // foreground-muted
-const HIGH = { r: 0x34, g: 0xd3, b: 0x99 }; // emerald-400
-
-function occurrenceColor(count: number, max: number): string {
-  const t = max > 0 ? Math.min(count / max, 1) : 0;
-  const r = Math.round(LOW.r + (HIGH.r - LOW.r) * t);
-  const g = Math.round(LOW.g + (HIGH.g - LOW.g) * t);
-  const b = Math.round(LOW.b + (HIGH.b - LOW.b) * t);
-  return `${r}, ${g}, ${b}`;
-}
-
-export default function ResultCard({ hit, query, maxOccurrence }: { hit: SearchHit; query: string; maxOccurrence: number }) {
-  const rgb = occurrenceColor(hit.occurrence_count, maxOccurrence);
+export default function ResultCard({
+  hit,
+  searchParamsString,
+  maxOccurrence,
+}: {
+  hit: SearchHit;
+  searchParamsString: string;
+  maxOccurrence: number;
+}) {
+  const rgb = occurrenceColorRgb(hit.occurrence_count, maxOccurrence);
 
   return (
     <Link
-      href={`/viewer/${hit.magazine_id}/${hit.page_number}?q=${encodeURIComponent(query)}`}
+      href={`/viewer/${hit.magazine_id}/${hit.page_number}?${searchParamsString}`}
       className="block rounded-xl border border-outline-variant bg-surface/50 p-4 transition hover:border-primary hover:bg-surface"
     >
       <div className="mb-2 flex items-center justify-between gap-2">
