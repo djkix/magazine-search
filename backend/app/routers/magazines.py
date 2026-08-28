@@ -14,11 +14,6 @@ from app.schemas import ArticleOut, MagazineOut, PageOut, TagOut
 router = APIRouter(dependencies=[Depends(get_current_user)])
 settings = get_settings()
 
-FRENCH_MONTHS = [
-    "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
-    "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
-]
-
 
 def _get_magazine_or_404(magazine_id: int, db: Session) -> Magazine:
     magazine = db.get(Magazine, magazine_id)
@@ -32,7 +27,7 @@ def _to_magazine_out(magazine: Magazine, page_count: int) -> MagazineOut:
     out.page_count = page_count
     out.collection_name = magazine.collection.name if magazine.collection else None
     out.tags = [TagOut(id=t.id, name=t.name) for t in magazine.collection.tags] if magazine.collection else []
-    out.issue_month = FRENCH_MONTHS[magazine.publication_date.month - 1] if magazine.publication_date else None
+    out.issue_month = magazine.issue_month_label
     return out
 
 

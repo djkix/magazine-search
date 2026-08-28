@@ -42,10 +42,10 @@ export default function MagazineCard({
         )}
       </div>
       <div className="mt-2 space-y-1">
-        <p className="truncate font-serif text-sm font-semibold text-foreground">{magazine.title}</p>
-        <p className="flex items-center gap-1 truncate font-mono text-[10px] uppercase tracking-wider text-primary-light">
-          {magazine.collection_name && <span className="truncate">{magazine.collection_name}</span>}
-          {magazine.collection_name && year && <span>·</span>}
+        <p className="truncate font-serif text-sm font-semibold text-foreground">
+          {magazine.collection_name ?? magazine.title}
+        </p>
+        <p className="flex items-center gap-1 truncate font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
           {year &&
             (onYearClick ? (
               <button
@@ -54,19 +54,18 @@ export default function MagazineCard({
                   e.stopPropagation();
                   onYearClick(year);
                 }}
-                className="shrink-0 hover:underline"
+                className="shrink-0 text-primary-light hover:underline"
               >
                 {year}
               </button>
             ) : (
-              <span className="shrink-0">{year}</span>
+              <span className="shrink-0 text-primary-light">{year}</span>
             ))}
+          {year && (magazine.issue_number || magazine.issue_month) && <span>·</span>}
+          {magazine.issue_number && <span className="shrink-0">#{magazine.issue_number}</span>}
+          {magazine.issue_number && magazine.issue_month && <span>·</span>}
+          {magazine.issue_month && <span className="truncate">{magazine.issue_month}</span>}
         </p>
-        {(magazine.issue_number || magazine.issue_month) && (
-          <p className="truncate font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
-            {[magazine.issue_number, magazine.issue_month].filter(Boolean).join(" · ")}
-          </p>
-        )}
       </div>
     </>
   );

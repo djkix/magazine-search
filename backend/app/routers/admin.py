@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_admin
-from app.models import Article, Collection, Magazine, OcrStatus, Page, ScanStatus, Tag, User
+from app.models import Article, Collection, CollectionThemeSummary, Magazine, OcrStatus, Page, ScanStatus, Tag, User
 from app.queue import ingestion_queue
 from app.schemas import (
     AdminStatsResponse,
@@ -25,6 +25,7 @@ from app.schemas import (
     TagCreate,
     TagOut,
     TagUpdate,
+    ThemeSummaryOut,
     UserCreate,
     UserOut,
     UserUpdate,
@@ -32,6 +33,7 @@ from app.schemas import (
 from app.security import hash_password
 from app.services.logs import read_logs
 from app.services.scan import backfill_collections, get_latest_scan_job_id, get_scan_job_magazine_ids, run_scan
+from app.services.theme_summary import generate_theme_summary
 from app.services.toc import AVAILABLE_GEMINI_MODELS, get_gemini_model, set_gemini_model
 from app.worker.tasks import process_magazine, reindex_magazine, retry_toc
 
@@ -384,6 +386,31 @@ def delete_collection(collection_id: int, db: Session = Depends(get_db)):
         ingestion_queue.enqueue(reindex_magazine, magazine_id, job_timeout="10m")
 
 
+@router.post("/collections/{collection_id}/theme-summary", response_model=ThemeSummaryOut)
+def generate_collection_theme_summary(collection_id: int, db: Session = Depends(get_db)):
+    """Regenerate a collection's Gemini-grouped thematic sommaire. Manual
+    only - each call is a paid Gemini request over every article in the
+    collection, not something to run automatically on every page view."""
+    collection = db.get(Collection, collection_id)
+    if not collection:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
+
+    try:
+        themes = generate_theme_summary(db, collection)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+    summary = db.get(CollectionThemeSummary, collection_id)
+    if summary:
+        summary.themes = themes
+    else:
+        summary = CollectionThemeSummary(collection_id=collection_id, themes=themes)
+        db.add(summary)
+    db.commit()
+    db.refresh(summary)
+    return ThemeSummaryOut(themes=summary.themes, generated_at=summary.generated_at)
+
+
 @router.post("/search-index/reindex-all")
 def reindex_all(db: Session = Depends(get_db)):
     """Re-push every processed magazine's pages to Meilisearch. Needed once
@@ -397,9 +424,10 @@ def reindex_all(db: Session = Depends(get_db)):
 
 @router.post("/collections/backfill")
 def backfill_collections_endpoint(db: Session = Depends(get_db)):
-    """Recompute every magazine's collection and issue_type from its stored
-    file path, fixing magazines scanned before collections were derived
-    automatically as well as ones mis-assigned by an older heuristic."""
+    """Recompute every magazine's collection, issue_type, issue_number,
+    publication_date and month label from its stored file path/title,
+    fixing magazines scanned before this metadata was derived automatically
+    as well as ones mis-assigned by an older heuristic."""
     updated_ids = backfill_collections(db)
     done_ids = {
         m.id

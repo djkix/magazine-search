@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.models import Collection, IssueType, Magazine, ScanStatus
 from app.queue import ingestion_queue, redis_conn
+from app.services.issue_parser import parse_issue_metadata
 from app.worker.tasks import process_magazine, reindex_magazine
 
 logger = logging.getLogger("app.scan")
@@ -156,6 +157,7 @@ def run_scan(db: Session) -> tuple[str, int]:
 
         size, mtime = candidates[path]
         dir_parts = _dir_parts(nas_root, path)
+        issue_number, publication_date, issue_month_label = parse_issue_metadata(path.stem)
         magazine = Magazine(
             title=path.stem,
             filename=path.name,
@@ -166,6 +168,9 @@ def run_scan(db: Session) -> tuple[str, int]:
             scan_status=ScanStatus.stable,
             collection_id=_collection_id_for(db, dir_parts, collection_cache),
             issue_type=_detect_issue_type(path.stem, dir_parts[1:]),
+            issue_number=issue_number,
+            publication_date=publication_date,
+            issue_month_label=issue_month_label,
         )
         try:
             with db.begin_nested():
@@ -222,12 +227,13 @@ def get_latest_scan_job_id() -> str | None:
 
 
 def backfill_collections(db: Session) -> list[int]:
-    """Recompute every magazine's collection and issue_type from its stored
-    file path using the current top-level-directory rule. Covers both
-    magazines scanned before collections were derived automatically, and
-    ones mis-assigned by an older version of this heuristic (e.g. to a year
-    or "Hors Séries" sub-directory instead of the collection's own
-    top-level folder). Returns the ids of the magazines actually changed."""
+    """Recompute every magazine's collection, issue_type, issue_number,
+    publication_date and issue_month_label from its stored file path/title
+    using the current rules. Covers both magazines scanned before this
+    metadata was derived automatically, and ones mis-assigned by an older
+    version of these heuristics (e.g. to a year or "Hors Séries"
+    sub-directory instead of the collection's own top-level folder).
+    Returns the ids of the magazines actually changed."""
     collection_cache: dict[str, Collection] = {}
     updated_ids: list[int] = []
 
@@ -235,10 +241,21 @@ def backfill_collections(db: Session) -> list[int]:
         dir_parts = Path(magazine.file_path).parts[:-1]
         new_collection_id = _collection_id_for(db, dir_parts, collection_cache)
         new_issue_type = _detect_issue_type(magazine.title, dir_parts[1:])
+        new_issue_number, new_publication_date, new_issue_month_label = parse_issue_metadata(magazine.title)
 
-        if magazine.collection_id != new_collection_id or magazine.issue_type != new_issue_type:
+        changed = (
+            magazine.collection_id != new_collection_id
+            or magazine.issue_type != new_issue_type
+            or magazine.issue_number != new_issue_number
+            or magazine.publication_date != new_publication_date
+            or magazine.issue_month_label != new_issue_month_label
+        )
+        if changed:
             magazine.collection_id = new_collection_id
             magazine.issue_type = new_issue_type
+            magazine.issue_number = new_issue_number
+            magazine.publication_date = new_publication_date
+            magazine.issue_month_label = new_issue_month_label
             updated_ids.append(magazine.id)
 
     db.commit()
