@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.9.0](https://github.com/djkix/magazine-search/compare/v0.8.1...v0.9.0) (2026-08-28)
+
+
+### Features
+
+* replace manual collection-wide theme summary with automatic per-magazine themes ([5f06e45](https://github.com/djkix/magazine-search/commit/5f06e451f1cb31b68220c43450edc9ed25759260))
+* show cross-magazine search results in the PDF viewer sidebar ([9717369](https://github.com/djkix/magazine-search/commit/9717369b0cf3ae25b03711f40ddf3f56d3db3190))
+
+
+### Bug Fixes
+
+* second TS build error in collection sommaire search view ([a19294d](https://github.com/djkix/magazine-search/commit/a19294d477e0afd6e2698da94120569a282656d5))
+* TS build error in collection sommaire pagination ([79244af](https://github.com/djkix/magazine-search/commit/79244af15a81e029721a5cca937ca5efaa6ac8bf))
+
 ## [0.8.1](https://github.com/djkix/magazine-search/compare/v0.8.0...v0.8.1) (2026-08-28)
 
 
