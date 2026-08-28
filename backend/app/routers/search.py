@@ -35,7 +35,7 @@ def search(
     magazine_title: str | None = None,
     year: int | None = None,
     issue_number: str | None = None,
-    tag_id: int | None = Query(None, description="Restrict to magazines whose collection carries this tag"),
+    tag_id: list[int] = Query([], description="Restrict to magazines whose collection carries any of these tags"),
     collection_id: list[int] = Query([], description="Restrict to magazines in any of these collections"),
     page: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
@@ -50,8 +50,8 @@ def search(
         filters.append(f"year = {year}")
     if issue_number:
         filters.append(f'issue_number = "{_escape_filter_value(issue_number)}"')
-    if tag_id is not None:
-        filters.append(f"tag_ids = {tag_id}")
+    if tag_id:
+        filters.append(f"tag_ids IN [{','.join(str(tid) for tid in tag_id)}]")
     if collection_id:
         filters.append(f"collection_id IN [{','.join(str(cid) for cid in collection_id)}]")
 

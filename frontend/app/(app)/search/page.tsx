@@ -56,14 +56,14 @@ function SearchResultsContent() {
     if (filters.magazine_title) params.set("magazine_title", filters.magazine_title);
     if (filters.year) params.set("year", filters.year);
     if (filters.issue_number) params.set("issue_number", filters.issue_number);
-    for (const id of filters.collection_ids ?? []) params.append("collection_id", id);
+    for (const id of filters.tag_ids ?? []) params.append("tag_id", id);
     router.push(`/search?${params.toString()}`);
   }
 
   return (
     <PageContainer>
       <div className="mb-8">
-        <SearchBar onSearch={runSearch} initial={{ q, collection_ids: searchParams.getAll("collection_id") }} />
+        <SearchBar onSearch={runSearch} initial={{ q, tag_ids: searchParams.getAll("tag_id") }} />
       </div>
 
       {loading && <p className="text-sm text-foreground-muted">Recherche en cours...</p>}
