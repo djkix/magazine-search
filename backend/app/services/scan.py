@@ -1,6 +1,7 @@
 import hashlib
 import json
 import logging
+import re
 import time
 import uuid
 from datetime import datetime, timezone
@@ -10,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import Collection, Magazine, ScanStatus
+from app.models import Collection, IssueType, Magazine, ScanStatus
 from app.queue import ingestion_queue, redis_conn
 from app.worker.tasks import process_magazine, reindex_magazine
 
@@ -21,6 +22,17 @@ STABILITY_DELAY_SECONDS = 8
 SCAN_JOB_TTL_SECONDS = 24 * 3600
 SCAN_JOB_REDIS_PREFIX = "scan_job"
 LATEST_SCAN_JOB_REDIS_KEY = "scan_job:latest"
+
+_HS_RE = re.compile(r"\bhors[- ]s[ée]rie\b|\bhs\b", re.IGNORECASE)
+_SP_RE = re.compile(r"\bsp[ée]cial\b|\bsp\b", re.IGNORECASE)
+
+
+def _detect_issue_type(title: str) -> IssueType:
+    if _HS_RE.search(title):
+        return IssueType.hs
+    if _SP_RE.search(title):
+        return IssueType.sp
+    return IssueType.normal
 
 
 def _sha256_of_file(path: Path) -> str:
@@ -138,6 +150,7 @@ def run_scan(db: Session) -> tuple[str, int]:
             file_mtime=datetime.fromtimestamp(mtime, tz=timezone.utc),
             scan_status=ScanStatus.stable,
             collection_id=_collection_id_for(db, nas_root, path, collection_cache),
+            issue_type=_detect_issue_type(path.stem),
         )
         try:
             with db.begin_nested():

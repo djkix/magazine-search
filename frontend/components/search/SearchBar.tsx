@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import type { Category, LibraryOverview } from "@/lib/types";
+import type { LibraryOverview, Tag } from "@/lib/types";
 import Icon from "@/components/ui/Icon";
 
 export interface SearchFilters {
@@ -10,8 +10,7 @@ export interface SearchFilters {
   magazine_title?: string;
   year?: string;
   issue_number?: string;
-  category_id?: string;
-  collection_id?: string;
+  collection_ids?: string[];
 }
 
 export default function SearchBar({
@@ -25,19 +24,30 @@ export default function SearchBar({
   const [magazineTitle, setMagazineTitle] = useState(initial?.magazine_title ?? "");
   const [year, setYear] = useState(initial?.year ?? "");
   const [issueNumber, setIssueNumber] = useState(initial?.issue_number ?? "");
-  const [categoryId, setCategoryId] = useState(initial?.category_id ?? "");
-  const [collectionId, setCollectionId] = useState(initial?.collection_id ?? "");
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCollectionIds, setSelectedCollectionIds] = useState<Set<number>>(
+    new Set((initial?.collection_ids ?? []).map(Number))
+  );
+  const [activeTagId, setActiveTagId] = useState<number | null>(null);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [collections, setCollections] = useState<LibraryOverview["collections"]>([]);
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
-    api.get<Category[]>("/categories").then(setCategories).catch(() => {});
+    api.get<Tag[]>("/tags").then(setTags).catch(() => {});
     api
       .get<LibraryOverview>("/collections")
       .then((overview) => setCollections(overview.collections))
       .catch(() => {});
   }, []);
+
+  function toggleCollection(id: number) {
+    setSelectedCollectionIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -47,10 +57,11 @@ export default function SearchBar({
       magazine_title: magazineTitle.trim() || undefined,
       year: year.trim() || undefined,
       issue_number: issueNumber.trim() || undefined,
-      category_id: categoryId || undefined,
-      collection_id: collectionId || undefined,
+      collection_ids: selectedCollectionIds.size > 0 ? Array.from(selectedCollectionIds, String) : undefined,
     });
   }
+
+  const activeTagCollections = collections.filter((c) => c.tags.some((t) => t.id === activeTagId));
 
   return (
     <form onSubmit={submit} className="space-y-3">
@@ -79,36 +90,55 @@ export default function SearchBar({
         </button>
       </div>
 
+      {tags.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-1.5">
+            {tags.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setActiveTagId((prev) => (prev === t.id ? null : t.id))}
+                className={`rounded-full px-3 py-1 text-xs transition ${
+                  activeTagId === t.id ? "bg-primary/20 text-primary-light" : "bg-surface text-foreground-muted hover:bg-surface-hover"
+                }`}
+              >
+                {t.name}
+              </button>
+            ))}
+          </div>
+
+          {activeTagId !== null && activeTagCollections.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 rounded-xl border border-outline-variant bg-surface/40 p-2.5">
+              {activeTagCollections.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => toggleCollection(c.id)}
+                  className={`rounded-full px-2.5 py-1 text-[11px] transition ${
+                    selectedCollectionIds.has(c.id)
+                      ? "bg-primary text-white"
+                      : "bg-surface text-foreground-muted hover:bg-surface-hover"
+                  }`}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {selectedCollectionIds.size > 0 && (
+            <p className="text-xs text-foreground-muted">
+              Recherche limitée à {selectedCollectionIds.size} collection{selectedCollectionIds.size > 1 ? "s" : ""} —{" "}
+              <button type="button" onClick={() => setSelectedCollectionIds(new Set())} className="text-primary-light hover:underline">
+                réinitialiser
+              </button>
+            </p>
+          )}
+        </div>
+      )}
+
       {showFilters && (
         <div className="flex flex-wrap gap-2 rounded-xl border border-outline-variant bg-surface/40 p-3">
-          {categories.length > 0 && (
-            <select
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              className="rounded-lg border border-outline-variant bg-surface px-3 py-1.5 text-sm text-foreground"
-            >
-              <option value="">Toutes les catégories</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          )}
-          {collections.length > 0 && (
-            <select
-              value={collectionId}
-              onChange={(e) => setCollectionId(e.target.value)}
-              className="rounded-lg border border-outline-variant bg-surface px-3 py-1.5 text-sm text-foreground"
-            >
-              <option value="">Toutes les collections</option>
-              {collections.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          )}
           <input
             value={magazineTitle}
             onChange={(e) => setMagazineTitle(e.target.value)}

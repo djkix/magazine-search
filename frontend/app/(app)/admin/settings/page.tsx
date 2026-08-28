@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
-import type { Category, Collection, GeminiSettings } from "@/lib/types";
+import type { Collection, GeminiSettings, Tag } from "@/lib/types";
 import Button from "@/components/ui/Button";
 import Icon from "@/components/ui/Icon";
 
@@ -13,11 +13,11 @@ export default function AdminSettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [newCategory, setNewCategory] = useState("");
-  const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
-  const [editingCategoryName, setEditingCategoryName] = useState("");
-  const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [newTag, setNewTag] = useState("");
+  const [editingTagId, setEditingTagId] = useState<number | null>(null);
+  const [editingTagName, setEditingTagName] = useState("");
+  const [tagError, setTagError] = useState<string | null>(null);
   const [reindexing, setReindexing] = useState(false);
   const [reindexMessage, setReindexMessage] = useState<string | null>(null);
   const [backfilling, setBackfilling] = useState(false);
@@ -37,11 +37,11 @@ export default function AdminSettingsPage() {
       .catch((err) => setError(err instanceof ApiError ? err.message : "Erreur"));
   }
 
-  function loadCategories() {
+  function loadTags() {
     api
-      .get<Category[]>("/admin/categories")
-      .then(setCategories)
-      .catch((err) => setCategoryError(err instanceof ApiError ? err.message : "Erreur"));
+      .get<Tag[]>("/admin/tags")
+      .then(setTags)
+      .catch((err) => setTagError(err instanceof ApiError ? err.message : "Erreur"));
   }
 
   function loadCollections() {
@@ -52,36 +52,38 @@ export default function AdminSettingsPage() {
   }
 
   useEffect(load, []);
-  useEffect(loadCategories, []);
+  useEffect(loadTags, []);
   useEffect(loadCollections, []);
 
-  async function createCategory() {
-    if (!newCategory.trim()) return;
-    setCategoryError(null);
+  async function createTag() {
+    if (!newTag.trim()) return;
+    setTagError(null);
     try {
-      await api.post("/admin/categories", { name: newCategory.trim() });
-      setNewCategory("");
-      loadCategories();
+      await api.post("/admin/tags", { name: newTag.trim() });
+      setNewTag("");
+      loadTags();
     } catch (err) {
-      setCategoryError(err instanceof ApiError ? err.message : "Erreur");
+      setTagError(err instanceof ApiError ? err.message : "Erreur");
     }
   }
 
-  async function saveCategory(id: number) {
-    if (!editingCategoryName.trim()) return;
+  async function saveTag(id: number) {
+    if (!editingTagName.trim()) return;
     try {
-      await api.patch(`/admin/categories/${id}`, { name: editingCategoryName.trim() });
-      setEditingCategoryId(null);
-      loadCategories();
+      await api.patch(`/admin/tags/${id}`, { name: editingTagName.trim() });
+      setEditingTagId(null);
+      loadTags();
+      loadCollections();
     } catch (err) {
-      setCategoryError(err instanceof ApiError ? err.message : "Erreur");
+      setTagError(err instanceof ApiError ? err.message : "Erreur");
     }
   }
 
-  async function deleteCategory(id: number) {
-    if (!window.confirm("Supprimer cette catégorie ? Les magazines associés ne seront plus catégorisés.")) return;
-    await api.delete(`/admin/categories/${id}`);
-    loadCategories();
+  async function deleteTag(id: number) {
+    if (!window.confirm("Supprimer ce tag ? Les collections associées ne le porteront plus.")) return;
+    await api.delete(`/admin/tags/${id}`);
+    loadTags();
+    loadCollections();
   }
 
   async function saveCollection(id: number) {
@@ -95,9 +97,11 @@ export default function AdminSettingsPage() {
     }
   }
 
-  async function setCollectionCategory(id: number, categoryId: string) {
+  async function toggleCollectionTag(collection: Collection, tagId: number) {
+    const hasTag = collection.tags.some((t) => t.id === tagId);
+    const tagIds = hasTag ? collection.tags.filter((t) => t.id !== tagId).map((t) => t.id) : [...collection.tags.map((t) => t.id), tagId];
     try {
-      await api.patch(`/admin/collections/${id}`, { category_id: categoryId ? Number(categoryId) : null });
+      await api.put(`/admin/collections/${collection.id}/tags`, { tag_ids: tagIds });
       loadCollections();
     } catch (err) {
       setCollectionError(err instanceof ApiError ? err.message : "Erreur");
@@ -117,7 +121,7 @@ export default function AdminSettingsPage() {
       const data = await api.post<{ enqueued: number }>("/admin/search-index/reindex-all");
       setReindexMessage(`${data.enqueued} magazine(s) en cours de réindexation.`);
     } catch (err) {
-      setCategoryError(err instanceof ApiError ? err.message : "Erreur");
+      setTagError(err instanceof ApiError ? err.message : "Erreur");
     } finally {
       setReindexing(false);
     }
@@ -202,46 +206,46 @@ export default function AdminSettingsPage() {
 
       <div className="space-y-3 rounded-xl border border-outline-variant bg-surface/60 p-6">
         <div>
-          <p className="text-sm font-medium text-foreground">Catégories</p>
+          <p className="text-sm font-medium text-foreground">Tags</p>
           <p className="mt-1 text-xs text-foreground-muted">
             Thématiques (ex: "Bricolage", "Guide achat") utilisées pour filtrer la bibliothèque, les sommaires et la
-            recherche. Chaque catégorie regroupe une ou plusieurs collections.
+            recherche. Un tag peut regrouper plusieurs collections, et une collection peut porter plusieurs tags.
           </p>
         </div>
 
-        {categoryError && <p className="text-sm text-red-400">{categoryError}</p>}
+        {tagError && <p className="text-sm text-red-400">{tagError}</p>}
 
         <ul className="space-y-1">
-          {categories.map((c) => (
-            <li key={c.id} className="group flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-hover">
-              {editingCategoryId === c.id ? (
+          {tags.map((t) => (
+            <li key={t.id} className="group flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-hover">
+              {editingTagId === t.id ? (
                 <input
-                  value={editingCategoryName}
-                  onChange={(e) => setEditingCategoryName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && saveCategory(c.id)}
+                  value={editingTagName}
+                  onChange={(e) => setEditingTagName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && saveTag(t.id)}
                   autoFocus
                   className="min-w-0 flex-1 rounded-lg border border-outline-variant bg-background px-2 py-1 text-sm text-foreground"
                 />
               ) : (
-                <span className="text-sm text-foreground">{c.name}</span>
+                <span className="text-sm text-foreground">{t.name}</span>
               )}
               <span className="hidden shrink-0 gap-2 group-hover:flex">
-                {editingCategoryId === c.id ? (
-                  <button onClick={() => saveCategory(c.id)} className="text-primary-light hover:underline">
+                {editingTagId === t.id ? (
+                  <button onClick={() => saveTag(t.id)} className="text-primary-light hover:underline">
                     <Icon name="check" className="text-sm" />
                   </button>
                 ) : (
                   <button
                     onClick={() => {
-                      setEditingCategoryId(c.id);
-                      setEditingCategoryName(c.name);
+                      setEditingTagId(t.id);
+                      setEditingTagName(t.name);
                     }}
                     className="text-foreground-muted hover:text-foreground"
                   >
                     <Icon name="edit" className="text-sm" />
                   </button>
                 )}
-                <button onClick={() => deleteCategory(c.id)} className="text-foreground-muted hover:text-red-400">
+                <button onClick={() => deleteTag(t.id)} className="text-foreground-muted hover:text-red-400">
                   <Icon name="delete" className="text-sm" />
                 </button>
               </span>
@@ -251,13 +255,13 @@ export default function AdminSettingsPage() {
 
         <div className="flex gap-2 pt-2">
           <input
-            value={newCategory}
-            onChange={(e) => setNewCategory(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && createCategory()}
-            placeholder="Nouvelle catégorie..."
+            value={newTag}
+            onChange={(e) => setNewTag(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && createTag()}
+            placeholder="Nouveau tag..."
             className="min-w-0 flex-1 rounded-lg border border-outline-variant bg-background px-3 py-2 text-sm text-foreground"
           />
-          <Button onClick={createCategory} disabled={!newCategory.trim()} variant="secondary">
+          <Button onClick={createTag} disabled={!newTag.trim()} variant="secondary">
             Ajouter
           </Button>
         </div>
@@ -267,60 +271,69 @@ export default function AdminSettingsPage() {
         <div>
           <p className="text-sm font-medium text-foreground">Collections</p>
           <p className="mt-1 text-xs text-foreground-muted">
-            Créées automatiquement au scan (une collection par répertoire du NAS, ex: "Que Choisir"). Rattache
-            chaque collection à une catégorie pour que ses numéros soient inclus dans les recherches filtrées sur
-            cette catégorie.
+            Créées automatiquement au scan (une collection par répertoire du NAS, ex: "Que Choisir"). Clique sur un
+            ou plusieurs tags pour les rattacher à la collection.
           </p>
         </div>
 
         {collectionError && <p className="text-sm text-red-400">{collectionError}</p>}
 
-        <ul className="space-y-1">
+        <ul className="space-y-3">
           {collections.map((c) => (
-            <li key={c.id} className="group flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-hover">
-              {editingCollectionId === c.id ? (
-                <input
-                  value={editingCollectionName}
-                  onChange={(e) => setEditingCollectionName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && saveCollection(c.id)}
-                  autoFocus
-                  className="min-w-0 flex-1 rounded-lg border border-outline-variant bg-background px-2 py-1 text-sm text-foreground"
-                />
-              ) : (
-                <span className="min-w-0 flex-1 truncate text-sm text-foreground">{c.name}</span>
-              )}
-              <select
-                value={c.category_id ?? ""}
-                onChange={(e) => setCollectionCategory(c.id, e.target.value)}
-                className="shrink-0 rounded-lg border border-outline-variant bg-background px-2 py-1 text-xs text-foreground"
-              >
-                <option value="">Aucune catégorie</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
-              <span className="hidden shrink-0 gap-2 group-hover:flex">
+            <li key={c.id} className="group rounded-lg px-2 py-2 hover:bg-surface-hover">
+              <div className="flex items-center justify-between gap-2">
                 {editingCollectionId === c.id ? (
-                  <button onClick={() => saveCollection(c.id)} className="text-primary-light hover:underline">
-                    <Icon name="check" className="text-sm" />
-                  </button>
+                  <input
+                    value={editingCollectionName}
+                    onChange={(e) => setEditingCollectionName(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && saveCollection(c.id)}
+                    autoFocus
+                    className="min-w-0 flex-1 rounded-lg border border-outline-variant bg-background px-2 py-1 text-sm text-foreground"
+                  />
                 ) : (
-                  <button
-                    onClick={() => {
-                      setEditingCollectionId(c.id);
-                      setEditingCollectionName(c.name);
-                    }}
-                    className="text-foreground-muted hover:text-foreground"
-                  >
-                    <Icon name="edit" className="text-sm" />
-                  </button>
+                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">{c.name}</span>
                 )}
-                <button onClick={() => deleteCollection(c.id)} className="text-foreground-muted hover:text-red-400">
-                  <Icon name="delete" className="text-sm" />
-                </button>
-              </span>
+                <span className="hidden shrink-0 gap-2 group-hover:flex">
+                  {editingCollectionId === c.id ? (
+                    <button onClick={() => saveCollection(c.id)} className="text-primary-light hover:underline">
+                      <Icon name="check" className="text-sm" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setEditingCollectionId(c.id);
+                        setEditingCollectionName(c.name);
+                      }}
+                      className="text-foreground-muted hover:text-foreground"
+                    >
+                      <Icon name="edit" className="text-sm" />
+                    </button>
+                  )}
+                  <button onClick={() => deleteCollection(c.id)} className="text-foreground-muted hover:text-red-400">
+                    <Icon name="delete" className="text-sm" />
+                  </button>
+                </span>
+              </div>
+              {tags.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {tags.map((t) => {
+                    const active = c.tags.some((ct) => ct.id === t.id);
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => toggleCollectionTag(c, t.id)}
+                        className={`rounded-full px-2.5 py-1 text-[11px] transition ${
+                          active
+                            ? "bg-primary/20 text-primary-light"
+                            : "bg-surface text-foreground-muted hover:bg-surface-hover"
+                        }`}
+                      >
+                        {t.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </li>
           ))}
         </ul>
@@ -333,8 +346,8 @@ export default function AdminSettingsPage() {
         <div>
           <p className="text-sm font-medium text-foreground">Maintenance</p>
           <p className="mt-1 text-xs text-foreground-muted">
-            Réindexe tous les magazines déjà traités dans le moteur de recherche — utile après avoir catégorisé des
-            magazines qui avaient été indexés avant l'ajout des catégories.
+            Réindexe tous les magazines déjà traités dans le moteur de recherche — utile après avoir modifié des
+            tags de collections déjà indexées.
           </p>
         </div>
         {reindexMessage && <p className="text-sm text-emerald-400">{reindexMessage}</p>}

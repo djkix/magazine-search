@@ -4,18 +4,15 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_admin
-from app.models import Article, Category, Collection, Magazine, OcrStatus, Page, ScanStatus, User
+from app.models import Article, Collection, Magazine, OcrStatus, Page, ScanStatus, Tag, User
 from app.queue import ingestion_queue
 from app.schemas import (
     AdminStatsResponse,
     ArticleCreate,
     ArticleOut,
     ArticleUpdate,
-    CategoryCreate,
-    CategoryOut,
-    CategoryUpdate,
-    CollectionCreate,
     CollectionOut,
+    CollectionTagsUpdate,
     CollectionUpdate,
     GeminiSettingsResponse,
     GeminiSettingsUpdate,
@@ -25,6 +22,9 @@ from app.schemas import (
     RetryFailedResponse,
     ScanStatusResponse,
     ScanTriggerResponse,
+    TagCreate,
+    TagOut,
+    TagUpdate,
     UserCreate,
     UserOut,
     UserUpdate,
@@ -284,42 +284,42 @@ def update_gemini_settings(payload: GeminiSettingsUpdate, db: Session = Depends(
     return GeminiSettingsResponse(model=get_gemini_model(db), available_models=AVAILABLE_GEMINI_MODELS)
 
 
-# ---- Categories ----
+# ---- Tags ----
 
 
-@router.get("/categories", response_model=list[CategoryOut])
-def list_categories(db: Session = Depends(get_db)):
-    return db.query(Category).order_by(Category.name).all()
+@router.get("/tags", response_model=list[TagOut])
+def list_tags(db: Session = Depends(get_db)):
+    return db.query(Tag).order_by(Tag.name).all()
 
 
-@router.post("/categories", response_model=CategoryOut, status_code=status.HTTP_201_CREATED)
-def create_category(payload: CategoryCreate, db: Session = Depends(get_db)):
-    if db.query(Category).filter(Category.name == payload.name).first():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Category already exists")
-    category = Category(name=payload.name)
-    db.add(category)
+@router.post("/tags", response_model=TagOut, status_code=status.HTTP_201_CREATED)
+def create_tag(payload: TagCreate, db: Session = Depends(get_db)):
+    if db.query(Tag).filter(Tag.name == payload.name).first():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Tag already exists")
+    tag = Tag(name=payload.name)
+    db.add(tag)
     db.commit()
-    db.refresh(category)
-    return category
+    db.refresh(tag)
+    return tag
 
 
-@router.patch("/categories/{category_id}", response_model=CategoryOut)
-def update_category(category_id: int, payload: CategoryUpdate, db: Session = Depends(get_db)):
-    category = db.get(Category, category_id)
-    if not category:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
-    category.name = payload.name
+@router.patch("/tags/{tag_id}", response_model=TagOut)
+def update_tag(tag_id: int, payload: TagUpdate, db: Session = Depends(get_db)):
+    tag = db.get(Tag, tag_id)
+    if not tag:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tag not found")
+    tag.name = payload.name
     db.commit()
-    db.refresh(category)
-    return category
+    db.refresh(tag)
+    return tag
 
 
-@router.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_category(category_id: int, db: Session = Depends(get_db)):
-    category = db.get(Category, category_id)
-    if not category:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
-    db.delete(category)
+@router.delete("/tags/{tag_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_tag(tag_id: int, db: Session = Depends(get_db)):
+    tag = db.get(Tag, tag_id)
+    if not tag:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tag not found")
+    db.delete(tag)
     db.commit()
 
 
@@ -330,8 +330,7 @@ def _to_collection_out(collection: Collection) -> CollectionOut:
     return CollectionOut(
         id=collection.id,
         name=collection.name,
-        category_id=collection.category_id,
-        category_name=collection.category.name if collection.category else None,
+        tags=[TagOut(id=t.id, name=t.name) for t in collection.tags],
     )
 
 
@@ -341,32 +340,28 @@ def list_collections(db: Session = Depends(get_db)):
     return [_to_collection_out(c) for c in collections]
 
 
-@router.post("/collections", response_model=CollectionOut, status_code=status.HTTP_201_CREATED)
-def create_collection(payload: CollectionCreate, db: Session = Depends(get_db)):
-    if db.query(Collection).filter(Collection.name == payload.name).first():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Collection already exists")
-    if payload.category_id is not None and not db.get(Category, payload.category_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
-    collection = Collection(name=payload.name, category_id=payload.category_id)
-    db.add(collection)
-    db.commit()
-    db.refresh(collection)
-    return _to_collection_out(collection)
-
-
 @router.patch("/collections/{collection_id}", response_model=CollectionOut)
 def update_collection(collection_id: int, payload: CollectionUpdate, db: Session = Depends(get_db)):
     collection = db.get(Collection, collection_id)
     if not collection:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
-    if payload.category_id is not None and not db.get(Category, payload.category_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    collection.name = payload.name
+    db.commit()
+    db.refresh(collection)
+    return _to_collection_out(collection)
 
-    if payload.name is not None:
-        collection.name = payload.name
-    if "category_id" in payload.model_fields_set:
-        collection.category_id = payload.category_id
 
+@router.put("/collections/{collection_id}/tags", response_model=CollectionOut)
+def set_collection_tags(collection_id: int, payload: CollectionTagsUpdate, db: Session = Depends(get_db)):
+    collection = db.get(Collection, collection_id)
+    if not collection:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
+
+    tags = db.query(Tag).filter(Tag.id.in_(payload.tag_ids)).all()
+    if len(tags) != len(set(payload.tag_ids)):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="One or more tags not found")
+
+    collection.tags = tags
     db.commit()
     db.refresh(collection)
 
@@ -392,7 +387,7 @@ def delete_collection(collection_id: int, db: Session = Depends(get_db)):
 @router.post("/search-index/reindex-all")
 def reindex_all(db: Session = Depends(get_db)):
     """Re-push every processed magazine's pages to Meilisearch. Needed once
-    after adding a new filterable field (e.g. category_id) so already-indexed
+    after adding a new filterable field (e.g. tag_ids) so already-indexed
     documents pick it up - going forward, changes reindex automatically."""
     magazine_ids = [m.id for m in db.query(Magazine.id).filter(Magazine.scan_status == ScanStatus.done).all()]
     for magazine_id in magazine_ids:

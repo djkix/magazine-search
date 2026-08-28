@@ -113,7 +113,7 @@ export default function ViewerMetaPanel({
             <dt className="font-mono text-[10px] uppercase tracking-wider text-foreground-muted">Collection</dt>
             <dd className="mt-0.5 truncate text-sm text-foreground">
               {magazine.collection_name ?? "—"}
-              {magazine.category_name ? ` · ${magazine.category_name}` : ""}
+              {magazine.tags.length > 0 ? ` · ${magazine.tags.map((t) => t.name).join(", ")}` : ""}
             </dd>
           </div>
         </dl>
