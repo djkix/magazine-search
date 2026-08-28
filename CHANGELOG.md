@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/djkix/magazine-search/compare/v0.8.0...v0.8.1) (2026-08-28)
+
+
+### Bug Fixes
+
+* remove hover zoom on library/collection cover thumbnails ([eb2438c](https://github.com/djkix/magazine-search/commit/eb2438cd82404d6fabe38293b7957553aed8792c))
+
 ## [0.8.0](https://github.com/djkix/magazine-search/compare/v0.7.1...v0.8.0) (2026-08-28)
 
 
