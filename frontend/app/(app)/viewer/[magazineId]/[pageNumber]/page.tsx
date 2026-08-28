@@ -7,6 +7,7 @@ import type { Magazine, SearchHit, WordBox } from "@/lib/types";
 import PdfViewer from "@/components/viewer/PdfViewer";
 import ViewerToolbar from "@/components/viewer/ViewerToolbar";
 import ViewerSearchPanel from "@/components/viewer/ViewerSearchPanel";
+import ViewerResultsPanel from "@/components/viewer/ViewerResultsPanel";
 import ViewerMetaPanel from "@/components/viewer/ViewerMetaPanel";
 import ViewerMobileNav from "@/components/viewer/ViewerMobileNav";
 
@@ -26,6 +27,7 @@ function ViewerContent() {
   const magazineId = Number(params.magazineId);
   const urlPageNumber = Number(params.pageNumber);
   const initialQuery = searchParams.get("q") ?? "";
+  const searchParamsString = searchParams.toString();
 
   const [magazine, setMagazine] = useState<Magazine | null>(null);
   // pageNumber is the jump target PdfViewer scrolls to (URL-driven, changed
@@ -60,7 +62,7 @@ function ViewerContent() {
       });
   }, [magazineId]);
 
-  const queryString = initialQuery ? `?q=${encodeURIComponent(initialQuery)}` : "";
+  const queryString = searchParamsString ? `?${searchParamsString}` : "";
 
   function goToPage(target: number) {
     if (!pageCount || target < 1 || target > pageCount) return;
@@ -100,12 +102,20 @@ function ViewerContent() {
 
       <div className="grid flex-1 overflow-hidden lg:grid-cols-[300px_1fr_300px]">
         <aside className="hidden overflow-y-auto border-r border-outline-variant bg-surface/40 lg:block">
-          <ViewerSearchPanel
-            magazineId={magazineId}
-            initialQuery={initialQuery}
-            currentPage={displayPage}
-            onSelectHit={handleSelectHit}
-          />
+          {initialQuery ? (
+            <ViewerResultsPanel
+              magazineId={magazineId}
+              searchParamsString={searchParamsString}
+              onSelectSameMagazineHit={handleSelectHit}
+            />
+          ) : (
+            <ViewerSearchPanel
+              magazineId={magazineId}
+              initialQuery={initialQuery}
+              currentPage={displayPage}
+              onSelectHit={handleSelectHit}
+            />
+          )}
         </aside>
 
         <div className="relative overflow-hidden bg-background">
@@ -132,14 +142,21 @@ function ViewerContent() {
         activePanel={mobilePanel}
         onTogglePanel={(panel) => setMobilePanel((p) => (p === panel ? null : panel))}
       >
-        {mobilePanel === "search" && (
-          <ViewerSearchPanel
-            magazineId={magazineId}
-            initialQuery={initialQuery}
-            currentPage={displayPage}
-            onSelectHit={handleSelectHit}
-          />
-        )}
+        {mobilePanel === "search" &&
+          (initialQuery ? (
+            <ViewerResultsPanel
+              magazineId={magazineId}
+              searchParamsString={searchParamsString}
+              onSelectSameMagazineHit={handleSelectHit}
+            />
+          ) : (
+            <ViewerSearchPanel
+              magazineId={magazineId}
+              initialQuery={initialQuery}
+              currentPage={displayPage}
+              onSelectHit={handleSelectHit}
+            />
+          ))}
         {mobilePanel === "meta" && <ViewerMetaPanel magazine={magazine} onGoToPage={goToPage} />}
       </ViewerMobileNav>
     </div>

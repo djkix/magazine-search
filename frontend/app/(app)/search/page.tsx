@@ -84,7 +84,12 @@ function SearchResultsContent() {
 
           <div className="space-y-3">
             {results.hits.map((hit) => (
-              <ResultCard key={hit.page_id} hit={hit} query={q} maxOccurrence={maxOccurrence} />
+              <ResultCard
+                key={hit.page_id}
+                hit={hit}
+                searchParamsString={searchParams.toString()}
+                maxOccurrence={maxOccurrence}
+              />
             ))}
           </div>
         </div>
