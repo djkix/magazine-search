@@ -100,7 +100,12 @@ export default function CollectionArticlesPage() {
         setMagazines(mags);
         setTotal(countRes.total);
         const entries = await Promise.all(
-          mags.map((m) => api.get<Article[]>(`/magazines/${m.id}/articles`).then((a) => [m.id, a] as const).catch(() => [m.id, []] as const))
+          mags.map((m) =>
+            api
+              .get<Article[]>(`/magazines/${m.id}/articles`)
+              .then((a): [number, Article[]] => [m.id, a])
+              .catch((): [number, Article[]] => [m.id, []])
+          )
         );
         setArticlesByMagazine(new Map(entries));
       })
