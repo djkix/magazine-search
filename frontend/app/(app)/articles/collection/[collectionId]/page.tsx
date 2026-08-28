@@ -146,6 +146,23 @@ export default function CollectionArticlesPage() {
     return magazines.map((m) => ({ magazine: m, articles: articlesByMagazine.get(m.id) ?? [] }));
   }, [magazines, articlesByMagazine]);
 
+  const searchGroups = useMemo(() => {
+    const byMagazine = new Map<number, { title: string; issueNumber: string | null; articles: ArticleWithMagazine[] }>();
+    for (const article of searchResults ?? []) {
+      const existing = byMagazine.get(article.magazine_id);
+      if (existing) {
+        existing.articles.push(article);
+      } else {
+        byMagazine.set(article.magazine_id, {
+          title: article.magazine_title,
+          issueNumber: article.magazine_issue_number,
+          articles: [article],
+        });
+      }
+    }
+    return Array.from(byMagazine.entries());
+  }, [searchResults]);
+
   const totalPages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(total / Number(pageSize)));
 
   return (
@@ -258,20 +275,7 @@ export default function CollectionArticlesPage() {
         <div className="space-y-6">
           {searching && <p className="text-sm text-foreground-muted">Recherche...</p>}
           {!searching &&
-            Array.from(
-              searchResults?.reduce((map, article) => {
-                const existing = map.get(article.magazine_id);
-                if (existing) existing.articles.push(article);
-                else
-                  map.set(article.magazine_id, {
-                    title: article.magazine_title,
-                    issueNumber: article.magazine_issue_number,
-                    articles: [article],
-                  });
-                return map;
-              }, new Map<number, { title: string; issueNumber: string | null; articles: ArticleWithMagazine[] }>()) ??
-                new Map()
-            ).map(([magazineId, group]) => (
+            searchGroups.map(([magazineId, group]) => (
               <div key={magazineId} className="overflow-hidden rounded-xl border border-outline-variant">
                 <div className="bg-surface-hover px-4 py-3">
                   <Link href={`/viewer/${magazineId}/1`} className="text-sm font-semibold text-foreground hover:text-primary-light">
