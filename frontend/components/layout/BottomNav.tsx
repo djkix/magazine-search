@@ -8,9 +8,9 @@ import type { User } from "@/lib/types";
 export default function BottomNav({ user }: { user: User }) {
   const pathname = usePathname();
   const items = [
-    { href: "/", label: "Recherche", icon: "search" },
     { href: "/library", label: "Bibliothèque", icon: "collections_bookmark" },
     { href: "/articles", label: "Sommaires", icon: "toc" },
+    { href: "/", label: "Recherche", icon: "search" },
     ...(user.is_admin ? [{ href: "/admin", label: "Admin", icon: "admin_panel_settings" }] : []),
   ];
 

@@ -16,11 +16,20 @@ export interface WordBox {
   h: number;
 }
 
+export type IssueType = "normal" | "hs" | "sp";
+
+export interface Tag {
+  id: number;
+  name: string;
+}
+
 export interface Magazine {
   id: number;
   title: string;
   issue_number: string | null;
   publication_date: string | null;
+  issue_month: string | null;
+  issue_type: IssueType;
   filename: string;
   cover_thumbnail_path: string | null;
   scan_status: "detected" | "stable" | "queued" | "processing" | "done" | "failed";
@@ -29,8 +38,7 @@ export interface Magazine {
   toc_error_message: string | null;
   collection_id: number | null;
   collection_name: string | null;
-  category_id: number | null;
-  category_name: string | null;
+  tags: Tag[];
   created_at: string;
   file_size: number;
   page_count: number;
@@ -47,20 +55,12 @@ export interface Article {
 export interface ArticleWithMagazine extends Article {
   magazine_title: string;
   magazine_issue_number: string | null;
-  category_id: number | null;
-  category_name: string | null;
-}
-
-export interface Category {
-  id: number;
-  name: string;
 }
 
 export interface Collection {
   id: number;
   name: string;
-  category_id: number | null;
-  category_name: string | null;
+  tags: Tag[];
 }
 
 export interface CollectionSummary extends Collection {
@@ -98,6 +98,7 @@ export interface Page {
 export interface SearchHit {
   magazine_id: number;
   magazine_title: string;
+  occurrence_count: number;
   page_number: number;
   page_id: number;
   snippet: string;

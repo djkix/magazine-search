@@ -6,9 +6,9 @@ import Icon from "@/components/ui/Icon";
 import type { User } from "@/lib/types";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Recherche", icon: "search" },
   { href: "/library", label: "Bibliothèque", icon: "collections_bookmark" },
   { href: "/articles", label: "Sommaires", icon: "toc" },
+  { href: "/", label: "Recherche", icon: "search" },
 ];
 
 export default function Sidebar({ user, onLogout }: { user: User; onLogout: () => void }) {
@@ -17,15 +17,10 @@ export default function Sidebar({ user, onLogout }: { user: User; onLogout: () =
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-outline-variant bg-surface/80 backdrop-blur-md lg:flex">
-      <div className="flex items-center gap-2 px-6 py-6">
+      <Link href="/" className="flex items-center gap-2 px-6 py-6">
         <Icon name="auto_stories" className="text-2xl text-primary" />
         <span className="font-serif text-lg font-semibold text-foreground">L&apos;Archive</span>
-        {process.env.NEXT_PUBLIC_APP_VERSION && (
-          <span className="ml-auto font-mono text-[10px] text-foreground-muted">
-            v{process.env.NEXT_PUBLIC_APP_VERSION}
-          </span>
-        )}
-      </div>
+      </Link>
 
       <nav className="flex-1 space-y-1 px-3">
         {items.map((item) => {
@@ -64,6 +59,9 @@ export default function Sidebar({ user, onLogout }: { user: User; onLogout: () =
           <Icon name="logout" />
           Déconnexion
         </button>
+        {process.env.NEXT_PUBLIC_APP_VERSION && (
+          <p className="mt-2 px-3 font-mono text-[10px] text-foreground-muted">v{process.env.NEXT_PUBLIC_APP_VERSION}</p>
+        )}
       </div>
     </aside>
   );

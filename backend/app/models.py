@@ -6,11 +6,13 @@ from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
+    Column,
     DateTime,
     Enum,
     ForeignKey,
     Integer,
     String,
+    Table,
     Text,
     UniqueConstraint,
 )
@@ -27,6 +29,12 @@ class ScanStatus(str, enum.Enum):
     processing = "processing"
     done = "done"
     failed = "failed"
+
+
+class IssueType(str, enum.Enum):
+    normal = "normal"
+    hs = "hs"
+    sp = "sp"
 
 
 class OcrStatus(str, enum.Enum):
@@ -79,6 +87,10 @@ class Magazine(Base):
     )
     toc_error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    issue_type: Mapped[IssueType] = mapped_column(
+        Enum(IssueType, name="issue_type"), default=IssueType.normal, nullable=False
+    )
+
     collection_id: Mapped[int | None] = mapped_column(
         ForeignKey("collections.id", ondelete="SET NULL"), nullable=True
     )
@@ -126,32 +138,42 @@ class Article(Base):
     magazine: Mapped["Magazine"] = relationship("Magazine", back_populates="articles")
 
 
-class Category(Base):
-    """Admin-defined theme (e.g. "Bricolage", "Guide achat") that groups one or
-    more Collections. Search and library filtering scope to a Category, which
-    transparently covers every magazine in every Collection it contains."""
+collection_tags = Table(
+    "collection_tags",
+    Base.metadata,
+    Column("collection_id", ForeignKey("collections.id", ondelete="CASCADE"), primary_key=True),
+    Column("tag_id", ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True),
+)
 
-    __tablename__ = "categories"
+
+class Tag(Base):
+    """Admin-defined theme (e.g. "Bricolage", "Guide achat") that groups one or
+    more Collections (many-to-many). Search and library filtering scope to a
+    Tag, which transparently covers every magazine in every Collection
+    tagged with it."""
+
+    __tablename__ = "tags"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    collections: Mapped[list["Collection"]] = relationship("Collection", back_populates="category")
+    collections: Mapped[list["Collection"]] = relationship(
+        "Collection", secondary=collection_tags, back_populates="tags"
+    )
 
 
 class Collection(Base):
     """A magazine title/publication (e.g. "Que Choisir"), grouping every issue
-    published under that title. Belongs to one Category."""
+    published under that title. Can carry multiple Tags."""
 
     __tablename__ = "collections"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
-    category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    category: Mapped[Optional["Category"]] = relationship("Category", back_populates="collections")
+    tags: Mapped[list["Tag"]] = relationship("Tag", secondary=collection_tags, back_populates="collections")
     magazines: Mapped[list["Magazine"]] = relationship("Magazine", back_populates="collection")
 
 

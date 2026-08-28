@@ -14,7 +14,7 @@ router = APIRouter(dependencies=[Depends(get_current_user)])
 
 WORD_RE = re.compile(r"\w+", re.UNICODE)
 
-# How many matching pages to pull from Meilisearch before re-ranking by magazine.
+# How many matching pages to pull from Meilisearch before grouping by magazine.
 # Bounds the re-ranking cost; comfortably above what any single query is expected
 # to match in a self-hosted, personal-scale collection.
 MAX_RANKED_HITS = 500
@@ -35,8 +35,8 @@ def search(
     magazine_title: str | None = None,
     year: int | None = None,
     issue_number: str | None = None,
-    category_id: int | None = Query(None, description="Restrict to magazines in this category"),
-    collection_id: int | None = Query(None, description="Restrict to magazines in this collection"),
+    tag_id: int | None = Query(None, description="Restrict to magazines whose collection carries this tag"),
+    collection_id: list[int] = Query([], description="Restrict to magazines in any of these collections"),
     page: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -50,10 +50,10 @@ def search(
         filters.append(f"year = {year}")
     if issue_number:
         filters.append(f'issue_number = "{_escape_filter_value(issue_number)}"')
-    if category_id is not None:
-        filters.append(f"category_id = {category_id}")
-    if collection_id is not None:
-        filters.append(f"collection_id = {collection_id}")
+    if tag_id is not None:
+        filters.append(f"tag_ids = {tag_id}")
+    if collection_id:
+        filters.append(f"collection_id IN [{','.join(str(cid) for cid in collection_id)}]")
 
     try:
         results = get_index().search(
@@ -74,32 +74,30 @@ def search(
 
     raw_hits = results["hits"]
 
-    # Rank by magazine relevance first (the magazine with the most matching pages
-    # for this query wins), then by recency (a more recent magazine wins a tie),
-    # then by page order within a magazine. Python's sort is stable, so applying
-    # the keys least-significant-first yields that combined ordering.
-    magazine_hit_counts: dict[int, int] = {}
-    magazine_pub_dates: dict[int, str] = {}
+    # One row per magazine, not per page: group hits by magazine, keeping each
+    # group's own hits in Meilisearch's original relevance order so the first
+    # hit in a group is that magazine's single best-matching page.
+    groups: dict[int, list[dict]] = {}
     for hit in raw_hits:
-        hit_magazine_id = hit["magazine_id"]
-        magazine_hit_counts[hit_magazine_id] = magazine_hit_counts.get(hit_magazine_id, 0) + 1
-        pub_date = hit.get("publication_date") or ""
-        if pub_date > magazine_pub_dates.get(hit_magazine_id, ""):
-            magazine_pub_dates[hit_magazine_id] = pub_date
+        groups.setdefault(hit["magazine_id"], []).append(hit)
 
-    ranked_hits = sorted(raw_hits, key=lambda h: h["page_number"])
-    ranked_hits.sort(key=lambda h: magazine_pub_dates.get(h["magazine_id"], ""), reverse=True)
-    ranked_hits.sort(key=lambda h: magazine_hit_counts[h["magazine_id"]], reverse=True)
+    # Rank magazines by how many matching pages they have (most occurrences
+    # first), then by recency as a tiebreak. Python's sort is stable, so
+    # applying the keys least-significant-first yields that combined order.
+    magazine_ids_ranked = sorted(groups, key=lambda mid: groups[mid][0].get("publication_date") or "", reverse=True)
+    magazine_ids_ranked.sort(key=lambda mid: len(groups[mid]), reverse=True)
 
     start = page * limit
-    page_hits = ranked_hits[start : start + limit]
+    page_magazine_ids = magazine_ids_ranked[start : start + limit]
 
     terms = _matched_terms(q)
     hits: list[SearchHit] = []
-    for hit in page_hits:
-        page_id = hit["page_id"]
-        formatted = hit.get("_formatted", {})
-        snippet = formatted.get("raw_text", hit.get("raw_text", ""))
+    for magazine_id_ in page_magazine_ids:
+        group = groups[magazine_id_]
+        best = group[0]
+        page_id = best["page_id"]
+        formatted = best.get("_formatted", {})
+        snippet = formatted.get("raw_text", best.get("raw_text", ""))
 
         db_page = db.get(Page, page_id)
         words: list[WordBox] = []
@@ -112,9 +110,10 @@ def search(
 
         hits.append(
             SearchHit(
-                magazine_id=hit["magazine_id"],
-                magazine_title=hit["magazine_title"],
-                page_number=hit["page_number"],
+                magazine_id=best["magazine_id"],
+                magazine_title=best["magazine_title"],
+                occurrence_count=len(group),
+                page_number=best["page_number"],
                 page_id=page_id,
                 snippet=snippet,
                 words=words,
@@ -123,7 +122,7 @@ def search(
 
     return SearchResponse(
         query=q,
-        total_hits=min(results.get("estimatedTotalHits", len(hits)), len(ranked_hits)),
+        total_hits=len(magazine_ids_ranked),
         hits=hits,
         processing_time_ms=results.get("processingTimeMs", 0),
     )

@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr
 
-from app.models import OcrStatus, PageLanguage, ScanStatus
+from app.models import IssueType, OcrStatus, PageLanguage, ScanStatus
 
 # ---- Auth ----
 
@@ -73,6 +73,13 @@ class PageOut(BaseModel):
     error_message: str | None = None
 
 
+class TagOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+
+
 class MagazineOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -80,6 +87,8 @@ class MagazineOut(BaseModel):
     title: str
     issue_number: str | None = None
     publication_date: datetime | None = None
+    issue_month: str | None = None
+    issue_type: IssueType
     filename: str
     cover_thumbnail_path: str | None = None
     scan_status: ScanStatus
@@ -88,25 +97,17 @@ class MagazineOut(BaseModel):
     toc_error_message: str | None = None
     collection_id: int | None = None
     collection_name: str | None = None
-    category_id: int | None = None
-    category_name: str | None = None
+    tags: list[TagOut] = []
     created_at: datetime
     file_size: int
     page_count: int = 0
 
 
-class CategoryOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
+class TagCreate(BaseModel):
     name: str
 
 
-class CategoryCreate(BaseModel):
-    name: str
-
-
-class CategoryUpdate(BaseModel):
+class TagUpdate(BaseModel):
     name: str
 
 
@@ -115,8 +116,7 @@ class CollectionOut(BaseModel):
 
     id: int
     name: str
-    category_id: int | None = None
-    category_name: str | None = None
+    tags: list[TagOut] = []
 
 
 class CollectionSummary(CollectionOut):
@@ -130,14 +130,12 @@ class LibraryOverview(BaseModel):
     unassigned_cover_magazine_id: int | None = None
 
 
-class CollectionCreate(BaseModel):
-    name: str
-    category_id: int | None = None
-
-
 class CollectionUpdate(BaseModel):
-    name: str | None = None
-    category_id: int | None = None
+    name: str
+
+
+class CollectionTagsUpdate(BaseModel):
+    tag_ids: list[int]
 
 
 class ArticleOut(BaseModel):
@@ -153,8 +151,6 @@ class ArticleOut(BaseModel):
 class ArticleWithMagazine(ArticleOut):
     magazine_title: str
     magazine_issue_number: str | None = None
-    category_id: int | None = None
-    category_name: str | None = None
 
 
 class ArticleCreate(BaseModel):
@@ -227,6 +223,7 @@ class AdminStatsResponse(BaseModel):
 class SearchHit(BaseModel):
     magazine_id: int
     magazine_title: str
+    occurrence_count: int
     page_number: int
     page_id: int
     snippet: str

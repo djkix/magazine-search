@@ -8,11 +8,16 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Article, Collection, Magazine, Page
-from app.schemas import ArticleOut, MagazineOut, PageOut
+from app.models import Article, Collection, Magazine, Page, collection_tags
+from app.schemas import ArticleOut, MagazineOut, PageOut, TagOut
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 settings = get_settings()
+
+FRENCH_MONTHS = [
+    "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+    "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
+]
 
 
 def _get_magazine_or_404(magazine_id: int, db: Session) -> Magazine:
@@ -26,10 +31,8 @@ def _to_magazine_out(magazine: Magazine, page_count: int) -> MagazineOut:
     out = MagazineOut.model_validate(magazine)
     out.page_count = page_count
     out.collection_name = magazine.collection.name if magazine.collection else None
-    out.category_id = magazine.collection.category_id if magazine.collection else None
-    out.category_name = (
-        magazine.collection.category.name if magazine.collection and magazine.collection.category else None
-    )
+    out.tags = [TagOut(id=t.id, name=t.name) for t in magazine.collection.tags] if magazine.collection else []
+    out.issue_month = FRENCH_MONTHS[magazine.publication_date.month - 1] if magazine.publication_date else None
     return out
 
 
@@ -45,9 +48,10 @@ def list_magazines(
     page: int = Query(0, ge=0),
     limit: int = Query(30, ge=1, le=100),
     sort: str = Query("date", pattern="^(date|added)$"),
-    category_id: int | None = Query(None, description="Restrict to magazines in this category"),
+    tag_id: int | None = Query(None, description="Restrict to magazines whose collection carries this tag"),
     collection_id: int | None = Query(None, description="Restrict to magazines in this collection"),
     unassigned: bool = Query(False, description="Restrict to magazines with no collection assigned"),
+    year: int | None = Query(None, description="Restrict to magazines published in this year"),
     db: Session = Depends(get_db),
 ):
     order = Magazine.created_at.desc() if sort == "added" else Magazine.publication_date.desc().nulls_last()
@@ -56,10 +60,14 @@ def list_magazines(
         query = query.filter(Magazine.collection_id.is_(None))
     elif collection_id is not None:
         query = query.filter(Magazine.collection_id == collection_id)
-    elif category_id is not None:
-        query = query.join(Collection, Collection.id == Magazine.collection_id).filter(
-            Collection.category_id == category_id
+    elif tag_id is not None:
+        query = (
+            query.join(Collection, Collection.id == Magazine.collection_id)
+            .join(collection_tags, collection_tags.c.collection_id == Collection.id)
+            .filter(collection_tags.c.tag_id == tag_id)
         )
+    if year is not None:
+        query = query.filter(func.extract("year", Magazine.publication_date) == year)
     rows = query.group_by(Magazine.id).order_by(order, Magazine.title).offset(page * limit).limit(limit).all()
     return [_to_magazine_out(magazine, page_count) for magazine, page_count in rows]
 

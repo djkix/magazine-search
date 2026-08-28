@@ -30,7 +30,7 @@ def ensure_index_configured() -> None:
     index = get_index()
     index.update_searchable_attributes(["raw_text", "magazine_title"])
     index.update_filterable_attributes(
-        ["magazine_id", "magazine_title", "issue_number", "year", "category_id", "collection_id"]
+        ["magazine_id", "magazine_title", "issue_number", "year", "tag_ids", "collection_id"]
     )
     index.update_sortable_attributes(["publication_date"])
 
@@ -47,7 +47,7 @@ def _page_doc(page, magazine) -> dict:
         "raw_text": page.raw_text or "",
         "language": page.language.value if page.language else None,
         "collection_id": magazine.collection_id,
-        "category_id": magazine.collection.category_id if magazine.collection else None,
+        "tag_ids": [t.id for t in magazine.collection.tags] if magazine.collection else [],
     }
 
 

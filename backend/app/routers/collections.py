@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import Collection, Magazine
-from app.schemas import CollectionSummary, LibraryOverview
+from app.schemas import CollectionSummary, LibraryOverview, TagOut
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
@@ -37,8 +37,7 @@ def library_overview(db: Session = Depends(get_db)):
             CollectionSummary(
                 id=collection.id,
                 name=collection.name,
-                category_id=collection.category_id,
-                category_name=collection.category.name if collection.category else None,
+                tags=[TagOut(id=t.id, name=t.name) for t in collection.tags],
                 magazine_count=count,
                 cover_magazine_id=cover_id,
             )
