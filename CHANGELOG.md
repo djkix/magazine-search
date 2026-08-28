@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/djkix/magazine-search/compare/v0.6.0...v0.6.1) (2026-08-28)
+
+
+### Bug Fixes
+
+* derive collection from the top-level NAS directory, not the immediate parent ([1adff77](https://github.com/djkix/magazine-search/commit/1adff77e844b7c60133715b9e02ed2cf9512dac8))
+
 ## [0.6.0](https://github.com/djkix/magazine-search/compare/v0.5.0...v0.6.0) (2026-08-28)
 
 
