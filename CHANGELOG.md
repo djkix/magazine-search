@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.0](https://github.com/djkix/magazine-search/compare/v0.5.0...v0.6.0) (2026-08-28)
+
+
+### Features
+
+* rename category to tag (many-to-many), issue metadata, magazine-grouped search ([02ea114](https://github.com/djkix/magazine-search/commit/02ea114095037e7af7fb500f1c9971ab263cc5dd))
+
+
+### Bug Fixes
+
+* backfill collections for pre-existing magazines, persist scan progress, surface OCR errors ([9fe5641](https://github.com/djkix/magazine-search/commit/9fe564128df5a21cf4977fdee9f2be6918d14645))
+* detect relocated PDFs during scan, rename button, tidy error display ([07ad3a3](https://github.com/djkix/magazine-search/commit/07ad3a3ee5bed13c1868bf5653f3d9049b590702))
+
 ## [0.5.0](https://github.com/djkix/magazine-search/compare/v0.4.0...v0.5.0) (2026-08-27)
 
 
