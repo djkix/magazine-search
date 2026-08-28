@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/djkix/magazine-search/compare/v0.6.1...v0.7.0) (2026-08-28)
+
+
+### Features
+
+* color-code search result occurrence counts from gray to green ([7dd2d0d](https://github.com/djkix/magazine-search/commit/7dd2d0da332f5d5ddd61e486efd3e9ef417b1bfc))
+
 ## [0.6.1](https://github.com/djkix/magazine-search/compare/v0.6.0...v0.6.1) (2026-08-28)
 
 
