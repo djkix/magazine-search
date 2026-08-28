@@ -103,6 +103,7 @@ class Magazine(Base):
         "Article", back_populates="magazine", cascade="all, delete-orphan", order_by="Article.start_page"
     )
     collection: Mapped[Optional["Collection"]] = relationship("Collection", back_populates="magazines")
+    themes: Mapped[list["Theme"]] = relationship("Theme", secondary="theme_magazines", back_populates="magazines")
 
 
 class Page(Base):
@@ -176,27 +177,33 @@ class Collection(Base):
 
     tags: Mapped[list["Tag"]] = relationship("Tag", secondary=collection_tags, back_populates="collections")
     magazines: Mapped[list["Magazine"]] = relationship("Magazine", back_populates="collection")
-    theme_summary: Mapped[Optional["CollectionThemeSummary"]] = relationship(
-        "CollectionThemeSummary", back_populates="collection", uselist=False, cascade="all, delete-orphan"
+
+
+theme_magazines = Table(
+    "theme_magazines",
+    Base.metadata,
+    Column("theme_id", ForeignKey("themes.id", ondelete="CASCADE"), primary_key=True),
+    Column("magazine_id", ForeignKey("magazines.id", ondelete="CASCADE"), primary_key=True),
+)
+
+
+class Theme(Base):
+    """A Gemini-generated topic (e.g. "Automobile", "Santé"), assigned to a
+    magazine once at indexing time from its extracted sommaire. The name
+    vocabulary is shared across the whole library - a magazine being
+    processed is shown the themes already in use so Gemini reuses a
+    matching one instead of inventing a near-duplicate (e.g. "Voitures" vs
+    "Automobile")."""
+
+    __tablename__ = "themes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    magazines: Mapped[list["Magazine"]] = relationship(
+        "Magazine", secondary=theme_magazines, back_populates="themes"
     )
-
-
-class CollectionThemeSummary(Base):
-    """A Gemini-generated grouping of every article across a collection's
-    issues into themes (e.g. "Automobile", "Santé"), regenerated on demand
-    from an admin action rather than kept live - regenerating is a paid
-    Gemini call, not something to redo on every page view."""
-
-    __tablename__ = "collection_theme_summaries"
-
-    collection_id: Mapped[int] = mapped_column(ForeignKey("collections.id", ondelete="CASCADE"), primary_key=True)
-    # [{"theme": str, "articles": [{"magazine_id": int, "magazine_title": str, "title": str, "start_page": int}]}]
-    themes: Mapped[list] = mapped_column(JSON, nullable=False)
-    generated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
-    )
-
-    collection: Mapped["Collection"] = relationship("Collection", back_populates="theme_summary")
 
 
 class Setting(Base):

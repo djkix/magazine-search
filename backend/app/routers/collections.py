@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Collection, CollectionThemeSummary, Magazine
-from app.schemas import CollectionSummary, LibraryOverview, TagOut, ThemeSummaryOut
+from app.models import Collection, Magazine, Theme
+from app.schemas import CollectionSummary, LibraryOverview, MagazineThemeOut, TagOut
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
@@ -52,9 +53,16 @@ def library_overview(db: Session = Depends(get_db)):
     )
 
 
-@router.get("/{collection_id}/theme-summary", response_model=ThemeSummaryOut)
-def get_collection_theme_summary(collection_id: int, db: Session = Depends(get_db)):
-    summary = db.get(CollectionThemeSummary, collection_id)
-    if not summary:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No theme summary generated yet")
-    return ThemeSummaryOut(themes=summary.themes, generated_at=summary.generated_at)
+@router.get("/{collection_id}/themes", response_model=list[MagazineThemeOut])
+def get_collection_themes(collection_id: int, db: Session = Depends(get_db)):
+    """Themes assigned (at indexing time) to any magazine in this
+    collection, each with how many of the collection's magazines carry it."""
+    rows = (
+        db.query(Theme.id, Theme.name, func.count(Magazine.id.distinct()))
+        .join(Theme.magazines)
+        .filter(Magazine.collection_id == collection_id)
+        .group_by(Theme.id, Theme.name)
+        .order_by(func.count(Magazine.id.distinct()).desc(), Theme.name)
+        .all()
+    )
+    return [MagazineThemeOut(id=theme_id, name=name, magazine_count=count) for theme_id, name, count in rows]
