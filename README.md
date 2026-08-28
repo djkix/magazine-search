@@ -23,15 +23,15 @@ Voir [`cahier-des-charges-v2.md`](./cahier-des-charges-v2.md) pour la spécifica
 
 - **Scan du NAS** : détection des nouveaux PDF, déduplication par hash de contenu, attente de stabilité du fichier avant traitement (évite de traiter un fichier encore en cours de copie).
 - **Pipeline d'ingestion asynchrone** (file RQ) : détection de texte natif, OCR conditionnel (`fra+eng`) via `ocrmypdf`/Tesseract, extraction des bounding boxes mot par mot pour le surlignage, génération d'une miniature de couverture.
-- **Collections et catégories à deux niveaux** :
-  - une **collection** (ex. « Que Choisir ») regroupe automatiquement tous les numéros d'un même titre, déduite du nom du répertoire NAS lors du scan ;
-  - une **catégorie** (ex. « Bricolage », « Guide achat ») est créée et gérée à la main dans l'admin, et regroupe une ou plusieurs collections.
-- **Bibliothèque et sommaires en deux niveaux** : parcours par collection (couverture représentative + nombre de numéros), puis détail des numéros ou du sommaire de la collection sélectionnée.
-- **Recherche plein texte** (Meilisearch) avec surlignage des termes, filtres (titre, année, numéro, catégorie, collection), et un classement des résultats qui privilégie d'abord le magazine ayant le plus d'occurrences du terme recherché, puis les numéros les plus récents.
+- **Collections et tags** :
+  - une **collection** (ex. « Que Choisir ») regroupe automatiquement tous les numéros d'un même titre, déduite du nom du répertoire NAS lors du scan (y compris si un numéro est déplacé vers un autre répertoire par la suite) ;
+  - un **tag** (ex. « Bricolage », « Guide achat ») est créé et géré à la main dans l'admin, et peut regrouper plusieurs collections — une collection peut elle-même porter plusieurs tags.
+- **Bibliothèque et sommaires en deux niveaux** : parcours par collection (couverture représentative + nombre de numéros), puis détail des numéros — avec numéro, mois, année (cliquable pour filtrer) et indicateur Hors-Série/Spécial détecté automatiquement — ou du sommaire de la collection sélectionnée, triable par date ou par type.
+- **Recherche plein texte** (Meilisearch) avec surlignage des termes, filtres (titre, année, numéro, tags avec sélection des collections associées), un résultat par magazine (avec son nombre d'occurrences du terme recherché) plutôt qu'un par page, classés par pertinence puis par fraîcheur.
 - **Extraction automatique du sommaire** de chaque magazine via l'API Gemini (titre + page de chaque article), avec vue globale de tous les articles, et correction manuelle depuis le viewer (admin). Modèle Gemini configurable depuis l'admin.
 - **Viewer PDF intégré** (`pdf.js`) en défilement continu, saut direct à une page ou à un article du sommaire, overlay de surlignage des termes recherchés.
 - **Authentification multi-utilisateurs** (admin + comptes standards), sessions JWT invalidées automatiquement à la réinitialisation d'un mot de passe.
-- **Backoffice admin** : tableau de bord avec barre de progression du scan en cours, gestion des comptes, relance d'un scan/OCR par magazine, page de logs applicatifs filtrable (niveau, composant) avec rotation, réglages (modèle Gemini, catégories, réindexation manuelle du moteur de recherche).
+- **Backoffice admin** : tableau de bord avec barre de progression du scan en cours (reprise automatique à l'écran si un scan était déjà en cours), gestion des comptes, relance d'un scan/OCR par magazine, page de logs applicatifs filtrable (niveau, composant) avec rotation, réglages (modèle Gemini, tags et rattachement des collections, réindexation manuelle du moteur de recherche).
 
 ## Architecture
 
@@ -40,7 +40,7 @@ Voir [`cahier-des-charges-v2.md`](./cahier-des-charges-v2.md) pour la spécifica
 ├── app-frontend        Next.js
 ├── worker               RQ : OCR + indexation + extraction du sommaire
 ├── redis                 file de tâches RQ
-├── postgres              utilisateurs, magazines, pages, catégories, collections
+├── postgres              utilisateurs, magazines, pages, tags, collections
 ├── meilisearch            index de recherche plein texte
 ```
 
@@ -99,10 +99,10 @@ Toutes les variables sont documentées dans [`.env.example`](./.env.example). Le
 
 ## Utilisation
 
-- **Scanner le NAS** : depuis `/admin`, bouton « Scanner le NAS ». Les nouveaux PDF stables sont détectés, dédupliqués par hash, puis OCRisés et indexés en tâche de fond ; la progression s'affiche en temps réel sur le tableau de bord.
-- **Organiser en catégories** : depuis `/admin/settings`, créez vos catégories (ex. « Bricolage ») et rattachez-y les collections détectées automatiquement (ex. « Que Choisir », « 60 Millions de consommateurs »).
-- **Rechercher** : `/search` — recherche plein texte avec filtres par titre, année, numéro, catégorie ou collection ; les résultats sont classés par pertinence par magazine puis par fraîcheur.
-- **Parcourir** : `/library` et `/articles` (sommaires) présentent d'abord les collections, puis le détail des numéros ou des sommaires de la collection choisie.
+- **Scanner le NAS** : depuis `/admin`, bouton « Scan ». Les nouveaux PDF stables sont détectés, dédupliqués par hash, puis OCRisés et indexés en tâche de fond ; un PDF déplacé vers un autre répertoire est retrouvé par son contenu et son chemin/sa collection corrigés automatiquement. La progression s'affiche en temps réel sur le tableau de bord.
+- **Organiser en tags** : depuis `/admin/settings`, créez vos tags (ex. « Bricolage ») et rattachez-y une ou plusieurs collections détectées automatiquement (ex. « Que Choisir », « 60 Millions de consommateurs ») en cliquant dessus.
+- **Rechercher** : `/search` — recherche plein texte avec filtres par titre, année, numéro et tags (en cliquant un tag, sélectionnez une ou plusieurs de ses collections pour restreindre la recherche) ; un résultat par magazine, classé par nombre d'occurrences puis par fraîcheur.
+- **Parcourir** : `/library` et `/articles` (sommaires) présentent d'abord les collections, puis le détail des numéros ou des sommaires de la collection choisie, triable par date ou par type (normal/HS/spécial).
 
 ## Développement local
 
