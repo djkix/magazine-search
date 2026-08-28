@@ -57,6 +57,23 @@ export interface ArticleWithMagazine extends Article {
   magazine_issue_number: string | null;
 }
 
+export interface ThemeArticle {
+  magazine_id: number;
+  magazine_title: string;
+  title: string;
+  start_page: number;
+}
+
+export interface Theme {
+  theme: string;
+  articles: ThemeArticle[];
+}
+
+export interface ThemeSummary {
+  themes: Theme[];
+  generated_at: string;
+}
+
 export interface Collection {
   id: number;
   name: string;

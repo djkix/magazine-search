@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Collection, Magazine
-from app.schemas import CollectionSummary, LibraryOverview, TagOut
+from app.models import Collection, CollectionThemeSummary, Magazine
+from app.schemas import CollectionSummary, LibraryOverview, TagOut, ThemeSummaryOut
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
@@ -50,3 +50,11 @@ def library_overview(db: Session = Depends(get_db)):
         unassigned_count=unassigned_count,
         unassigned_cover_magazine_id=unassigned_cover,
     )
+
+
+@router.get("/{collection_id}/theme-summary", response_model=ThemeSummaryOut)
+def get_collection_theme_summary(collection_id: int, db: Session = Depends(get_db)):
+    summary = db.get(CollectionThemeSummary, collection_id)
+    if not summary:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No theme summary generated yet")
+    return ThemeSummaryOut(themes=summary.themes, generated_at=summary.generated_at)

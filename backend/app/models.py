@@ -90,6 +90,7 @@ class Magazine(Base):
     issue_type: Mapped[IssueType] = mapped_column(
         Enum(IssueType, name="issue_type"), default=IssueType.normal, nullable=False
     )
+    issue_month_label: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     collection_id: Mapped[int | None] = mapped_column(
         ForeignKey("collections.id", ondelete="SET NULL"), nullable=True
@@ -175,6 +176,27 @@ class Collection(Base):
 
     tags: Mapped[list["Tag"]] = relationship("Tag", secondary=collection_tags, back_populates="collections")
     magazines: Mapped[list["Magazine"]] = relationship("Magazine", back_populates="collection")
+    theme_summary: Mapped[Optional["CollectionThemeSummary"]] = relationship(
+        "CollectionThemeSummary", back_populates="collection", uselist=False, cascade="all, delete-orphan"
+    )
+
+
+class CollectionThemeSummary(Base):
+    """A Gemini-generated grouping of every article across a collection's
+    issues into themes (e.g. "Automobile", "Santé"), regenerated on demand
+    from an admin action rather than kept live - regenerating is a paid
+    Gemini call, not something to redo on every page view."""
+
+    __tablename__ = "collection_theme_summaries"
+
+    collection_id: Mapped[int] = mapped_column(ForeignKey("collections.id", ondelete="CASCADE"), primary_key=True)
+    # [{"theme": str, "articles": [{"magazine_id": int, "magazine_title": str, "title": str, "start_page": int}]}]
+    themes: Mapped[list] = mapped_column(JSON, nullable=False)
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    collection: Mapped["Collection"] = relationship("Collection", back_populates="theme_summary")
 
 
 class Setting(Base):

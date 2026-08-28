@@ -165,6 +165,26 @@ class ArticleUpdate(BaseModel):
     end_page: int | None = None
 
 
+# ---- Collection theme summary ----
+
+
+class ThemeArticleOut(BaseModel):
+    magazine_id: int
+    magazine_title: str
+    title: str
+    start_page: int
+
+
+class ThemeOut(BaseModel):
+    theme: str
+    articles: list[ThemeArticleOut]
+
+
+class ThemeSummaryOut(BaseModel):
+    themes: list[ThemeOut]
+    generated_at: datetime
+
+
 # ---- Scan ----
 
 
