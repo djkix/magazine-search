@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/djkix/magazine-search/compare/v0.7.0...v0.7.1) (2026-08-28)
+
+
+### Bug Fixes
+
+* search tags scope directly, no collection drill-down step ([d83fe81](https://github.com/djkix/magazine-search/commit/d83fe8198e086993e3362a0c37dd60188c87ba7b))
+
 ## [0.7.0](https://github.com/djkix/magazine-search/compare/v0.6.1...v0.7.0) (2026-08-28)
 
 
