@@ -6,7 +6,8 @@ from sqlalchemy import func
 
 from app.config import get_settings
 from app.database import SessionLocal
-from app.models import Article, Magazine, OcrStatus, Page, PageLanguage, ScanStatus
+from app.models import Article, Magazine, OcrStatus, Page, PageLanguage, ScanStatus, Theme
+from app.services.magazine_themes import generate_magazine_themes
 from app.services.meili import ensure_index_configured, index_page, index_pages
 from app.services.toc import extract_toc
 from app.worker.ocr import detect_language, ensure_text_layer, extract_pages, render_cover_thumbnail
@@ -40,6 +41,8 @@ def _refresh_table_of_contents(db, magazine: Magazine, last_page_number: int) ->
         magazine.toc_status = OcrStatus.done
         magazine.toc_error_message = None
         db.commit()
+
+        _assign_magazine_themes(db, magazine)
     except Exception as exc:  # noqa: BLE001 - non-fatal, reported on the magazine row
         db.rollback()
         magazine = db.get(Magazine, magazine.id)
@@ -48,6 +51,37 @@ def _refresh_table_of_contents(db, magazine: Magazine, last_page_number: int) ->
             magazine.toc_error_message = str(exc)
             db.commit()
         logger.exception("TOC extraction failed for magazine %s", magazine.id)
+
+
+def _assign_magazine_themes(db, magazine: Magazine) -> None:
+    """Best-effort, one-time: generated once at indexing time from the
+    magazine's sommaire, then left alone - not something to redo on every
+    TOC retry. Failure here must not affect toc_status."""
+    try:
+        if magazine.themes:
+            return
+        articles = db.query(Article).filter(Article.magazine_id == magazine.id).order_by(Article.start_page).all()
+        theme_names = generate_magazine_themes(db, articles)
+        if not theme_names:
+            return
+
+        themes = []
+        seen_ids = set()
+        for name in theme_names:
+            theme = db.query(Theme).filter(func.lower(Theme.name) == name.lower()).first()
+            if theme is None:
+                theme = Theme(name=name)
+                db.add(theme)
+                db.flush()
+            if theme.id not in seen_ids:
+                seen_ids.add(theme.id)
+                themes.append(theme)
+
+        magazine.themes = themes
+        db.commit()
+    except Exception:  # noqa: BLE001 - non-fatal, sommaire itself already succeeded
+        db.rollback()
+        logger.exception("Theme generation failed for magazine %s", magazine.id)
 
 
 def process_magazine(magazine_id: int) -> None:

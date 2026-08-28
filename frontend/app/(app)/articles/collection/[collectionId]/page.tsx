@@ -4,11 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
-import type { ArticleWithMagazine, LibraryOverview, ThemeSummary } from "@/lib/types";
+import type { Article, ArticleWithMagazine, LibraryOverview, Magazine, MagazineTheme } from "@/lib/types";
 import { useUser } from "@/components/layout/UserContext";
 import PageContainer from "@/components/layout/PageContainer";
-import Button from "@/components/ui/Button";
+import MagazineCard from "@/components/library/MagazineCard";
 import Icon from "@/components/ui/Icon";
+
+const PAGE_SIZE_OPTIONS = ["10", "20", "50", "all"] as const;
+type PageSizeOption = (typeof PAGE_SIZE_OPTIONS)[number];
 
 export default function CollectionArticlesPage() {
   const params = useParams<{ collectionId: string }>();
@@ -18,15 +21,27 @@ export default function CollectionArticlesPage() {
 
   const [name, setName] = useState<string | null>(null);
   const [q, setQ] = useState("");
-  const [articles, setArticles] = useState<ArticleWithMagazine[]>([]);
+  const [viewMode, setViewMode] = useState<"number" | "theme">("number");
+
+  // "Par numéro": paginated by magazine.
+  const [pageSize, setPageSize] = useState<PageSizeOption>("20");
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [magazines, setMagazines] = useState<Magazine[]>([]);
+  const [articlesByMagazine, setArticlesByMagazine] = useState<Map<number, Article[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [viewMode, setViewMode] = useState<"number" | "theme">("number");
-  const [themeSummary, setThemeSummary] = useState<ThemeSummary | null>(null);
-  const [themeLoading, setThemeLoading] = useState(false);
-  const [generating, setGenerating] = useState(false);
-  const [themeError, setThemeError] = useState<string | null>(null);
+  // Free-text search falls back to a flat, unpaginated article search.
+  const [searchResults, setSearchResults] = useState<ArticleWithMagazine[] | null>(null);
+  const [searching, setSearching] = useState(false);
+
+  // "Par thématique".
+  const [themes, setThemes] = useState<MagazineTheme[]>([]);
+  const [themesLoading, setThemesLoading] = useState(false);
+  const [selectedTheme, setSelectedTheme] = useState<MagazineTheme | null>(null);
+  const [themeMagazines, setThemeMagazines] = useState<Magazine[]>([]);
+  const [themeMagazinesLoading, setThemeMagazinesLoading] = useState(false);
 
   useEffect(() => {
     if (isUnassigned) {
@@ -42,68 +57,91 @@ export default function CollectionArticlesPage() {
       .catch(() => {});
   }, [collectionId, isUnassigned]);
 
+  function collectionParams(extra: Record<string, string> = {}) {
+    const params = new URLSearchParams(extra);
+    if (isUnassigned) params.set("unassigned", "true");
+    else params.set("collection_id", collectionId);
+    return params;
+  }
+
+  // Free-text search (flat, article-level, unpaginated).
   useEffect(() => {
-    setLoading(true);
-    const params = new URLSearchParams({ limit: "200" });
-    if (q.trim()) params.set("q", q.trim());
-    if (isUnassigned) {
-      params.set("unassigned", "true");
-    } else {
-      params.set("collection_id", collectionId);
+    if (!q.trim()) {
+      setSearchResults(null);
+      return;
     }
+    setSearching(true);
+    const params = collectionParams({ limit: "200", q: q.trim() });
     const timeout = setTimeout(() => {
       api
         .get<ArticleWithMagazine[]>(`/articles?${params.toString()}`)
-        .then(setArticles)
+        .then(setSearchResults)
         .catch((err) => setError(err instanceof ApiError ? err.message : "Erreur"))
-        .finally(() => setLoading(false));
+        .finally(() => setSearching(false));
     }, 250);
     return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, collectionId, isUnassigned]);
 
-  function loadThemeSummary() {
-    setThemeLoading(true);
-    api
-      .get<ThemeSummary>(`/collections/${collectionId}/theme-summary`)
-      .then(setThemeSummary)
-      .catch(() => setThemeSummary(null))
-      .finally(() => setThemeLoading(false));
-  }
+  // Paginated "par numéro" browse (only relevant while not searching).
+  useEffect(() => {
+    if (viewMode !== "number" || q.trim()) return;
+    setLoading(true);
+    setError(null);
+    const limit = pageSize === "all" ? "1000" : pageSize;
+    const magParams = collectionParams({ page: pageSize === "all" ? "0" : String(page), limit });
+    const countParams = collectionParams();
+
+    Promise.all([
+      api.get<Magazine[]>(`/magazines?${magParams.toString()}`),
+      api.get<{ total: number }>(`/magazines/count?${countParams.toString()}`),
+    ])
+      .then(async ([mags, countRes]) => {
+        setMagazines(mags);
+        setTotal(countRes.total);
+        const entries = await Promise.all(
+          mags.map((m) => api.get<Article[]>(`/magazines/${m.id}/articles`).then((a) => [m.id, a] as const).catch(() => [m.id, []] as const))
+        );
+        setArticlesByMagazine(new Map(entries));
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : "Erreur"))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, collectionId, isUnassigned, page, pageSize, q]);
 
   useEffect(() => {
-    if (viewMode === "theme" && !isUnassigned) loadThemeSummary();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewMode, collectionId]);
+    setPage(0);
+  }, [pageSize, collectionId]);
 
-  async function generateThemeSummary() {
-    setGenerating(true);
-    setThemeError(null);
-    try {
-      const summary = await api.post<ThemeSummary>(`/admin/collections/${collectionId}/theme-summary`);
-      setThemeSummary(summary);
-    } catch (err) {
-      setThemeError(err instanceof ApiError ? err.message : "Erreur lors de la génération");
-    } finally {
-      setGenerating(false);
-    }
-  }
+  // "Par thématique".
+  useEffect(() => {
+    if (viewMode !== "theme" || isUnassigned) return;
+    setThemesLoading(true);
+    setSelectedTheme(null);
+    api
+      .get<MagazineTheme[]>(`/collections/${collectionId}/themes`)
+      .then(setThemes)
+      .catch(() => setThemes([]))
+      .finally(() => setThemesLoading(false));
+  }, [viewMode, collectionId, isUnassigned]);
+
+  useEffect(() => {
+    if (!selectedTheme) return;
+    setThemeMagazinesLoading(true);
+    const p = collectionParams({ theme_id: String(selectedTheme.id), limit: "100" });
+    api
+      .get<Magazine[]>(`/magazines?${p.toString()}`)
+      .then(setThemeMagazines)
+      .catch(() => setThemeMagazines([]))
+      .finally(() => setThemeMagazinesLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTheme]);
 
   const groups = useMemo(() => {
-    const byMagazine = new Map<number, { title: string; issueNumber: string | null; articles: ArticleWithMagazine[] }>();
-    for (const article of articles) {
-      const existing = byMagazine.get(article.magazine_id);
-      if (existing) {
-        existing.articles.push(article);
-      } else {
-        byMagazine.set(article.magazine_id, {
-          title: article.magazine_title,
-          issueNumber: article.magazine_issue_number,
-          articles: [article],
-        });
-      }
-    }
-    return Array.from(byMagazine.entries());
-  }, [articles]);
+    return magazines.map((m) => ({ magazine: m, articles: articlesByMagazine.get(m.id) ?? [] }));
+  }, [magazines, articlesByMagazine]);
+
+  const totalPages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(total / Number(pageSize)));
 
   return (
     <PageContainer>
@@ -137,15 +175,30 @@ export default function CollectionArticlesPage() {
             </div>
           )}
           {viewMode === "number" && (
-            <div className="relative w-full sm:w-80">
-              <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted" />
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Rechercher un article..."
-                className="w-full rounded-xl border border-outline-variant bg-surface py-2 pl-10 pr-3 text-sm text-foreground outline-none transition focus:border-primary"
-              />
-            </div>
+            <>
+              <div className="relative w-full sm:w-72">
+                <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted" />
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Rechercher un article..."
+                  className="w-full rounded-xl border border-outline-variant bg-surface py-2 pl-10 pr-3 text-sm text-foreground outline-none transition focus:border-primary"
+                />
+              </div>
+              {!q.trim() && (
+                <select
+                  value={pageSize}
+                  onChange={(e) => setPageSize(e.target.value as PageSizeOption)}
+                  className="rounded-xl border border-outline-variant bg-surface px-3 py-2 text-sm text-foreground"
+                >
+                  {PAGE_SIZE_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt === "all" ? "Tous" : `${opt} / page`}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -153,81 +206,109 @@ export default function CollectionArticlesPage() {
       {error && <p className="text-sm text-red-400">{error}</p>}
 
       {viewMode === "theme" ? (
-        <div className="space-y-6">
-          {themeError && <p className="text-sm text-red-400">{themeError}</p>}
-
-          {themeLoading && <p className="text-sm text-foreground-muted">Chargement du sommaire thématique...</p>}
-
-          {!themeLoading && themeSummary && themeSummary.themes.length > 0 && (
-            <>
-              <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
-                <p className="text-xs text-foreground-muted">
-                  Généré le {new Date(themeSummary.generated_at).toLocaleDateString("fr-FR")} — regroupement par IA,
-                  peut ne pas être exhaustif.
-                </p>
-                {user.is_admin && (
-                  <Button onClick={generateThemeSummary} disabled={generating} variant="secondary" className="py-1.5 text-xs">
-                    <Icon name="auto_awesome" className={generating ? "animate-spin" : ""} />
-                    {generating ? "Génération..." : "Régénérer"}
-                  </Button>
-                )}
-              </div>
-              {themeSummary.themes.map((theme) => (
-                <div key={theme.theme} className="overflow-hidden rounded-xl border border-outline-variant">
-                  <div className="bg-surface-hover px-4 py-3">
-                    <span className="text-sm font-semibold text-foreground">{theme.theme}</span>
-                  </div>
-                  <ul className="divide-y divide-outline-variant">
-                    {theme.articles.map((article, i) => (
-                      <li key={i}>
-                        <Link
-                          href={`/viewer/${article.magazine_id}/${article.start_page}`}
-                          className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-surface/60 hover:text-primary-light"
-                        >
-                          <span className="min-w-0 truncate">
-                            {article.title}
-                            <span className="ml-2 text-xs text-foreground-muted">{article.magazine_title}</span>
-                          </span>
-                          <span className="shrink-0 font-mono text-xs text-foreground-muted">p.{article.start_page}</span>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+        selectedTheme ? (
+          <div className="space-y-4">
+            <button
+              onClick={() => setSelectedTheme(null)}
+              className="inline-flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground"
+            >
+              <Icon name="arrow_back" className="text-base" />
+              Toutes les thématiques
+            </button>
+            <h2 className="text-lg font-semibold text-foreground">{selectedTheme.name}</h2>
+            {themeMagazinesLoading && <p className="text-sm text-foreground-muted">Chargement...</p>}
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+              {themeMagazines.map((m) => (
+                <MagazineCard key={m.id} magazine={m} />
               ))}
-            </>
-          )}
-
-          {!themeLoading && (!themeSummary || themeSummary.themes.length === 0) && (
-            <div className="flex flex-col items-center gap-3 rounded-xl border border-outline-variant bg-surface/40 py-16 text-center">
-              <Icon name="auto_awesome" className="text-3xl text-foreground-muted" />
-              <p className="text-sm text-foreground-muted">Aucun sommaire thématique généré pour cette collection.</p>
-              {user.is_admin ? (
-                <Button onClick={generateThemeSummary} disabled={generating}>
-                  <Icon name="auto_awesome" className={generating ? "animate-spin" : ""} />
-                  {generating ? "Génération..." : "Générer le sommaire thématique"}
-                </Button>
-              ) : (
-                <p className="text-xs text-foreground-muted">Un administrateur peut en générer un depuis cette page.</p>
-              )}
             </div>
+            {!themeMagazinesLoading && themeMagazines.length === 0 && (
+              <p className="py-8 text-center text-sm text-foreground-muted">Aucun magazine pour cette thématique.</p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {themesLoading && <p className="text-sm text-foreground-muted">Chargement des thématiques...</p>}
+            <div className="flex flex-wrap gap-2">
+              {themes.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setSelectedTheme(t)}
+                  className="rounded-xl border border-outline-variant bg-surface px-4 py-2 text-sm text-foreground transition hover:border-primary"
+                >
+                  {t.name}
+                  <span className="ml-2 font-mono text-xs text-foreground-muted">{t.magazine_count}</span>
+                </button>
+              ))}
+            </div>
+            {!themesLoading && themes.length === 0 && (
+              <p className="py-8 text-center text-sm text-foreground-muted">
+                Aucune thématique générée pour le moment — elles sont créées automatiquement à l'indexation de chaque
+                numéro.
+              </p>
+            )}
+          </div>
+        )
+      ) : q.trim() ? (
+        <div className="space-y-6">
+          {searching && <p className="text-sm text-foreground-muted">Recherche...</p>}
+          {!searching &&
+            Array.from(
+              searchResults?.reduce((map, article) => {
+                const existing = map.get(article.magazine_id);
+                if (existing) existing.articles.push(article);
+                else
+                  map.set(article.magazine_id, {
+                    title: article.magazine_title,
+                    issueNumber: article.magazine_issue_number,
+                    articles: [article],
+                  });
+                return map;
+              }, new Map<number, { title: string; issueNumber: string | null; articles: ArticleWithMagazine[] }>()) ??
+                new Map()
+            ).map(([magazineId, group]) => (
+              <div key={magazineId} className="overflow-hidden rounded-xl border border-outline-variant">
+                <div className="bg-surface-hover px-4 py-3">
+                  <Link href={`/viewer/${magazineId}/1`} className="text-sm font-semibold text-foreground hover:text-primary-light">
+                    {group.title}
+                    {group.issueNumber ? ` — ${group.issueNumber}` : ""}
+                  </Link>
+                </div>
+                <ul className="divide-y divide-outline-variant">
+                  {group.articles.map((article) => (
+                    <li key={article.id}>
+                      <Link
+                        href={`/viewer/${article.magazine_id}/${article.start_page}`}
+                        className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-surface/60 hover:text-primary-light"
+                      >
+                        <span className="min-w-0 truncate">{article.title}</span>
+                        <span className="shrink-0 font-mono text-xs text-foreground-muted">p.{article.start_page}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          {!searching && searchResults?.length === 0 && (
+            <p className="py-8 text-center text-sm text-foreground-muted">Aucun article trouvé.</p>
           )}
         </div>
       ) : (
         <div className="space-y-6">
-          {groups.map(([magazineId, group]) => (
-            <div key={magazineId} className="overflow-hidden rounded-xl border border-outline-variant">
+          {loading && <p className="text-sm text-foreground-muted">Chargement...</p>}
+          {groups.map(({ magazine, articles }) => (
+            <div key={magazine.id} className="overflow-hidden rounded-xl border border-outline-variant">
               <div className="bg-surface-hover px-4 py-3">
-                <Link href={`/viewer/${magazineId}/1`} className="text-sm font-semibold text-foreground hover:text-primary-light">
-                  {group.title}
-                  {group.issueNumber ? ` — ${group.issueNumber}` : ""}
+                <Link href={`/viewer/${magazine.id}/1`} className="text-sm font-semibold text-foreground hover:text-primary-light">
+                  {magazine.title}
+                  {magazine.issue_number ? ` — ${magazine.issue_number}` : ""}
                 </Link>
               </div>
               <ul className="divide-y divide-outline-variant">
-                {group.articles.map((article) => (
+                {articles.map((article) => (
                   <li key={article.id}>
                     <Link
-                      href={`/viewer/${article.magazine_id}/${article.start_page}`}
+                      href={`/viewer/${magazine.id}/${article.start_page}`}
                       className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-surface/60 hover:text-primary-light"
                     >
                       <span className="min-w-0 truncate">{article.title}</span>
@@ -238,11 +319,36 @@ export default function CollectionArticlesPage() {
                     </Link>
                   </li>
                 ))}
+                {articles.length === 0 && (
+                  <li className="px-4 py-3 text-sm text-foreground-muted">Aucun sommaire pour ce numéro.</li>
+                )}
               </ul>
             </div>
           ))}
           {!loading && groups.length === 0 && (
-            <p className="py-8 text-center text-sm text-foreground-muted">Aucun article trouvé.</p>
+            <p className="py-8 text-center text-sm text-foreground-muted">Aucun magazine trouvé.</p>
+          )}
+
+          {pageSize !== "all" && totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-4">
+              <button
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="rounded-lg border border-outline-variant px-3 py-1.5 text-sm text-foreground disabled:opacity-40"
+              >
+                <Icon name="chevron_left" />
+              </button>
+              <span className="font-mono text-xs text-foreground-muted">
+                Page {page + 1} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                disabled={page >= totalPages - 1}
+                className="rounded-lg border border-outline-variant px-3 py-1.5 text-sm text-foreground disabled:opacity-40"
+              >
+                <Icon name="chevron_right" />
+              </button>
+            </div>
           )}
         </div>
       )}
