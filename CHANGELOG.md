@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.12.0](https://github.com/djkix/magazine-search/compare/v0.11.0...v0.12.0) (2026-08-29)
+
+
+### Features
+
+* add per-minute Gemini rate limiting and quota self-healing ([ceed07e](https://github.com/djkix/magazine-search/commit/ceed07ed7de2f794639a029324e0324dec957eb3))
+* batch sommaire/theme extraction across several magazines per request ([4872061](https://github.com/djkix/magazine-search/commit/4872061e3181539a2465bd7fd96e8f089ebab166))
+
+
+### Bug Fixes
+
+* load PDFs via HTTP Range requests instead of downloading whole file ([4610528](https://github.com/djkix/magazine-search/commit/461052802122c5dbbf50766fa067eddbbc814d0a))
+
 ## [0.11.0](https://github.com/djkix/magazine-search/compare/v0.10.1...v0.11.0) (2026-08-29)
 
 
