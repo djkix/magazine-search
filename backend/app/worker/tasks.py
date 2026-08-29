@@ -1,5 +1,6 @@
 import logging
 import traceback
+from datetime import datetime, timezone
 from pathlib import Path
 
 from sqlalchemy import func
@@ -7,6 +8,7 @@ from sqlalchemy import func
 from app.config import get_settings
 from app.database import SessionLocal
 from app.models import Article, Magazine, OcrStatus, Page, PageLanguage, ScanStatus, Theme
+from app.services.issue_parser import extract_issue_number_from_cover_text, extract_year_from_cover_text
 from app.services.magazine_themes import generate_magazine_themes
 from app.services.meili import ensure_index_configured, index_page, index_pages
 from app.services.toc import extract_toc
@@ -84,6 +86,30 @@ def _assign_magazine_themes(db, magazine: Magazine) -> None:
         logger.exception("Theme generation failed for magazine %s", magazine.id)
 
 
+def handle_process_magazine_failure(job, connection, type, value, traceback) -> None:  # noqa: A002 - RQ's fixed callback signature
+    """RQ invokes this even when the job was killed for exceeding
+    job_timeout (e.g. a hung OCR run on an oversized/corrupt PDF) - in that
+    case process_magazine's own except block never runs, since the worker
+    process was terminated, which would otherwise leave the magazine stuck
+    at scan_status=processing forever with no way to notice or retry it."""
+    magazine_id = job.args[0] if job.args else None
+    if magazine_id is None:
+        return
+    db = SessionLocal()
+    try:
+        magazine = db.get(Magazine, magazine_id)
+        if magazine is not None and magazine.scan_status == ScanStatus.processing:
+            magazine.scan_status = ScanStatus.failed
+            magazine.error_message = f"{type.__name__ if type else 'Erreur'}: {value}"[:2000]
+            db.commit()
+            logger.error("Magazine %s marked failed after job failure/timeout: %s", magazine_id, value)
+    except Exception:  # noqa: BLE001 - this IS the failure handler, must never itself raise into RQ
+        db.rollback()
+        logger.exception("Failed to mark magazine %s failed after job failure/timeout", magazine_id)
+    finally:
+        db.close()
+
+
 def process_magazine(magazine_id: int) -> None:
     db = SessionLocal()
     try:
@@ -111,7 +137,10 @@ def process_magazine(magazine_id: int) -> None:
         ensure_index_configured()
 
         last_page_number = 0
+        cover_text = None
         for page_data in extract_pages(processed_path):
+            if page_data["page_number"] == 1:
+                cover_text = page_data["raw_text"]
             lang = detect_language(page_data["raw_text"])
             page = (
                 db.query(Page)
@@ -131,6 +160,14 @@ def process_magazine(magazine_id: int) -> None:
 
             index_page(page, magazine)
             last_page_number = max(last_page_number, page_data["page_number"])
+
+        if cover_text and (magazine.publication_date is None or magazine.issue_number is None):
+            if magazine.publication_date is None:
+                cover_year = extract_year_from_cover_text(cover_text)
+                if cover_year:
+                    magazine.publication_date = datetime(cover_year, 1, 1, tzinfo=timezone.utc)
+            if magazine.issue_number is None:
+                magazine.issue_number = extract_issue_number_from_cover_text(cover_text)
 
         magazine.scan_status = ScanStatus.done
         magazine.error_message = None

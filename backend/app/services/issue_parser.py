@@ -33,6 +33,7 @@ _YYYY_MM_MM_RE = re.compile(r"\b((?:19|20)\d{2})-(0[1-9]|1[0-2])-(0[1-9]|1[0-2])
 _YYYY_MM_RE = re.compile(r"\b((?:19|20)\d{2})-(0[1-9]|1[0-2])\b")
 _MM_YYYY_RE = re.compile(r"\b(0[1-9]|1[0-2])-((?:19|20)\d{2})\b")
 _YEAR_RE = re.compile(r"\b((?:19|20)\d{2})\b")
+_COVER_ISSUE_NUMBER_RE = re.compile(r"n[°ºo]\s*[:\s]?\s*(\d{1,4})", re.IGNORECASE)
 
 
 def _month_label(month1: int, month2: int) -> str:
@@ -41,7 +42,25 @@ def _month_label(month1: int, month2: int) -> str:
     return f"{_FRENCH_MONTH_NAMES[month1 - 1]}-{_FRENCH_MONTH_NAMES[month2 - 1]}"
 
 
-def parse_issue_metadata(title: str) -> tuple[str | None, datetime | None, str | None]:
+def extract_year_from_cover_text(text: str) -> int | None:
+    """Best-effort fallback for issues whose filename carries no date at all
+    (common for Hors-Série/Spécial editions named after their topic, e.g.
+    "Impôts 26" rather than a dated issue) - looks for a plain 19xx/20xx year
+    printed on the cover, which OCR already captured on page 1."""
+    m = _YEAR_RE.search(text)
+    return int(m.group(1)) if m else None
+
+
+def extract_issue_number_from_cover_text(text: str) -> str | None:
+    """Best-effort fallback: many covers print their own issue number as
+    "N° 123" even when the filename doesn't carry one."""
+    m = _COVER_ISSUE_NUMBER_RE.search(text)
+    return m.group(1) if m else None
+
+
+def parse_issue_metadata(
+    title: str, collection_name: str | None = None
+) -> tuple[str | None, datetime | None, str | None]:
     """Best-effort extraction of (issue_number, publication_date, month_label)
     from a magazine's title/filename, e.g.:
     - "60 Millions De Consommateurs - 580 - 2022-05" -> ("580", 2022-05-01, "Mai")
@@ -52,7 +71,17 @@ def parse_issue_metadata(title: str) -> tuple[str | None, datetime | None, str |
     publication_date always anchors on the first month of a range, for
     sorting/year filtering; month_label is the human-readable single month
     or month range for display.
+
+    `collection_name` is stripped from the start of the title (case
+    insensitive) before parsing, if present - otherwise a collection whose
+    own name contains digits (e.g. "60 Millions De Consommateurs") would have
+    that number mistaken for the issue number on any file that carries no
+    other numeric token, such as a topic-named Hors-Série ("... Hors-Série -
+    Impôts").
     """
+    if collection_name and title.lower().startswith(collection_name.lower()):
+        title = title[len(collection_name) :].lstrip(" -–—:|")
+
     year = month1 = month2 = None
     match_span: tuple[int, int] | None = None
 
