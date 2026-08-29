@@ -89,6 +89,32 @@ def _assign_magazine_themes(db, magazine: Magazine, force: bool = False) -> None
         logger.exception("Theme generation failed for magazine %s", magazine.id)
 
 
+def recover_orphaned_processing_magazines() -> list[int]:
+    """Called once when the worker process starts up. `handle_process_magazine_failure`
+    only fires when RQ itself kills a job (e.g. job_timeout) while the worker
+    process stays alive to run the callback - it can't run at all if the
+    whole worker container was torn down mid-job by a deploy/restart, which
+    leaves the magazine stuck at scan_status=processing forever (and the
+    dashboard's scan-progress bar spinning forever, since it waits for every
+    magazine to reach done/failed). Since this runs before the worker takes
+    any job off the queue, any magazine still marked "processing" at this
+    point cannot have a job genuinely in flight - it was orphaned by the
+    previous worker process dying."""
+    db = SessionLocal()
+    try:
+        orphaned = db.query(Magazine).filter(Magazine.scan_status == ScanStatus.processing).all()
+        ids = [m.id for m in orphaned]
+        for magazine in orphaned:
+            magazine.scan_status = ScanStatus.failed
+            magazine.error_message = "Traitement interrompu (redémarrage du worker) - relancez si nécessaire."
+        db.commit()
+        if ids:
+            logger.warning("Recovered %d magazine(s) orphaned by a previous worker shutdown: %s", len(ids), ids)
+        return ids
+    finally:
+        db.close()
+
+
 def handle_process_magazine_failure(job, connection, type, value, traceback) -> None:  # noqa: A002 - RQ's fixed callback signature
     """RQ invokes this even when the job was killed for exceeding
     job_timeout (e.g. a hung OCR run on an oversized/corrupt PDF) - in that
