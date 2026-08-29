@@ -99,6 +99,7 @@ export interface GeminiModelOption {
 export interface GeminiSettings {
   model: string;
   available_models: GeminiModelOption[];
+  daily_request_limit: number | null;
 }
 
 export interface Page {
