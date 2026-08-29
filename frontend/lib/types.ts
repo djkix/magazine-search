@@ -63,6 +63,17 @@ export interface MagazineTheme {
   magazine_count: number;
 }
 
+export interface YearFacet {
+  year: number;
+  count: number;
+}
+
+export interface MagazineFacets {
+  years: YearFacet[];
+  hs_count: number;
+  sp_count: number;
+}
+
 export interface Collection {
   id: number;
   name: string;

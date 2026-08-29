@@ -2,11 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
-import type { AdminStats, RetryFailedResponse, ScanStatusResponse, ScanTriggerResponse } from "@/lib/types";
+import type { AdminStats, Magazine, RetryFailedResponse, ScanStatusResponse, ScanTriggerResponse } from "@/lib/types";
 import StatCard from "@/components/admin/StatCard";
 import StatusBadge from "@/components/ui/StatusBadge";
 import Icon from "@/components/ui/Icon";
 import Button from "@/components/ui/Button";
+
+type StatusFilter = "done" | "processing" | "failed" | null;
+
+const STATUS_FILTER_LABEL: Record<Exclude<StatusFilter, null>, string> = {
+  done: "OCR terminés",
+  processing: "En cours",
+  failed: "Échecs",
+};
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -16,6 +24,10 @@ export default function AdminDashboardPage() {
   const [reprocessingId, setReprocessingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(null);
+  const [filteredMagazines, setFilteredMagazines] = useState<Magazine[] | null>(null);
+  const [filterLoading, setFilterLoading] = useState(false);
 
   const scanJobTotal = scanJob ? scanJob.detected + scanJob.processing + scanJob.done + scanJob.failed : 0;
   const scanJobDone = scanJob ? scanJob.done + scanJob.failed : 0;
@@ -28,6 +40,19 @@ export default function AdminDashboardPage() {
   }
 
   useEffect(loadStats, []);
+
+  useEffect(() => {
+    if (!statusFilter) {
+      setFilteredMagazines(null);
+      return;
+    }
+    setFilterLoading(true);
+    api
+      .get<Magazine[]>(`/magazines?scan_status=${statusFilter}&sort=added&limit=100`)
+      .then(setFilteredMagazines)
+      .catch(() => setFilteredMagazines([]))
+      .finally(() => setFilterLoading(false));
+  }, [statusFilter]);
 
   useEffect(() => {
     api
@@ -76,11 +101,18 @@ export default function AdminDashboardPage() {
     try {
       await api.post(`/admin/magazines/${magazineId}/reprocess`);
       loadStats();
+      if (statusFilter) {
+        setFilteredMagazines((prev) => prev?.filter((m) => m.id !== magazineId) ?? null);
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Erreur lors de la relance");
     } finally {
       setReprocessingId(null);
     }
+  }
+
+  function toggleStatusFilter(status: Exclude<StatusFilter, null>) {
+    setStatusFilter((prev) => (prev === status ? null : status));
   }
 
   function poll(jobId: string) {
@@ -161,10 +193,31 @@ export default function AdminDashboardPage() {
       )}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard icon="library_books" label="Total PDF" value={stats?.total} />
-        <StatCard icon="task_alt" label="OCR terminés" value={stats?.done} accent="text-emerald-400" />
-        <StatCard icon="autorenew" label="En cours" value={stats?.processing} accent="text-primary-light" />
-        <StatCard icon="error" label="Échecs" value={stats?.failed} accent="text-red-400" />
+        <StatCard icon="library_books" label="Total PDF" value={stats?.total} onClick={() => setStatusFilter(null)} />
+        <StatCard
+          icon="task_alt"
+          label="OCR terminés"
+          value={stats?.done}
+          accent="text-emerald-400"
+          active={statusFilter === "done"}
+          onClick={() => toggleStatusFilter("done")}
+        />
+        <StatCard
+          icon="autorenew"
+          label="En cours"
+          value={stats?.processing}
+          accent="text-primary-light"
+          active={statusFilter === "processing"}
+          onClick={() => toggleStatusFilter("processing")}
+        />
+        <StatCard
+          icon="error"
+          label="Échecs"
+          value={stats?.failed}
+          accent="text-red-400"
+          active={statusFilter === "failed"}
+          onClick={() => toggleStatusFilter("failed")}
+        />
       </div>
 
       {!!stats?.failed && (
@@ -175,7 +228,20 @@ export default function AdminDashboardPage() {
       )}
 
       <div>
-        <h2 className="mb-3 text-lg font-semibold text-foreground">Activité récente</h2>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-foreground">
+            {statusFilter ? `Filtré : ${STATUS_FILTER_LABEL[statusFilter]}` : "Activité récente"}
+          </h2>
+          {statusFilter && (
+            <button
+              onClick={() => setStatusFilter(null)}
+              className="flex items-center gap-1 rounded-full bg-primary/20 px-3 py-1.5 text-xs text-primary-light"
+            >
+              Réinitialiser
+              <Icon name="close" className="text-sm" />
+            </button>
+          )}
+        </div>
         <div className="overflow-hidden rounded-xl border border-outline-variant">
           <table className="w-full text-sm">
             <thead className="bg-surface-hover text-left font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
@@ -187,7 +253,15 @@ export default function AdminDashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant">
-              {stats?.recent.map((m) => (
+              {filterLoading && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-foreground-muted">
+                    Chargement...
+                  </td>
+                </tr>
+              )}
+              {!filterLoading &&
+              (statusFilter ? filteredMagazines ?? [] : stats?.recent ?? []).map((m) => (
                 <tr key={m.id} className="bg-surface/40">
                   <td className="px-4 py-3 text-foreground">{m.title}</td>
                   <td className="px-4 py-3 font-mono text-xs text-foreground-muted">
@@ -215,10 +289,10 @@ export default function AdminDashboardPage() {
                   </td>
                 </tr>
               ))}
-              {stats && stats.recent.length === 0 && (
+              {!filterLoading && (statusFilter ? filteredMagazines?.length === 0 : stats?.recent.length === 0) && (
                 <tr>
                   <td colSpan={4} className="px-4 py-8 text-center text-foreground-muted">
-                    Aucun scan effectué pour le moment.
+                    {statusFilter ? "Aucun magazine avec ce statut." : "Aucun scan effectué pour le moment."}
                   </td>
                 </tr>
               )}

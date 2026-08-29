@@ -4,13 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
-import type { LibraryOverview, Magazine } from "@/lib/types";
+import type { LibraryOverview, Magazine, MagazineFacets } from "@/lib/types";
 import PageContainer from "@/components/layout/PageContainer";
 import MagazineCard from "@/components/library/MagazineCard";
 import Icon from "@/components/ui/Icon";
 
 const PAGE_SIZE = 100;
 const ISSUE_TYPE_ORDER: Record<Magazine["issue_type"], number> = { normal: 0, hs: 1, sp: 2 };
+
+type IssueTypeFilter = "hs" | "sp" | null;
 
 export default function CollectionLibraryPage() {
   const params = useParams<{ collectionId: string }>();
@@ -23,7 +25,9 @@ export default function CollectionLibraryPage() {
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
   const [yearFilter, setYearFilter] = useState<number | null>(null);
+  const [issueTypeFilter, setIssueTypeFilter] = useState<IssueTypeFilter>(null);
   const [sortMode, setSortMode] = useState<"date" | "type">("date");
+  const [facets, setFacets] = useState<MagazineFacets | null>(null);
 
   useEffect(() => {
     if (isUnassigned) {
@@ -39,6 +43,16 @@ export default function CollectionLibraryPage() {
       .catch(() => {});
   }, [collectionId, isUnassigned]);
 
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (isUnassigned) params.set("unassigned", "true");
+    else params.set("collection_id", collectionId);
+    api
+      .get<MagazineFacets>(`/magazines/facets?${params.toString()}`)
+      .then(setFacets)
+      .catch(() => setFacets(null));
+  }, [collectionId, isUnassigned]);
+
   async function loadPage(targetPage: number) {
     setLoading(true);
     try {
@@ -49,6 +63,7 @@ export default function CollectionLibraryPage() {
         params.set("collection_id", collectionId);
       }
       if (yearFilter) params.set("year", String(yearFilter));
+      if (issueTypeFilter) params.set("issue_type", issueTypeFilter);
       const data = await api.get<Magazine[]>(`/magazines?${params.toString()}`);
       setItems((prev) => (targetPage === 0 ? data : [...prev, ...data]));
       setHasMore(data.length === PAGE_SIZE);
@@ -63,7 +78,7 @@ export default function CollectionLibraryPage() {
   useEffect(() => {
     loadPage(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collectionId, yearFilter]);
+  }, [collectionId, yearFilter, issueTypeFilter]);
 
   const sortedItems = useMemo(() => {
     if (sortMode === "date") return items;
@@ -74,56 +89,140 @@ export default function CollectionLibraryPage() {
     });
   }, [items, sortMode]);
 
+  function selectYear(year: number | null) {
+    setYearFilter(year);
+    setIssueTypeFilter(null);
+  }
+
+  function selectIssueType(type: IssueTypeFilter) {
+    setIssueTypeFilter(type);
+    setYearFilter(null);
+  }
+
+  const noFilterActive = yearFilter === null && issueTypeFilter === null;
+
   return (
     <PageContainer>
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <Link href="/library" className="inline-flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground">
-            <Icon name="arrow_back" className="text-base" />
-            Bibliothèque
-          </Link>
-          <h1 className="mt-2 text-2xl font-semibold text-foreground">{name ?? "..."}</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          {yearFilter && (
-            <button
-              onClick={() => setYearFilter(null)}
-              className="flex items-center gap-1 rounded-full bg-primary/20 px-3 py-1.5 text-xs text-primary-light"
+      <div className="mb-6">
+        <Link href="/library" className="inline-flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground">
+          <Icon name="arrow_back" className="text-base" />
+          Bibliothèque
+        </Link>
+        <h1 className="mt-2 text-2xl font-semibold text-foreground">{name ?? "..."}</h1>
+      </div>
+
+      <div className="flex flex-col gap-6 lg:flex-row">
+        {facets && (
+          <aside className="w-full shrink-0 lg:w-48">
+            <ul className="space-y-1 text-sm">
+              <li>
+                <button
+                  onClick={() => selectYear(null)}
+                  className={`w-full rounded-lg px-2.5 py-1.5 text-left transition ${
+                    noFilterActive ? "bg-primary/10 text-primary-light" : "text-foreground-muted hover:bg-surface-hover"
+                  }`}
+                >
+                  Toutes
+                </button>
+              </li>
+              {facets.years.map((f) => (
+                <li key={f.year}>
+                  <button
+                    onClick={() => selectYear(f.year)}
+                    className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left transition ${
+                      yearFilter === f.year ? "bg-primary/10 text-primary-light" : "text-foreground-muted hover:bg-surface-hover"
+                    }`}
+                  >
+                    <span>{f.year}</span>
+                    <span className="font-mono text-xs">{f.count}</span>
+                  </button>
+                </li>
+              ))}
+              {facets.hs_count > 0 && (
+                <li>
+                  <button
+                    onClick={() => selectIssueType("hs")}
+                    className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left transition ${
+                      issueTypeFilter === "hs" ? "bg-primary/10 text-primary-light" : "text-foreground-muted hover:bg-surface-hover"
+                    }`}
+                  >
+                    <span>Hors Séries</span>
+                    <span className="font-mono text-xs">{facets.hs_count}</span>
+                  </button>
+                </li>
+              )}
+              {facets.sp_count > 0 && (
+                <li>
+                  <button
+                    onClick={() => selectIssueType("sp")}
+                    className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left transition ${
+                      issueTypeFilter === "sp" ? "bg-primary/10 text-primary-light" : "text-foreground-muted hover:bg-surface-hover"
+                    }`}
+                  >
+                    <span>Numéros Spéciaux</span>
+                    <span className="font-mono text-xs">{facets.sp_count}</span>
+                  </button>
+                </li>
+              )}
+            </ul>
+          </aside>
+        )}
+
+        <div className="min-w-0 flex-1">
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              {yearFilter && (
+                <button
+                  onClick={() => setYearFilter(null)}
+                  className="flex items-center gap-1 rounded-full bg-primary/20 px-3 py-1.5 text-xs text-primary-light"
+                >
+                  {yearFilter}
+                  <Icon name="close" className="text-sm" />
+                </button>
+              )}
+              {issueTypeFilter && (
+                <button
+                  onClick={() => setIssueTypeFilter(null)}
+                  className="flex items-center gap-1 rounded-full bg-primary/20 px-3 py-1.5 text-xs text-primary-light"
+                >
+                  {issueTypeFilter === "hs" ? "Hors Séries" : "Numéros Spéciaux"}
+                  <Icon name="close" className="text-sm" />
+                </button>
+              )}
+            </div>
+            <select
+              value={sortMode}
+              onChange={(e) => setSortMode(e.target.value as "date" | "type")}
+              className="rounded-xl border border-outline-variant bg-surface px-3 py-2 text-sm text-foreground"
             >
-              {yearFilter}
-              <Icon name="close" className="text-sm" />
-            </button>
+              <option value="date">Trier par date</option>
+              <option value="type">Trier par type</option>
+            </select>
+          </div>
+
+          {items.length === 0 && !loading && (
+            <p className="text-sm text-foreground-muted">Aucun magazine dans cette collection.</p>
           )}
-          <select
-            value={sortMode}
-            onChange={(e) => setSortMode(e.target.value as "date" | "type")}
-            className="rounded-xl border border-outline-variant bg-surface px-3 py-2 text-sm text-foreground"
-          >
-            <option value="date">Trier par date</option>
-            <option value="type">Trier par type</option>
-          </select>
+
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {sortedItems.map((m) => (
+              <MagazineCard key={m.id} magazine={m} onYearClick={selectYear} />
+            ))}
+          </div>
+
+          {hasMore && (
+            <div className="mt-8 flex justify-center">
+              <button
+                onClick={() => loadPage(page + 1)}
+                disabled={loading}
+                className="rounded-xl border border-outline-variant px-5 py-2.5 text-sm text-foreground transition hover:border-primary disabled:opacity-50"
+              >
+                {loading ? "Chargement..." : "Charger plus"}
+              </button>
+            </div>
+          )}
         </div>
       </div>
-
-      {items.length === 0 && !loading && <p className="text-sm text-foreground-muted">Aucun magazine dans cette collection.</p>}
-
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        {sortedItems.map((m) => (
-          <MagazineCard key={m.id} magazine={m} onYearClick={setYearFilter} />
-        ))}
-      </div>
-
-      {hasMore && (
-        <div className="mt-8 flex justify-center">
-          <button
-            onClick={() => loadPage(page + 1)}
-            disabled={loading}
-            className="rounded-xl border border-outline-variant px-5 py-2.5 text-sm text-foreground transition hover:border-primary disabled:opacity-50"
-          >
-            {loading ? "Chargement..." : "Charger plus"}
-          </button>
-        </div>
-      )}
     </PageContainer>
   );
 }
