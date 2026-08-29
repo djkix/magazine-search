@@ -33,7 +33,7 @@ from app.security import hash_password
 from app.services.logs import read_logs
 from app.services.scan import backfill_collections, get_latest_scan_job_id, get_scan_job_magazine_ids, run_scan
 from app.services.toc import AVAILABLE_GEMINI_MODELS, get_gemini_model, set_gemini_model
-from app.worker.tasks import process_magazine, reindex_magazine, retry_toc
+from app.worker.tasks import handle_process_magazine_failure, process_magazine, reindex_magazine, retry_toc
 
 router = APIRouter(dependencies=[Depends(get_current_admin)])
 
@@ -124,7 +124,9 @@ def retry_failed(db: Session = Depends(get_db)):
         magazine.scan_status = ScanStatus.queued
         magazine.error_message = None
         db.commit()
-        ingestion_queue.enqueue(process_magazine, magazine.id, job_timeout="30m")
+        ingestion_queue.enqueue(
+            process_magazine, magazine.id, job_timeout="30m", on_failure=handle_process_magazine_failure
+        )
     return RetryFailedResponse(retried=len(failed))
 
 
@@ -138,7 +140,9 @@ def reprocess_magazine(magazine_id: int, db: Session = Depends(get_db)):
     magazine.scan_status = ScanStatus.queued
     magazine.error_message = None
     db.commit()
-    ingestion_queue.enqueue(process_magazine, magazine_id, job_timeout="30m")
+    ingestion_queue.enqueue(
+        process_magazine, magazine_id, job_timeout="30m", on_failure=handle_process_magazine_failure
+    )
     return {"status": "queued"}
 
 

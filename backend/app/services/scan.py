@@ -11,10 +11,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import Collection, IssueType, Magazine, ScanStatus
+from app.models import Collection, IssueType, Magazine, Page, ScanStatus
 from app.queue import ingestion_queue, redis_conn
-from app.services.issue_parser import parse_issue_metadata
-from app.worker.tasks import process_magazine, reindex_magazine
+from app.services.issue_parser import (
+    extract_issue_number_from_cover_text,
+    extract_year_from_cover_text,
+    parse_issue_metadata,
+)
+from app.worker.tasks import handle_process_magazine_failure, process_magazine, reindex_magazine
 
 logger = logging.getLogger("app.scan")
 settings = get_settings()
@@ -82,10 +86,10 @@ def _dir_parts(nas_root: Path, path: Path) -> tuple[str, ...]:
     return path.relative_to(nas_root).parts[:-1]
 
 
-def _collection_id_for(db: Session, dir_parts: tuple[str, ...], cache: dict[str, Collection]) -> int | None:
+def _collection_for(db: Session, dir_parts: tuple[str, ...], cache: dict[str, Collection]) -> Collection | None:
     if not dir_parts:
         return None
-    return _get_or_create_collection(db, dir_parts[0], cache).id
+    return _get_or_create_collection(db, dir_parts[0], cache)
 
 
 def run_scan(db: Session) -> tuple[str, int]:
@@ -145,7 +149,8 @@ def run_scan(db: Session) -> tuple[str, int]:
                 existing.file_path = relative_path
                 existing.file_size = size
                 existing.file_mtime = datetime.fromtimestamp(mtime, tz=timezone.utc)
-                existing.collection_id = _collection_id_for(db, dir_parts, collection_cache)
+                collection = _collection_for(db, dir_parts, collection_cache)
+                existing.collection_id = collection.id if collection else None
                 existing.issue_type = _detect_issue_type(existing.title, dir_parts[1:])
                 if existing.scan_status == ScanStatus.failed:
                     existing.scan_status = ScanStatus.queued
@@ -157,7 +162,10 @@ def run_scan(db: Session) -> tuple[str, int]:
 
         size, mtime = candidates[path]
         dir_parts = _dir_parts(nas_root, path)
-        issue_number, publication_date, issue_month_label = parse_issue_metadata(path.stem)
+        collection = _collection_for(db, dir_parts, collection_cache)
+        issue_number, publication_date, issue_month_label = parse_issue_metadata(
+            path.stem, collection_name=collection.name if collection else None
+        )
         magazine = Magazine(
             title=path.stem,
             filename=path.name,
@@ -166,7 +174,7 @@ def run_scan(db: Session) -> tuple[str, int]:
             file_size=size,
             file_mtime=datetime.fromtimestamp(mtime, tz=timezone.utc),
             scan_status=ScanStatus.stable,
-            collection_id=_collection_id_for(db, dir_parts, collection_cache),
+            collection_id=collection.id if collection else None,
             issue_type=_detect_issue_type(path.stem, dir_parts[1:]),
             issue_number=issue_number,
             publication_date=publication_date,
@@ -192,10 +200,14 @@ def run_scan(db: Session) -> tuple[str, int]:
         magazine = db.get(Magazine, magazine_id)
         magazine.scan_status = ScanStatus.queued
         db.commit()
-        ingestion_queue.enqueue(process_magazine, magazine_id, job_timeout="30m")
+        ingestion_queue.enqueue(
+            process_magazine, magazine_id, job_timeout="30m", on_failure=handle_process_magazine_failure
+        )
 
     for magazine_id in retry_ids:
-        ingestion_queue.enqueue(process_magazine, magazine_id, job_timeout="30m")
+        ingestion_queue.enqueue(
+            process_magazine, magazine_id, job_timeout="30m", on_failure=handle_process_magazine_failure
+        )
 
     for magazine_id in relocated_ids:
         if magazine_id not in retry_ids:
@@ -239,9 +251,24 @@ def backfill_collections(db: Session) -> list[int]:
 
     for magazine in db.query(Magazine).all():
         dir_parts = Path(magazine.file_path).parts[:-1]
-        new_collection_id = _collection_id_for(db, dir_parts, collection_cache)
+        new_collection = _collection_for(db, dir_parts, collection_cache)
+        new_collection_id = new_collection.id if new_collection else None
         new_issue_type = _detect_issue_type(magazine.title, dir_parts[1:])
-        new_issue_number, new_publication_date, new_issue_month_label = parse_issue_metadata(magazine.title)
+        new_issue_number, new_publication_date, new_issue_month_label = parse_issue_metadata(
+            magazine.title, collection_name=new_collection.name if new_collection else None
+        )
+
+        if new_publication_date is None or new_issue_number is None:
+            cover_page = (
+                db.query(Page).filter(Page.magazine_id == magazine.id, Page.page_number == 1).first()
+            )
+            if cover_page and cover_page.raw_text:
+                if new_publication_date is None:
+                    cover_year = extract_year_from_cover_text(cover_page.raw_text)
+                    if cover_year:
+                        new_publication_date = datetime(cover_year, 1, 1, tzinfo=timezone.utc)
+                if new_issue_number is None:
+                    new_issue_number = extract_issue_number_from_cover_text(cover_page.raw_text)
 
         changed = (
             magazine.collection_id != new_collection_id
