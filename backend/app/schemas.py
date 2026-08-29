@@ -212,11 +212,13 @@ class GeminiSettingsResponse(BaseModel):
     model: str
     available_models: list[GeminiModelOption]
     daily_request_limit: int | None
+    rpm_limit: int | None
 
 
 class GeminiSettingsUpdate(BaseModel):
     model: str
     daily_request_limit: int | None = None
+    rpm_limit: int | None = None
 
 
 class AdminStatsResponse(BaseModel):
