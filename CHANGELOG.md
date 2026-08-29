@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.11.0](https://github.com/djkix/magazine-search/compare/v0.10.1...v0.11.0) (2026-08-29)
+
+
+### Features
+
+* self-throttle Gemini calls to stay under the account's daily quota ([d1d5ec4](https://github.com/djkix/magazine-search/commit/d1d5ec4f69965e92a5354a8c2ca634b084af9204))
+
+
+### Bug Fixes
+
+* recover magazines orphaned by a worker restart mid-job ([4df9d90](https://github.com/djkix/magazine-search/commit/4df9d90bb592e0c0b01505460874cc4d2419b166))
+
 ## [0.10.1](https://github.com/djkix/magazine-search/compare/v0.10.0...v0.10.1) (2026-08-29)
 
 
