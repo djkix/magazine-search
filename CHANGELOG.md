@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.1](https://github.com/djkix/magazine-search/compare/v0.10.0...v0.10.1) (2026-08-29)
+
+
+### Bug Fixes
+
+* stop OCR crashing on NUL bytes, surface silent sommaire/thème failures ([0574271](https://github.com/djkix/magazine-search/commit/0574271754dfe3f39eb63d2440c29934c17c694b))
+
 ## [0.10.0](https://github.com/djkix/magazine-search/compare/v0.9.0...v0.10.0) (2026-08-29)
 
 
