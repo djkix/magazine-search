@@ -328,8 +328,19 @@ export default function CollectionArticlesPage() {
                     </Link>
                   </li>
                 ))}
-                {articles.length === 0 && (
+                {articles.length === 0 && magazine.toc_status === "done" && (
                   <li className="px-4 py-3 text-sm text-foreground-muted">Aucun sommaire pour ce numéro.</li>
+                )}
+                {articles.length === 0 && magazine.toc_status === "failed" && (
+                  <li className="px-4 py-3 text-sm text-red-400" title={magazine.toc_error_message ?? undefined}>
+                    Échec de l'extraction du sommaire
+                    {magazine.toc_error_message ? ` : ${magazine.toc_error_message}` : ""}
+                  </li>
+                )}
+                {articles.length === 0 && (magazine.toc_status === "pending" || magazine.toc_status === "processing") && (
+                  <li className="px-4 py-3 text-sm text-foreground-muted">
+                    {magazine.toc_status === "processing" ? "Extraction du sommaire en cours..." : "Sommaire en attente d'extraction."}
+                  </li>
                 )}
               </ul>
             </div>

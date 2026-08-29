@@ -55,12 +55,15 @@ def _refresh_table_of_contents(db, magazine: Magazine, last_page_number: int) ->
         logger.exception("TOC extraction failed for magazine %s", magazine.id)
 
 
-def _assign_magazine_themes(db, magazine: Magazine) -> None:
+def _assign_magazine_themes(db, magazine: Magazine, force: bool = False) -> None:
     """Best-effort, one-time: generated once at indexing time from the
     magazine's sommaire, then left alone - not something to redo on every
-    TOC retry. Failure here must not affect toc_status."""
+    TOC retry. Failure here must not affect toc_status. `force=True` (used
+    by the admin "Régénérer les thématiques" action) bypasses the
+    already-has-themes guard, e.g. to retry a magazine that got 0 themes
+    from a transient Gemini issue."""
     try:
-        if magazine.themes:
+        if magazine.themes and not force:
             return
         articles = db.query(Article).filter(Article.magazine_id == magazine.id).order_by(Article.start_page).all()
         theme_names = generate_magazine_themes(db, articles)
@@ -197,6 +200,21 @@ def retry_toc(magazine_id: int) -> None:
             return
         last_page_number = db.query(func.max(Page.page_number)).filter(Page.magazine_id == magazine_id).scalar() or 0
         _refresh_table_of_contents(db, magazine, last_page_number)
+    finally:
+        db.close()
+
+
+def regenerate_magazine_themes(magazine_id: int) -> None:
+    """Force-regenerate a magazine's themes even if it already has some -
+    triggered from the admin "Régénérer les thématiques" action, e.g. to
+    retry magazines left at 0 themes by a past transient Gemini failure."""
+    db = SessionLocal()
+    try:
+        magazine = db.get(Magazine, magazine_id)
+        if magazine is None:
+            logger.warning("Magazine %s not found, skipping theme regeneration", magazine_id)
+            return
+        _assign_magazine_themes(db, magazine, force=True)
     finally:
         db.close()
 

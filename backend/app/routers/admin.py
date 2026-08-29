@@ -33,7 +33,13 @@ from app.security import hash_password
 from app.services.logs import read_logs
 from app.services.scan import backfill_collections, get_latest_scan_job_id, get_scan_job_magazine_ids, run_scan
 from app.services.toc import AVAILABLE_GEMINI_MODELS, get_gemini_model, set_gemini_model
-from app.worker.tasks import handle_process_magazine_failure, process_magazine, reindex_magazine, retry_toc
+from app.worker.tasks import (
+    handle_process_magazine_failure,
+    process_magazine,
+    regenerate_magazine_themes,
+    reindex_magazine,
+    retry_toc,
+)
 
 router = APIRouter(dependencies=[Depends(get_current_admin)])
 
@@ -398,6 +404,19 @@ def reindex_all(db: Session = Depends(get_db)):
     magazine_ids = [m.id for m in db.query(Magazine.id).filter(Magazine.scan_status == ScanStatus.done).all()]
     for magazine_id in magazine_ids:
         ingestion_queue.enqueue(reindex_magazine, magazine_id, job_timeout="10m")
+    return {"enqueued": len(magazine_ids)}
+
+
+@router.post("/themes/regenerate-all")
+def regenerate_all_themes(db: Session = Depends(get_db)):
+    """Force-regenerate themes for every processed magazine, even ones that
+    already have some - unlike reindexing the search index, theme
+    assignment is otherwise only ever computed once per magazine, so a
+    magazine left at 0 themes by a past transient Gemini failure has no
+    other way to retry."""
+    magazine_ids = [m.id for m in db.query(Magazine.id).filter(Magazine.scan_status == ScanStatus.done).all()]
+    for magazine_id in magazine_ids:
+        ingestion_queue.enqueue(regenerate_magazine_themes, magazine_id, job_timeout="10m")
     return {"enqueued": len(magazine_ids)}
 
 

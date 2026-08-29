@@ -62,15 +62,20 @@ ARTICLE_LIST_SCHEMA = {
 
 
 def extract_toc(db: Session, magazine: Magazine, pages: list[Page]) -> list[dict]:
+    """Raises on anything that isn't a genuine "Gemini looked and found no
+    sommaire" result (missing API key, no OCR'd text to send, a malformed
+    Gemini response) so the caller can record toc_status=failed with a
+    meaningful message - instead of silently looking identical to a real
+    empty sommaire, which previously left the magazine at toc_status=done
+    with 0 articles and no way to tell the two cases apart."""
     settings = get_settings()
     if not settings.gemini_api_key:
-        logger.warning("GEMINI_API_KEY not configured, skipping TOC extraction for magazine %s", magazine.id)
-        return []
+        raise RuntimeError("GEMINI_API_KEY non configurée")
 
     candidate_pages = [p for p in pages if p.page_number <= MAX_SOMMAIRE_PAGE and p.raw_text]
     text = "\n\n".join(f"--- Page {p.page_number} ---\n{p.raw_text}" for p in candidate_pages)
     if not text.strip():
-        return []
+        raise RuntimeError("Aucun texte OCR disponible sur les premières pages")
 
     client = genai.Client(api_key=settings.gemini_api_key)
     response = client.models.generate_content(
@@ -84,12 +89,12 @@ def extract_toc(db: Session, magazine: Magazine, pages: list[Page]) -> list[dict
 
     try:
         data = json.loads(response.text or "[]")
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as exc:
         logger.error("Gemini returned non-JSON TOC response for magazine %s: %r", magazine.id, (response.text or "")[:500])
-        return []
+        raise RuntimeError("Réponse Gemini invalide (JSON illisible)") from exc
 
     if not isinstance(data, list):
-        return []
+        raise RuntimeError("Réponse Gemini invalide (format inattendu)")
 
     articles = []
     for item in data:

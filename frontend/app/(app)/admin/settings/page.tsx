@@ -21,6 +21,7 @@ export default function AdminSettingsPage() {
   const [reindexing, setReindexing] = useState(false);
   const [reindexMessage, setReindexMessage] = useState<string | null>(null);
   const [backfilling, setBackfilling] = useState(false);
+  const [regeneratingThemes, setRegeneratingThemes] = useState(false);
 
   const [collections, setCollections] = useState<Collection[]>([]);
   const [editingCollectionId, setEditingCollectionId] = useState<number | null>(null);
@@ -124,6 +125,19 @@ export default function AdminSettingsPage() {
       setTagError(err instanceof ApiError ? err.message : "Erreur");
     } finally {
       setReindexing(false);
+    }
+  }
+
+  async function regenerateThemes() {
+    setRegeneratingThemes(true);
+    setReindexMessage(null);
+    try {
+      const data = await api.post<{ enqueued: number }>("/admin/themes/regenerate-all");
+      setReindexMessage(`${data.enqueued} magazine(s) en cours de régénération des thématiques.`);
+    } catch (err) {
+      setTagError(err instanceof ApiError ? err.message : "Erreur");
+    } finally {
+      setRegeneratingThemes(false);
     }
   }
 
@@ -359,6 +373,10 @@ export default function AdminSettingsPage() {
           <Button onClick={reindexAll} disabled={reindexing} variant="secondary">
             <Icon name="sync" className={reindexing ? "animate-spin" : ""} />
             {reindexing ? "Lancement..." : "Réindexer tous les magazines"}
+          </Button>
+          <Button onClick={regenerateThemes} disabled={regeneratingThemes} variant="secondary">
+            <Icon name="sell" className={regeneratingThemes ? "animate-spin" : ""} />
+            {regeneratingThemes ? "Lancement..." : "Régénérer les thématiques"}
           </Button>
         </div>
       </div>
