@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.models import Article, Theme
+from app.services.gemini_quota import GeminiQuotaExceeded, consume_gemini_quota
 from app.services.toc import get_gemini_model
 
 logger = logging.getLogger("app.magazine_themes")
@@ -47,15 +48,26 @@ def generate_magazine_themes(db: Session, articles: list[Article]) -> list[str]:
 
     prompt = PROMPT.format(max_themes=MAX_THEMES_PER_MAGAZINE, vocabulary=vocabulary, listing=listing)
 
+    model = get_gemini_model(db)
+    try:
+        consume_gemini_quota(db, model)
+    except GeminiQuotaExceeded as exc:
+        logger.info("Skipping theme generation: %s", exc)
+        return []
+
     client = genai.Client(api_key=settings.gemini_api_key)
-    response = client.models.generate_content(
-        model=get_gemini_model(db),
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_json_schema=THEME_NAMES_SCHEMA,
-        ),
-    )
+    try:
+        response = client.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_json_schema=THEME_NAMES_SCHEMA,
+            ),
+        )
+    except Exception as exc:
+        logger.error("Gemini theme generation request failed: %s", exc)
+        return []
 
     try:
         data = json.loads(response.text or "[]")

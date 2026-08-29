@@ -9,6 +9,7 @@ import Icon from "@/components/ui/Icon";
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<GeminiSettings | null>(null);
   const [selected, setSelected] = useState("");
+  const [dailyLimit, setDailyLimit] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -34,6 +35,7 @@ export default function AdminSettingsPage() {
       .then((data) => {
         setSettings(data);
         setSelected(data.model);
+        setDailyLimit(data.daily_request_limit ? String(data.daily_request_limit) : "");
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : "Erreur"));
   }
@@ -160,8 +162,12 @@ export default function AdminSettingsPage() {
     setError(null);
     setSaved(false);
     try {
-      const data = await api.put<GeminiSettings>("/admin/settings/gemini", { model: selected });
+      const data = await api.put<GeminiSettings>("/admin/settings/gemini", {
+        model: selected,
+        daily_request_limit: dailyLimit.trim() ? Number(dailyLimit) : null,
+      });
       setSettings(data);
+      setDailyLimit(data.daily_request_limit ? String(data.daily_request_limit) : "");
       setSaved(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Erreur");
@@ -210,6 +216,20 @@ export default function AdminSettingsPage() {
                 className="w-full rounded-lg border border-outline-variant bg-background px-3 py-2 text-sm text-foreground"
               />
             )}
+
+            <div>
+              <label className="text-xs text-foreground-muted">
+                Quota Gemini (requêtes/jour, tous types confondus) — laisser vide si illimité (facturation activée)
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={dailyLimit}
+                onChange={(e) => setDailyLimit(e.target.value)}
+                placeholder="20"
+                className="mt-1 w-full rounded-lg border border-outline-variant bg-background px-3 py-2 text-sm text-foreground"
+              />
+            </div>
 
             <Button onClick={save} disabled={saving || !selected}>
               {saving ? "Enregistrement..." : "Enregistrer"}

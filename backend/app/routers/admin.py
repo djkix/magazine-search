@@ -31,6 +31,7 @@ from app.schemas import (
 )
 from app.security import hash_password
 from app.services.logs import read_logs
+from app.services.gemini_quota import get_gemini_daily_limit, set_gemini_daily_limit
 from app.services.scan import backfill_collections, get_latest_scan_job_id, get_scan_job_magazine_ids, run_scan
 from app.services.toc import AVAILABLE_GEMINI_MODELS, get_gemini_model, set_gemini_model
 from app.worker.tasks import (
@@ -285,13 +286,22 @@ def delete_article(article_id: int, db: Session = Depends(get_db)):
 
 @router.get("/settings/gemini", response_model=GeminiSettingsResponse)
 def get_gemini_settings(db: Session = Depends(get_db)):
-    return GeminiSettingsResponse(model=get_gemini_model(db), available_models=AVAILABLE_GEMINI_MODELS)
+    return GeminiSettingsResponse(
+        model=get_gemini_model(db),
+        available_models=AVAILABLE_GEMINI_MODELS,
+        daily_request_limit=get_gemini_daily_limit(db),
+    )
 
 
 @router.put("/settings/gemini", response_model=GeminiSettingsResponse)
 def update_gemini_settings(payload: GeminiSettingsUpdate, db: Session = Depends(get_db)):
     set_gemini_model(db, payload.model)
-    return GeminiSettingsResponse(model=get_gemini_model(db), available_models=AVAILABLE_GEMINI_MODELS)
+    set_gemini_daily_limit(db, payload.daily_request_limit)
+    return GeminiSettingsResponse(
+        model=get_gemini_model(db),
+        available_models=AVAILABLE_GEMINI_MODELS,
+        daily_request_limit=get_gemini_daily_limit(db),
+    )
 
 
 # ---- Tags ----

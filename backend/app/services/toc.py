@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.models import Magazine, Page, Setting
+from app.services.gemini_quota import consume_gemini_quota
 
 logger = logging.getLogger("app.toc")
 
@@ -77,15 +78,23 @@ def extract_toc(db: Session, magazine: Magazine, pages: list[Page]) -> list[dict
     if not text.strip():
         raise RuntimeError("Aucun texte OCR disponible sur les premières pages")
 
+    model = get_gemini_model(db)
+    consume_gemini_quota(db, model)
+
     client = genai.Client(api_key=settings.gemini_api_key)
-    response = client.models.generate_content(
-        model=get_gemini_model(db),
-        contents=f"{PROMPT}\n\n{text}",
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_json_schema=ARTICLE_LIST_SCHEMA,
-        ),
-    )
+    try:
+        response = client.models.generate_content(
+            model=model,
+            contents=f"{PROMPT}\n\n{text}",
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_json_schema=ARTICLE_LIST_SCHEMA,
+            ),
+        )
+    except Exception as exc:
+        if "RESOURCE_EXHAUSTED" in str(exc) or "429" in str(exc):
+            raise RuntimeError("Quota Gemini dépassé (429) — réessayez plus tard.") from exc
+        raise
 
     try:
         data = json.loads(response.text or "[]")
