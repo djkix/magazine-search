@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.10.0](https://github.com/djkix/magazine-search/compare/v0.9.0...v0.10.0) (2026-08-29)
+
+
+### Features
+
+* add year/HS/SP sidebar filter and clickable dashboard status counters ([d0221ed](https://github.com/djkix/magazine-search/commit/d0221edecadc21fd4e07def7982889c3855294ff))
+
+
+### Bug Fixes
+
+* auto-fail hung OCR jobs and correct HS/Spécial year/numéro parsing ([a8fe466](https://github.com/djkix/magazine-search/commit/a8fe466d776436748b88004310d9df2d99278c46))
+
 ## [0.9.0](https://github.com/djkix/magazine-search/compare/v0.8.1...v0.9.0) (2026-08-28)
 
 
