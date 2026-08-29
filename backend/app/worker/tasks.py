@@ -8,51 +8,108 @@ from sqlalchemy import func
 from app.config import get_settings
 from app.database import SessionLocal
 from app.models import Article, Magazine, OcrStatus, Page, PageLanguage, ScanStatus, Theme
+from app.queue import ingestion_queue
 from app.services.issue_parser import extract_issue_number_from_cover_text, extract_year_from_cover_text
 from app.services.magazine_themes import generate_magazine_themes
 from app.services.meili import ensure_index_configured, index_page, index_pages
-from app.services.toc import extract_toc
+from app.services.sommaire_batch import extract_sommaires_batch
 from app.worker.ocr import detect_language, ensure_text_layer, extract_pages, render_cover_thumbnail
 
 logger = logging.getLogger("worker.tasks")
 settings = get_settings()
 
+# Keeps the batch's combined prompt a reasonable size while still cutting
+# Gemini requests roughly by this factor compared to one request per
+# magazine - see process_pending_toc_batch.
+SOMMAIRE_BATCH_SIZE = 8
 
-def _refresh_table_of_contents(db, magazine: Magazine, last_page_number: int) -> None:
-    """Best-effort: a failure here must not mark the whole magazine as failed."""
+
+def process_pending_toc_batch() -> None:
+    """Extracts the sommaire + themes for up to SOMMAIRE_BATCH_SIZE
+    magazines currently at toc_status=pending, in a single Gemini request
+    covering all of them (see extract_sommaires_batch) rather than one
+    request per magazine.
+
+    Enqueued once after every OCR completion; safe to invoke repeatedly -
+    it's a no-op once nothing is pending. During a bulk scan, many of these
+    calls pile up in the queue behind the (much slower) process_magazine
+    OCR jobs, so by the time the first one actually runs, most or all of
+    that batch's magazines are usually already pending - naturally
+    coalescing a large backlog into a handful of requests instead of one
+    per magazine, which is what was blowing through the account's daily
+    Gemini quota during a bulk backfill."""
+    db = SessionLocal()
     try:
-        magazine.toc_status = OcrStatus.processing
+        pending = (
+            db.query(Magazine)
+            .filter(Magazine.toc_status == OcrStatus.pending)
+            .order_by(Magazine.id)
+            .limit(SOMMAIRE_BATCH_SIZE)
+            .all()
+        )
+        if not pending:
+            return
+
+        magazine_ids = [m.id for m in pending]
+        for magazine in pending:
+            magazine.toc_status = OcrStatus.processing
         db.commit()
 
-        pages = db.query(Page).filter(Page.magazine_id == magazine.id).order_by(Page.page_number).all()
-        entries = sorted(extract_toc(db, magazine, pages), key=lambda e: e["start_page"])
+        magazines_with_pages = [
+            (m, db.query(Page).filter(Page.magazine_id == m.id).order_by(Page.page_number).all()) for m in pending
+        ]
 
-        db.query(Article).filter(Article.magazine_id == magazine.id).delete()
-        for i, entry in enumerate(entries):
-            next_start = entries[i + 1]["start_page"] if i + 1 < len(entries) else last_page_number + 1
-            end_page = max(entry["start_page"], next_start - 1)
-            db.add(
-                Article(
-                    magazine_id=magazine.id,
-                    title=entry["title"],
-                    start_page=entry["start_page"],
-                    end_page=end_page,
+        batch_error: str | None = None
+        try:
+            results = extract_sommaires_batch(db, magazines_with_pages)
+        except Exception as exc:  # noqa: BLE001 - a batch-level failure applies to every magazine in it
+            results = {}
+            batch_error = str(exc)
+            logger.exception("Batch sommaire extraction failed for magazines %s", magazine_ids)
+
+        for magazine, pages in magazines_with_pages:
+            magazine = db.get(Magazine, magazine.id)
+            result = results.get(magazine.id)
+            if result is None:
+                magazine.toc_status = OcrStatus.failed
+                magazine.toc_error_message = batch_error or "Aucun résultat renvoyé pour ce numéro"
+                db.commit()
+                continue
+
+            last_page_number = max((p.page_number for p in pages), default=0)
+            entries = sorted(result["articles"], key=lambda e: e["start_page"])
+            db.query(Article).filter(Article.magazine_id == magazine.id).delete()
+            for i, entry in enumerate(entries):
+                next_start = entries[i + 1]["start_page"] if i + 1 < len(entries) else last_page_number + 1
+                end_page = max(entry["start_page"], next_start - 1)
+                db.add(
+                    Article(
+                        magazine_id=magazine.id,
+                        title=entry["title"],
+                        start_page=entry["start_page"],
+                        end_page=end_page,
+                    )
                 )
-            )
-
-        magazine.toc_status = OcrStatus.done
-        magazine.toc_error_message = None
-        db.commit()
-
-        _assign_magazine_themes(db, magazine)
-    except Exception as exc:  # noqa: BLE001 - non-fatal, reported on the magazine row
-        db.rollback()
-        magazine = db.get(Magazine, magazine.id)
-        if magazine is not None:
-            magazine.toc_status = OcrStatus.failed
-            magazine.toc_error_message = str(exc)
+            magazine.toc_status = OcrStatus.done
+            magazine.toc_error_message = None
             db.commit()
-        logger.exception("TOC extraction failed for magazine %s", magazine.id)
+
+            if result["themes"] and not magazine.themes:
+                themes = []
+                seen_ids = set()
+                for name in result["themes"]:
+                    theme = db.query(Theme).filter(func.lower(Theme.name) == name.lower()).first()
+                    if theme is None:
+                        theme = Theme(name=name)
+                        db.add(theme)
+                        db.flush()
+                    if theme.id not in seen_ids:
+                        seen_ids.add(theme.id)
+                        themes.append(theme)
+                magazine.themes = themes
+                db.commit()
+    finally:
+        db.close()
 
 
 def _assign_magazine_themes(db, magazine: Magazine, force: bool = False) -> None:
@@ -107,9 +164,18 @@ def recover_orphaned_processing_magazines() -> list[int]:
         for magazine in orphaned:
             magazine.scan_status = ScanStatus.failed
             magazine.error_message = "Traitement interrompu (redémarrage du worker) - relancez si nécessaire."
+
+        orphaned_toc = db.query(Magazine).filter(Magazine.toc_status == OcrStatus.processing).all()
+        toc_ids = [m.id for m in orphaned_toc]
+        for magazine in orphaned_toc:
+            magazine.toc_status = OcrStatus.failed
+            magazine.toc_error_message = "Traitement interrompu (redémarrage du worker) - relancez si nécessaire."
+
         db.commit()
         if ids:
             logger.warning("Recovered %d magazine(s) orphaned by a previous worker shutdown: %s", len(ids), ids)
+        if toc_ids:
+            logger.warning("Recovered %d magazine(s) with an orphaned sommaire batch: %s", len(toc_ids), toc_ids)
         return ids
     finally:
         db.close()
@@ -165,7 +231,6 @@ def process_magazine(magazine_id: int) -> None:
 
         ensure_index_configured()
 
-        last_page_number = 0
         cover_text = None
         for page_data in extract_pages(processed_path):
             if page_data["page_number"] == 1:
@@ -188,7 +253,6 @@ def process_magazine(magazine_id: int) -> None:
             db.flush()
 
             index_page(page, magazine)
-            last_page_number = max(last_page_number, page_data["page_number"])
 
         if cover_text and (magazine.publication_date is None or magazine.issue_number is None):
             if magazine.publication_date is None:
@@ -200,10 +264,11 @@ def process_magazine(magazine_id: int) -> None:
 
         magazine.scan_status = ScanStatus.done
         magazine.error_message = None
+        magazine.toc_status = OcrStatus.pending
         db.commit()
         logger.info("Magazine %s processed successfully", magazine_id)
 
-        _refresh_table_of_contents(db, magazine, last_page_number)
+        ingestion_queue.enqueue(process_pending_toc_batch, job_timeout="15m")
     except Exception as exc:  # noqa: BLE001 - failure is reported on the magazine row, not re-raised silently
         db.rollback()
         magazine = db.get(Magazine, magazine_id)
@@ -218,16 +283,21 @@ def process_magazine(magazine_id: int) -> None:
 
 
 def retry_toc(magazine_id: int) -> None:
+    """Marks a single magazine pending again and runs the batch processor
+    immediately - it'll pick up this magazine plus whatever else is already
+    pending, same as the automatic post-OCR path."""
     db = SessionLocal()
     try:
         magazine = db.get(Magazine, magazine_id)
         if magazine is None:
             logger.warning("Magazine %s not found, skipping TOC retry", magazine_id)
             return
-        last_page_number = db.query(func.max(Page.page_number)).filter(Page.magazine_id == magazine_id).scalar() or 0
-        _refresh_table_of_contents(db, magazine, last_page_number)
+        magazine.toc_status = OcrStatus.pending
+        magazine.toc_error_message = None
+        db.commit()
     finally:
         db.close()
+    process_pending_toc_batch()
 
 
 def regenerate_magazine_themes(magazine_id: int) -> None:
