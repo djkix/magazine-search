@@ -51,17 +51,25 @@ def ensure_text_layer(source_path: Path, output_path: Path) -> None:
         raise RuntimeError(f"ocrmypdf failed (code {result.returncode}): {result.stderr[-2000:]}")
 
 
+def _strip_nul(text: str) -> str:
+    """A malformed font mapping in the source PDF can make PyMuPDF yield
+    literal NUL (0x00) characters, which Postgres text columns reject
+    outright - strip them here, once, so every consumer downstream (DB
+    writes, language detection, Meilisearch indexing) sees clean text."""
+    return text.replace("\x00", "") if "\x00" in text else text
+
+
 def extract_pages(pdf_path: Path) -> list[dict]:
     doc = fitz.open(pdf_path)
     pages = []
     try:
         for page_number, page in enumerate(doc, start=1):
             rect = page.rect
-            raw_text = page.get_text("text")
+            raw_text = _strip_nul(page.get_text("text"))
             words_raw = page.get_text("words")  # x0, y0, x1, y1, word, block_no, line_no, word_no
             words = [
                 {
-                    "text": w[4],
+                    "text": _strip_nul(w[4]),
                     "x": w[0] / rect.width,
                     "y": w[1] / rect.height,
                     "w": (w[2] - w[0]) / rect.width,
