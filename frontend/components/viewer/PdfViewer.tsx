@@ -142,12 +142,13 @@ export default function PdfViewer({
         const pdfjsLib = await import("pdfjs-dist");
         pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
-        const res = await fetch(fileUrl, { credentials: "include" });
-        if (!res.ok) throw new Error("Impossible de charger le PDF");
-        const data = await res.arrayBuffer();
-        if (cancelled) return;
-
-        const loadedDoc = await pdfjsLib.getDocument({ data }).promise;
+        // Pass `url` (not a pre-fetched `data` ArrayBuffer) so pdf.js uses its
+        // own network layer, which issues HTTP Range requests to fetch only
+        // the bytes it needs (the xref table, then each page as it's
+        // rendered) instead of downloading the whole file - these PDFs can be
+        // 30-75MB, which made the viewer wait for a full download before
+        // showing even the first page, especially painful on mobile networks.
+        const loadedDoc = await pdfjsLib.getDocument({ url: fileUrl, withCredentials: true }).promise;
         if (cancelled) return;
         setDoc(loadedDoc);
         setNumPages(loadedDoc.numPages);
