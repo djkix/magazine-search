@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.models import Article, Theme
-from app.services.gemini_quota import GeminiQuotaExceeded, consume_gemini_quota
+from app.services.gemini_quota import GeminiQuotaExceeded, consume_gemini_quota, mark_quota_exhausted_for_today
 from app.services.toc import get_gemini_model
 
 logger = logging.getLogger("app.magazine_themes")
@@ -66,6 +66,8 @@ def generate_magazine_themes(db: Session, articles: list[Article]) -> list[str]:
             ),
         )
     except Exception as exc:
+        if "RESOURCE_EXHAUSTED" in str(exc) or "429" in str(exc):
+            mark_quota_exhausted_for_today(model)
         logger.error("Gemini theme generation request failed: %s", exc)
         return []
 

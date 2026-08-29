@@ -31,7 +31,12 @@ from app.schemas import (
 )
 from app.security import hash_password
 from app.services.logs import read_logs
-from app.services.gemini_quota import get_gemini_daily_limit, set_gemini_daily_limit
+from app.services.gemini_quota import (
+    get_gemini_daily_limit,
+    get_gemini_rpm_limit,
+    set_gemini_daily_limit,
+    set_gemini_rpm_limit,
+)
 from app.services.scan import backfill_collections, get_latest_scan_job_id, get_scan_job_magazine_ids, run_scan
 from app.services.toc import AVAILABLE_GEMINI_MODELS, get_gemini_model, set_gemini_model
 from app.worker.tasks import (
@@ -290,6 +295,7 @@ def get_gemini_settings(db: Session = Depends(get_db)):
         model=get_gemini_model(db),
         available_models=AVAILABLE_GEMINI_MODELS,
         daily_request_limit=get_gemini_daily_limit(db),
+        rpm_limit=get_gemini_rpm_limit(db),
     )
 
 
@@ -297,10 +303,12 @@ def get_gemini_settings(db: Session = Depends(get_db)):
 def update_gemini_settings(payload: GeminiSettingsUpdate, db: Session = Depends(get_db)):
     set_gemini_model(db, payload.model)
     set_gemini_daily_limit(db, payload.daily_request_limit)
+    set_gemini_rpm_limit(db, payload.rpm_limit)
     return GeminiSettingsResponse(
         model=get_gemini_model(db),
         available_models=AVAILABLE_GEMINI_MODELS,
         daily_request_limit=get_gemini_daily_limit(db),
+        rpm_limit=get_gemini_rpm_limit(db),
     )
 
 

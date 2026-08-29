@@ -10,6 +10,7 @@ export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<GeminiSettings | null>(null);
   const [selected, setSelected] = useState("");
   const [dailyLimit, setDailyLimit] = useState("");
+  const [rpmLimit, setRpmLimit] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -36,6 +37,7 @@ export default function AdminSettingsPage() {
         setSettings(data);
         setSelected(data.model);
         setDailyLimit(data.daily_request_limit ? String(data.daily_request_limit) : "");
+        setRpmLimit(data.rpm_limit ? String(data.rpm_limit) : "");
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : "Erreur"));
   }
@@ -165,9 +167,11 @@ export default function AdminSettingsPage() {
       const data = await api.put<GeminiSettings>("/admin/settings/gemini", {
         model: selected,
         daily_request_limit: dailyLimit.trim() ? Number(dailyLimit) : null,
+        rpm_limit: rpmLimit.trim() ? Number(rpmLimit) : null,
       });
       setSettings(data);
       setDailyLimit(data.daily_request_limit ? String(data.daily_request_limit) : "");
+      setRpmLimit(data.rpm_limit ? String(data.rpm_limit) : "");
       setSaved(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Erreur");
@@ -227,6 +231,20 @@ export default function AdminSettingsPage() {
                 value={dailyLimit}
                 onChange={(e) => setDailyLimit(e.target.value)}
                 placeholder="20"
+                className="mt-1 w-full rounded-lg border border-outline-variant bg-background px-3 py-2 text-sm text-foreground"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs text-foreground-muted">
+                Limite Gemini (requêtes/minute) — dépassée, l'app patiente au lieu d'insister ; laisser vide si illimité
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={rpmLimit}
+                onChange={(e) => setRpmLimit(e.target.value)}
+                placeholder="5"
                 className="mt-1 w-full rounded-lg border border-outline-variant bg-background px-3 py-2 text-sm text-foreground"
               />
             </div>
