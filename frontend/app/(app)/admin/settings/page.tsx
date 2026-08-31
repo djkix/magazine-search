@@ -415,7 +415,7 @@ export default function AdminSettingsPage() {
         <div className="flex flex-wrap gap-2">
           <Button onClick={backfillCollections} disabled={backfilling} variant="secondary">
             <Icon name="folder_copy" className={backfilling ? "animate-spin" : ""} />
-            {backfilling ? "Lancement..." : "Recalculer les collections et types de numéro"}
+            {backfilling ? "Lancement..." : "Recalculer collections, types de numéro et sommaires"}
           </Button>
           <Button onClick={reindexAll} disabled={reindexing} variant="secondary">
             <Icon name="sync" className={reindexing ? "animate-spin" : ""} />

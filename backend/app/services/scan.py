@@ -18,7 +18,13 @@ from app.services.issue_parser import (
     extract_year_from_cover_text,
     parse_issue_metadata,
 )
-from app.worker.tasks import handle_process_magazine_failure, process_magazine, reindex_magazine
+from app.worker.tasks import (
+    extract_and_store_articles,
+    handle_process_magazine_failure,
+    process_magazine,
+    process_pending_theme_batch,
+    reindex_magazine,
+)
 
 logger = logging.getLogger("app.scan")
 settings = get_settings()
@@ -245,7 +251,15 @@ def backfill_collections(db: Session) -> list[int]:
     metadata was derived automatically, and ones mis-assigned by an older
     version of these heuristics (e.g. to a year or "Hors Séries"
     sub-directory instead of the collection's own top-level folder).
-    Returns the ids of the magazines actually changed."""
+
+    Also re-derives every processed magazine's sommaire with the current
+    local OCR-based parser and enqueues a theme batch pass for it - useful
+    after a parser improvement, and to fill in magazines left without a
+    sommaire from when extraction still went through Gemini and could hit
+    the account's quota.
+
+    Returns the ids of the magazines whose collection/issue metadata
+    actually changed (the sommaire re-extraction runs regardless)."""
     collection_cache: dict[str, Collection] = {}
     updated_ids: list[int] = []
 
@@ -284,6 +298,15 @@ def backfill_collections(db: Session) -> list[int]:
             magazine.publication_date = new_publication_date
             magazine.issue_month_label = new_issue_month_label
             updated_ids.append(magazine.id)
+
+        # Re-derive every magazine's sommaire with the current local
+        # OCR-based parser (see sommaire_ocr.py) - covers both magazines
+        # that never got one (e.g. left behind by a past Gemini quota
+        # exhaustion, back when sommaire extraction still went through
+        # Gemini) and ones worth refreshing after a parser improvement.
+        if magazine.scan_status == ScanStatus.done:
+            extract_and_store_articles(db, magazine)
+            ingestion_queue.enqueue(process_pending_theme_batch, job_timeout="15m")
 
     db.commit()
     return updated_ids
