@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.3](https://github.com/djkix/magazine-search/compare/v0.13.2...v0.13.3) (2026-08-31)
+
+
+### Bug Fixes
+
+* recognize multi-word sommaire headings and search further into the magazine ([7facbca](https://github.com/djkix/magazine-search/commit/7facbca55bdf73b766a1acbde16135d427dd2b01))
+* reconstruct visual reading order for multi-column pages ([0497a9b](https://github.com/djkix/magazine-search/commit/0497a9bae1f475159ff914bc471ac35c4e22dca1))
+
 ## [0.13.2](https://github.com/djkix/magazine-search/compare/v0.13.1...v0.13.2) (2026-08-31)
 
 
