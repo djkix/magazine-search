@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/djkix/magazine-search/compare/v0.12.0...v0.13.0) (2026-08-31)
+
+
+### Features
+
+* expose today's Gemini request usage in settings and logs ([4f3f64a](https://github.com/djkix/magazine-search/commit/4f3f64a4adebad95e22429f3945e8cd1f7a8ed4e))
+
 ## [0.12.0](https://github.com/djkix/magazine-search/compare/v0.11.0...v0.12.0) (2026-08-29)
 
 
