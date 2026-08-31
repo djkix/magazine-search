@@ -101,6 +101,7 @@ export interface GeminiSettings {
   available_models: GeminiModelOption[];
   daily_request_limit: number | null;
   rpm_limit: number | null;
+  requests_used_today: number;
 }
 
 export interface Page {

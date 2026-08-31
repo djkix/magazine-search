@@ -34,6 +34,7 @@ from app.services.logs import read_logs
 from app.services.gemini_quota import (
     get_gemini_daily_limit,
     get_gemini_rpm_limit,
+    get_gemini_usage_today,
     set_gemini_daily_limit,
     set_gemini_rpm_limit,
 )
@@ -291,11 +292,13 @@ def delete_article(article_id: int, db: Session = Depends(get_db)):
 
 @router.get("/settings/gemini", response_model=GeminiSettingsResponse)
 def get_gemini_settings(db: Session = Depends(get_db)):
+    model = get_gemini_model(db)
     return GeminiSettingsResponse(
-        model=get_gemini_model(db),
+        model=model,
         available_models=AVAILABLE_GEMINI_MODELS,
         daily_request_limit=get_gemini_daily_limit(db),
         rpm_limit=get_gemini_rpm_limit(db),
+        requests_used_today=get_gemini_usage_today(model),
     )
 
 
@@ -304,11 +307,13 @@ def update_gemini_settings(payload: GeminiSettingsUpdate, db: Session = Depends(
     set_gemini_model(db, payload.model)
     set_gemini_daily_limit(db, payload.daily_request_limit)
     set_gemini_rpm_limit(db, payload.rpm_limit)
+    model = get_gemini_model(db)
     return GeminiSettingsResponse(
-        model=get_gemini_model(db),
+        model=model,
         available_models=AVAILABLE_GEMINI_MODELS,
         daily_request_limit=get_gemini_daily_limit(db),
         rpm_limit=get_gemini_rpm_limit(db),
+        requests_used_today=get_gemini_usage_today(model),
     )
 
 
