@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.2](https://github.com/djkix/magazine-search/compare/v0.13.1...v0.13.2) (2026-08-31)
+
+
+### Bug Fixes
+
+* filter repeating boilerplate lines, handle mixed sommaire sub-styles ([971f6fd](https://github.com/djkix/magazine-search/commit/971f6fd17098d148def9c8e9bb2959b4d60c1712))
+* report sommaire re-extraction count from the backfill action ([840baae](https://github.com/djkix/magazine-search/commit/840baaeb7067e39ef01b16d081cc714c16ce4617))
+
 ## [0.13.1](https://github.com/djkix/magazine-search/compare/v0.13.0...v0.13.1) (2026-08-31)
 
 
