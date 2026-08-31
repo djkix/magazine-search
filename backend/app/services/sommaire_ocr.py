@@ -3,6 +3,14 @@ import re
 from app.models import Page
 from app.services.toc import MAX_SOMMAIRE_PAGE
 
+# The "SOMMAIRE" heading search looks much further into the magazine than
+# the entry-density fallback below - some magazines (glossy monthlies with
+# a long editorial/ad front section) bury their table of contents well past
+# page 8, e.g. page 18-19 out of 210. A heading match is a precise,
+# low-false-positive signal, so it's safe to search a wider window; the
+# density fallback stays tight since it has no such anchor to rely on.
+MAX_HEADING_SEARCH_PAGE = 30
+
 # Two families of sommaire layout are common in French magazines:
 #
 # 1. "Title ......... p.NN" (dot leaders) or, in a tabular/column layout,
@@ -39,27 +47,39 @@ def _is_section_label(line: str) -> bool:
 # A few collections use English-named files/layouts (per the same
 # reasoning as issue_parser's month names) even in an otherwise French
 # library - checked alongside "sommaire" as an equally strong anchor.
-_HEADING_WORDS = ("sommaire", "contents", "content", "summary", "tableofcontents", "index")
+_HEADING_WORDS = ("sommaire", "contents", "content", "summary", "table of contents", "index")
+MAX_HEADING_LENGTH = 30
+
+
+def _collapse_letter_spacing(line: str) -> str:
+    """Some magazines set the heading in a letter-spaced decorative font
+    ("S O M M A I R E"), which OCR can transcribe with a literal space
+    between every letter - detected as a line of nothing but single-
+    character tokens, and joined back into one word before matching."""
+    tokens = line.split()
+    if len(tokens) >= 4 and all(len(t) == 1 for t in tokens):
+        return "".join(tokens)
+    return line
 
 
 def _is_sommaire_heading(line: str) -> bool:
     """The word "SOMMAIRE"/"CONTENTS" is the single strongest, most
     language-specific signal that a page is the actual table of contents -
     relied on as the primary anchor whenever it's present (falling back to
-    entry density only when it truly isn't). Some magazines set it in a
-    letter-spaced decorative font ("S O M M A I R E"), which OCR can
-    transcribe with a literal space between each letter, so the comparison
-    strips whitespace before matching. A trailing issue/date sometimes ends
-    up glued onto the same line by text extraction (e.g. "SOMMAIREN°613"),
-    so only a word boundary is required right after the matched word - not
-    an exact, standalone line - while still rejecting a longer French word
-    that happens to share the same prefix (e.g. "sommairement")."""
-    compact = re.sub(r"\s+", "", line).strip(" :.-").lower()
+    entry density only when it truly isn't). A word boundary is required
+    right after the matched word (a following space or punctuation, not a
+    letter) so a longer French word sharing the same prefix isn't matched
+    (e.g. "sommairement") while a legitimate multi-word variant still is
+    (e.g. "Sommaire interactif")."""
+    normalized = re.sub(r"\s+", " ", _collapse_letter_spacing(line)).strip().lower()
+    if len(normalized) > MAX_HEADING_LENGTH:
+        return False
     for word in _HEADING_WORDS:
-        if compact.startswith(word):
-            rest = compact[len(word) :]
-            if not rest or not rest[0].isalpha():
-                return True
+        if not normalized.startswith(word):
+            continue
+        rest = normalized[len(word) :]
+        if not rest or not rest[0].isalpha():
+            return True
     return False
 
 
@@ -102,22 +122,29 @@ def _count_entry_matches(lines: list[str]) -> int:
 
 
 def _find_sommaire_pages(pages: list[Page], boilerplate: set[str]) -> set[int]:
-    """Identifies which page(s) among the first few actually carry the
-    sommaire, instead of scanning every early page - a magazine's cover,
-    imprint or ad pages can otherwise contribute false-positive matches if
-    every page were scanned indiscriminately."""
-    candidate_pages = [p for p in pages if p.page_number <= MAX_SOMMAIRE_PAGE and p.raw_text]
+    """Identifies which page(s) actually carry the sommaire, instead of
+    scanning every early page - a magazine's cover, imprint or ad pages can
+    otherwise contribute false-positive matches if every page were scanned
+    indiscriminately."""
+    heading_search_pages = [p for p in pages if p.page_number <= MAX_HEADING_SEARCH_PAGE and p.raw_text]
     heading_pages: set[int] = set()
-    match_counts: dict[int, int] = {}
-
-    for page in candidate_pages:
+    for page in heading_search_pages:
         lines = [ln.strip() for ln in page.raw_text.splitlines() if ln.strip() and not _is_boilerplate(ln.strip(), boilerplate)]
-        match_counts[page.page_number] = _count_entry_matches(lines)
         if any(_is_sommaire_heading(ln) for ln in lines):
             heading_pages.add(page.page_number)
 
     if heading_pages:
         return heading_pages | {n + 1 for n in heading_pages}
+
+    # No heading found anywhere in the wider search window - fall back to
+    # whichever page, among the tighter early-page window, has the most
+    # entry-shaped lines (a real TOC has many; an ad/imprint page has at
+    # most one or two incidental matches).
+    density_candidates = [p for p in pages if p.page_number <= MAX_SOMMAIRE_PAGE and p.raw_text]
+    match_counts: dict[int, int] = {}
+    for page in density_candidates:
+        lines = [ln.strip() for ln in page.raw_text.splitlines() if ln.strip() and not _is_boilerplate(ln.strip(), boilerplate)]
+        match_counts[page.page_number] = _count_entry_matches(lines)
 
     if not match_counts or max(match_counts.values()) < 4:
         return set()
