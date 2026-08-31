@@ -149,8 +149,10 @@ export default function AdminSettingsPage() {
     setBackfilling(true);
     setReindexMessage(null);
     try {
-      const data = await api.post<{ updated: number }>("/admin/collections/backfill");
-      setReindexMessage(`${data.updated} magazine(s) recalculé(s).`);
+      const data = await api.post<{ updated: number; resommaired: number }>("/admin/collections/backfill");
+      setReindexMessage(
+        `${data.updated} collection(s)/type(s) recalculé(s), sommaires ré-extraits pour ${data.resommaired} numéro(s).`
+      );
       loadCollections();
     } catch (err) {
       setCollectionError(err instanceof ApiError ? err.message : "Erreur");

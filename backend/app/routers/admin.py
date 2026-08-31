@@ -449,7 +449,7 @@ def backfill_collections_endpoint(db: Session = Depends(get_db)):
     publication_date and month label from its stored file path/title,
     fixing magazines scanned before this metadata was derived automatically
     as well as ones mis-assigned by an older heuristic."""
-    updated_ids = backfill_collections(db)
+    updated_ids, resommaired_count = backfill_collections(db)
     done_ids = {
         m.id
         for m in db.query(Magazine.id).filter(Magazine.scan_status == ScanStatus.done, Magazine.id.in_(updated_ids)).all()
@@ -457,4 +457,4 @@ def backfill_collections_endpoint(db: Session = Depends(get_db)):
     for magazine_id in updated_ids:
         if magazine_id in done_ids:
             ingestion_queue.enqueue(reindex_magazine, magazine_id, job_timeout="10m")
-    return {"updated": len(updated_ids)}
+    return {"updated": len(updated_ids), "resommaired": resommaired_count}

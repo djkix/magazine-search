@@ -244,7 +244,7 @@ def get_latest_scan_job_id() -> str | None:
     return raw.decode() if isinstance(raw, bytes) else raw
 
 
-def backfill_collections(db: Session) -> list[int]:
+def backfill_collections(db: Session) -> tuple[list[int], int]:
     """Recompute every magazine's collection, issue_type, issue_number,
     publication_date and issue_month_label from its stored file path/title
     using the current rules. Covers both magazines scanned before this
@@ -256,12 +256,14 @@ def backfill_collections(db: Session) -> list[int]:
     local OCR-based parser and enqueues a theme batch pass for it - useful
     after a parser improvement, and to fill in magazines left without a
     sommaire from when extraction still went through Gemini and could hit
-    the account's quota.
+    the account's quota. This runs regardless of whether the metadata
+    above changed, which is usually the majority of the work done here.
 
-    Returns the ids of the magazines whose collection/issue metadata
-    actually changed (the sommaire re-extraction runs regardless)."""
+    Returns (ids of the magazines whose collection/issue metadata actually
+    changed, count of magazines whose sommaire was re-extracted)."""
     collection_cache: dict[str, Collection] = {}
     updated_ids: list[int] = []
+    resommaired_count = 0
 
     for magazine in db.query(Magazine).all():
         dir_parts = Path(magazine.file_path).parts[:-1]
@@ -307,6 +309,7 @@ def backfill_collections(db: Session) -> list[int]:
         if magazine.scan_status == ScanStatus.done:
             extract_and_store_articles(db, magazine)
             ingestion_queue.enqueue(process_pending_theme_batch, job_timeout="15m")
+            resommaired_count += 1
 
     db.commit()
-    return updated_ids
+    return updated_ids, resommaired_count
