@@ -59,13 +59,46 @@ def _strip_nul(text: str) -> str:
     return text.replace("\x00", "") if "\x00" in text else text
 
 
+def _reconstruct_reading_order(page: fitz.Page) -> str:
+    """PyMuPDF's raw "text" mode follows the PDF's internal content stream
+    order, which for a magazine's side-by-side columns (common in a
+    sommaire page, e.g. a full-width section banner followed by a left and
+    right column of entries) doesn't reliably match the visual reading
+    order - entries can come out missing, merged, or attributed to the
+    wrong page number as a result.
+
+    Reconstructed instead from positioned text blocks, grouped into
+    horizontal bands (blocks whose vertical extent overlaps) and, within
+    each band, ordered left-to-right - approximates "read top-to-bottom,
+    left-to-right within a row" the way a person actually reads the page."""
+    blocks = [b for b in page.get_text("blocks") if b[6] == 0 and b[4].strip()]
+    blocks.sort(key=lambda b: b[1])  # top-to-bottom by y0
+
+    bands: list[list] = []
+    band_bottom: float | None = None
+    for block in blocks:
+        y0, y1 = block[1], block[3]
+        if band_bottom is not None and y0 < band_bottom:
+            bands[-1].append(block)
+            band_bottom = max(band_bottom, y1)
+        else:
+            bands.append([block])
+            band_bottom = y1
+
+    lines = []
+    for band in bands:
+        band.sort(key=lambda b: b[0])  # left-to-right by x0
+        lines.extend(block[4] for block in band)
+    return "\n".join(lines)
+
+
 def extract_pages(pdf_path: Path) -> list[dict]:
     doc = fitz.open(pdf_path)
     pages = []
     try:
         for page_number, page in enumerate(doc, start=1):
             rect = page.rect
-            raw_text = _strip_nul(page.get_text("text"))
+            raw_text = _strip_nul(_reconstruct_reading_order(page))
             words_raw = page.get_text("words")  # x0, y0, x1, y1, word, block_no, line_no, word_no
             words = [
                 {
