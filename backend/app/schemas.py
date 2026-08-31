@@ -213,6 +213,7 @@ class GeminiSettingsResponse(BaseModel):
     available_models: list[GeminiModelOption]
     daily_request_limit: int | None
     rpm_limit: int | None
+    requests_used_today: int
 
 
 class GeminiSettingsUpdate(BaseModel):

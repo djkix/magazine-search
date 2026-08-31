@@ -80,6 +80,19 @@ def set_gemini_rpm_limit(db: Session, limit: int | None) -> None:
     db.commit()
 
 
+def _daily_key(model: str) -> str:
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return f"gemini_quota:{model}:{day}"
+
+
+def get_gemini_usage_today(model: str) -> int:
+    """Read-only: how many of today's budget units have been spent for
+    `model` so far, without consuming one - lets the admin UI show current
+    usage instead of requiring a trip through the logs to check."""
+    raw = redis_conn.get(_daily_key(model))
+    return int(raw) if raw is not None else 0
+
+
 def _wait_for_rpm_slot(model: str, limit: int) -> None:
     """Blocks briefly until under the per-minute cap instead of failing
     outright - a worker job has no interactive user waiting on it, so a
@@ -116,8 +129,7 @@ def consume_gemini_quota(db: Session, model: str) -> None:
     """
     limit = get_gemini_daily_limit(db)
     if limit is not None and limit > 0:
-        day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        key = f"gemini_quota:{model}:{day}"
+        key = _daily_key(model)
         count = redis_conn.incr(key)
         if count == 1:
             redis_conn.expire(key, QUOTA_KEY_TTL_SECONDS)
@@ -125,6 +137,7 @@ def consume_gemini_quota(db: Session, model: str) -> None:
             raise GeminiQuotaExceeded(
                 f"Quota Gemini journalier atteint ({limit} requêtes/jour pour {model}) — réessayez demain."
             )
+        logger.info("Gemini request %d/%d today for %s", count, limit, model)
 
     rpm_limit = get_gemini_rpm_limit(db)
     if rpm_limit is not None and rpm_limit > 0:
@@ -139,7 +152,5 @@ def mark_quota_exhausted_for_today(model: str) -> None:
     locally via consume_gemini_quota instead of hitting the network again -
     repeatedly tripping the account's rate limit is exactly the kind of
     abuse pattern that risks it being flagged."""
-    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    key = f"gemini_quota:{model}:{day}"
-    redis_conn.set(key, 10**9, ex=QUOTA_KEY_TTL_SECONDS)
+    redis_conn.set(_daily_key(model), 10**9, ex=QUOTA_KEY_TTL_SECONDS)
     logger.warning("Gemini returned 429 for %s - treating today's quota as exhausted", model)

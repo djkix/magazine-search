@@ -221,6 +221,15 @@ export default function AdminSettingsPage() {
               />
             )}
 
+            <p className="font-mono text-xs text-foreground-muted">
+              Consommé aujourd'hui pour <span className="text-foreground">{settings.model}</span> :{" "}
+              <span className="text-primary-light">
+                {settings.requests_used_today}
+                {settings.daily_request_limit ? ` / ${settings.daily_request_limit}` : ""}
+              </span>{" "}
+              requête(s)
+            </p>
+
             <div>
               <label className="text-xs text-foreground-muted">
                 Quota Gemini (requêtes/jour, tous types confondus) — laisser vide si illimité (facturation activée)
