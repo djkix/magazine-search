@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/djkix/magazine-search/compare/v0.13.0...v0.13.1) (2026-08-31)
+
+
+### Bug Fixes
+
+* locate the real sommaire page and recognize more layouts ([7585d65](https://github.com/djkix/magazine-search/commit/7585d658253ef530621996b59ef52d1deaf8a17f))
+
 ## [0.13.0](https://github.com/djkix/magazine-search/compare/v0.12.0...v0.13.0) (2026-08-31)
 
 
