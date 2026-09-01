@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.1](https://github.com/djkix/magazine-search/compare/v0.15.0...v0.15.1) (2026-09-01)
+
+
+### Bug Fixes
+
+* track real last-activity time for magazines instead of first-added date ([e3afe81](https://github.com/djkix/magazine-search/commit/e3afe81296a5a711093ab01383b64d97f97d332e))
+
 ## [0.15.0](https://github.com/djkix/magazine-search/compare/v0.14.1...v0.15.0) (2026-09-01)
 
 
