@@ -47,7 +47,7 @@ def _apply_magazine_filters(
     unassigned: bool,
     year: int | None,
     issue_type: IssueType | None = None,
-    scan_status: ScanStatus | None = None,
+    scan_status: list[ScanStatus] | None = None,
     has_sommaire: bool | None = None,
 ):
     if unassigned:
@@ -68,8 +68,8 @@ def _apply_magazine_filters(
         query = query.filter(func.extract("year", Magazine.publication_date) == year)
     if issue_type is not None:
         query = query.filter(Magazine.issue_type == issue_type)
-    if scan_status is not None:
-        query = query.filter(Magazine.scan_status == scan_status)
+    if scan_status:
+        query = query.filter(Magazine.scan_status.in_(scan_status))
     if has_sommaire is not None:
         magazine_ids_with_sommaire = query.session.query(Article.magazine_id).distinct()
         if has_sommaire:
@@ -87,7 +87,7 @@ def count_magazines(
     unassigned: bool = Query(False, description="Restrict to magazines with no collection assigned"),
     year: int | None = Query(None, description="Restrict to magazines published in this year"),
     issue_type: IssueType | None = Query(None, description="Restrict to magazines of this issue type"),
-    scan_status: ScanStatus | None = Query(None, description="Restrict to magazines with this scan status"),
+    scan_status: list[ScanStatus] | None = Query(None, description="Restrict to magazines with one of these scan statuses (repeat the param for several)"),
     has_sommaire: bool | None = Query(None, description="Restrict to magazines with (true) or without (false) at least one article"),
     db: Session = Depends(get_db),
 ):
@@ -137,7 +137,7 @@ def list_magazines(
     unassigned: bool = Query(False, description="Restrict to magazines with no collection assigned"),
     year: int | None = Query(None, description="Restrict to magazines published in this year"),
     issue_type: IssueType | None = Query(None, description="Restrict to magazines of this issue type"),
-    scan_status: ScanStatus | None = Query(None, description="Restrict to magazines with this scan status"),
+    scan_status: list[ScanStatus] | None = Query(None, description="Restrict to magazines with one of these scan statuses (repeat the param for several)"),
     has_sommaire: bool | None = Query(None, description="Restrict to magazines with (true) or without (false) at least one article"),
     db: Session = Depends(get_db),
 ):

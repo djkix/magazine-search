@@ -8,14 +8,20 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import Icon from "@/components/ui/Icon";
 import Button from "@/components/ui/Button";
 
-type StatusFilter = "done" | "processing" | "failed" | "no_sommaire" | null;
+type StatusFilter = "done" | "processing" | "failed" | "pending" | "no_sommaire" | null;
 
 const STATUS_FILTER_LABEL: Record<Exclude<StatusFilter, null>, string> = {
   done: "OCR terminés",
   processing: "En cours",
   failed: "Échecs",
+  pending: "En file d'attente",
   no_sommaire: "Sans sommaire",
 };
+
+// "pending" spans three raw scan statuses (detected/stable/queued) - not a
+// single value, so it's expressed as repeated scan_status params instead
+// of the ScanStatus enum the other filters use directly.
+const PENDING_SCAN_STATUSES = "scan_status=detected&scan_status=stable&scan_status=queued";
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -36,14 +42,18 @@ export default function AdminDashboardPage() {
 
   const FILTER_PAGE_SIZE = 100;
 
+  function filterScanStatusParam() {
+    if (statusFilter === "pending") return PENDING_SCAN_STATUSES;
+    if (statusFilter === "no_sommaire") return "scan_status=done&has_sommaire=false";
+    return `scan_status=${statusFilter}`;
+  }
+
   function filterQueryString(pageIndex: number) {
-    return statusFilter === "no_sommaire"
-      ? `scan_status=done&has_sommaire=false&sort=added&page=${pageIndex}&limit=${FILTER_PAGE_SIZE}`
-      : `scan_status=${statusFilter}&sort=added&page=${pageIndex}&limit=${FILTER_PAGE_SIZE}`;
+    return `${filterScanStatusParam()}&sort=added&page=${pageIndex}&limit=${FILTER_PAGE_SIZE}`;
   }
 
   function filterCountQueryString() {
-    return statusFilter === "no_sommaire" ? "scan_status=done&has_sommaire=false" : `scan_status=${statusFilter}`;
+    return filterScanStatusParam();
   }
 
   const scanJobTotal = scanJob ? scanJob.detected + scanJob.processing + scanJob.done + scanJob.failed : 0;
@@ -256,7 +266,7 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
         <StatCard icon="library_books" label="Total PDF" value={stats?.total} onClick={() => setStatusFilter(null)} />
         <StatCard
           icon="task_alt"
@@ -265,6 +275,14 @@ export default function AdminDashboardPage() {
           accent="text-emerald-400"
           active={statusFilter === "done"}
           onClick={() => toggleStatusFilter("done")}
+        />
+        <StatCard
+          icon="hourglass_empty"
+          label="En file d'attente"
+          value={stats?.pending}
+          accent="text-foreground-muted"
+          active={statusFilter === "pending"}
+          onClick={() => toggleStatusFilter("pending")}
         />
         <StatCard
           icon="autorenew"
