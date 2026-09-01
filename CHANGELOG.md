@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.14.0](https://github.com/djkix/magazine-search/compare/v0.13.3...v0.14.0) (2026-09-01)
+
+
+### Features
+
+* add "sans sommaire" dashboard filter and bulk reprocess action ([73577b5](https://github.com/djkix/magazine-search/commit/73577b5486e7cbea777fcb2ed178003cd6fe53ed))
+
+
+### Bug Fixes
+
+* read rotated log backups and keep exception tracebacks in logs ([76f7a0a](https://github.com/djkix/magazine-search/commit/76f7a0afb96cb3ca393176ad7ea274e76c888c8a))
+
 ## [0.13.3](https://github.com/djkix/magazine-search/compare/v0.13.2...v0.13.3) (2026-08-31)
 
 
