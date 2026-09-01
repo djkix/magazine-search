@@ -101,6 +101,7 @@ class MagazineOut(BaseModel):
     created_at: datetime
     file_size: int
     page_count: int = 0
+    article_count: int = 0
 
 
 class TagCreate(BaseModel):

@@ -143,6 +143,28 @@ def retry_failed(db: Session = Depends(get_db)):
     return RetryFailedResponse(retried=len(failed))
 
 
+@router.post("/magazines/reprocess-no-sommaire")
+def reprocess_magazines_without_sommaire(db: Session = Depends(get_db)):
+    """Force a full re-run for every processed magazine that has no
+    sommaire at all - e.g. after an OCR/sommaire-extraction improvement,
+    to sweep the whole existing library instead of relaunching magazines
+    one by one from the filtered dashboard view."""
+    magazine_ids_with_sommaire = db.query(Article.magazine_id).distinct()
+    magazines = (
+        db.query(Magazine)
+        .filter(Magazine.scan_status == ScanStatus.done, ~Magazine.id.in_(magazine_ids_with_sommaire))
+        .all()
+    )
+    for magazine in magazines:
+        magazine.scan_status = ScanStatus.queued
+        magazine.error_message = None
+        db.commit()
+        ingestion_queue.enqueue(
+            process_magazine, magazine.id, job_timeout="30m", on_failure=handle_process_magazine_failure
+        )
+    return {"reprocessed": len(magazines)}
+
+
 @router.post("/magazines/{magazine_id}/reprocess")
 def reprocess_magazine(magazine_id: int, db: Session = Depends(get_db)):
     """Force a full re-run (OCR + indexing + TOC extraction) of an already-processed

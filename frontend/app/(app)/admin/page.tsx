@@ -8,12 +8,13 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import Icon from "@/components/ui/Icon";
 import Button from "@/components/ui/Button";
 
-type StatusFilter = "done" | "processing" | "failed" | null;
+type StatusFilter = "done" | "processing" | "failed" | "no_sommaire" | null;
 
 const STATUS_FILTER_LABEL: Record<Exclude<StatusFilter, null>, string> = {
   done: "OCR terminés",
   processing: "En cours",
   failed: "Échecs",
+  no_sommaire: "Sans sommaire",
 };
 
 export default function AdminDashboardPage() {
@@ -28,6 +29,8 @@ export default function AdminDashboardPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(null);
   const [filteredMagazines, setFilteredMagazines] = useState<Magazine[] | null>(null);
   const [filterLoading, setFilterLoading] = useState(false);
+  const [noSommaireCount, setNoSommaireCount] = useState<number | null>(null);
+  const [reprocessingAllNoSommaire, setReprocessingAllNoSommaire] = useState(false);
 
   const scanJobTotal = scanJob ? scanJob.detected + scanJob.processing + scanJob.done + scanJob.failed : 0;
   const scanJobDone = scanJob ? scanJob.done + scanJob.failed : 0;
@@ -37,6 +40,10 @@ export default function AdminDashboardPage() {
       .get<AdminStats>("/admin/stats")
       .then(setStats)
       .catch((err) => setError(err instanceof ApiError ? err.message : "Erreur"));
+    api
+      .get<{ total: number }>("/magazines/count?scan_status=done&has_sommaire=false")
+      .then((data) => setNoSommaireCount(data.total))
+      .catch(() => setNoSommaireCount(null));
   }
 
   useEffect(loadStats, []);
@@ -47,8 +54,12 @@ export default function AdminDashboardPage() {
       return;
     }
     setFilterLoading(true);
+    const params =
+      statusFilter === "no_sommaire"
+        ? "scan_status=done&has_sommaire=false&sort=added&limit=500"
+        : `scan_status=${statusFilter}&sort=added&limit=100`;
     api
-      .get<Magazine[]>(`/magazines?scan_status=${statusFilter}&sort=added&limit=100`)
+      .get<Magazine[]>(`/magazines?${params}`)
       .then(setFilteredMagazines)
       .catch(() => setFilteredMagazines([]))
       .finally(() => setFilterLoading(false));
@@ -108,6 +119,20 @@ export default function AdminDashboardPage() {
       setError(err instanceof ApiError ? err.message : "Erreur lors de la relance");
     } finally {
       setReprocessingId(null);
+    }
+  }
+
+  async function reprocessAllNoSommaire() {
+    setReprocessingAllNoSommaire(true);
+    setError(null);
+    try {
+      await api.post<{ reprocessed: number }>("/admin/magazines/reprocess-no-sommaire");
+      loadStats();
+      if (statusFilter === "no_sommaire") setFilteredMagazines([]);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erreur lors de la relance");
+    } finally {
+      setReprocessingAllNoSommaire(false);
     }
   }
 
@@ -192,7 +217,7 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
         <StatCard icon="library_books" label="Total PDF" value={stats?.total} onClick={() => setStatusFilter(null)} />
         <StatCard
           icon="task_alt"
@@ -218,7 +243,24 @@ export default function AdminDashboardPage() {
           active={statusFilter === "failed"}
           onClick={() => toggleStatusFilter("failed")}
         />
+        <StatCard
+          icon="menu_book"
+          label="Sans sommaire"
+          value={noSommaireCount ?? undefined}
+          accent="text-orange-400"
+          active={statusFilter === "no_sommaire"}
+          onClick={() => toggleStatusFilter("no_sommaire")}
+        />
       </div>
+
+      {!!noSommaireCount && (
+        <Button onClick={reprocessAllNoSommaire} disabled={reprocessingAllNoSommaire} variant="secondary" className="w-fit">
+          <Icon name="replay" className={reprocessingAllNoSommaire ? "animate-spin" : ""} />
+          {reprocessingAllNoSommaire
+            ? "Relance en cours..."
+            : `Relancer les ${noSommaireCount} magazine(s) sans sommaire`}
+        </Button>
+      )}
 
       {!!stats?.failed && (
         <Button onClick={retryFailed} disabled={retrying} variant="secondary" className="w-fit">
@@ -276,6 +318,9 @@ export default function AdminDashboardPage() {
                       >
                         {m.error_message.split("Traceback")[0].trim()}
                       </p>
+                    )}
+                    {statusFilter === "no_sommaire" && (
+                      <p className="mt-1 font-mono text-[10px] text-orange-400">{m.article_count} article(s)</p>
                     )}
                   </td>
                   <td className="px-4 py-3">
