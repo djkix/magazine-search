@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.15.0](https://github.com/djkix/magazine-search/compare/v0.14.1...v0.15.0) (2026-09-01)
+
+
+### Features
+
+* add year/HS/SP sidebar filter to the collection sommaires view ([1291626](https://github.com/djkix/magazine-search/commit/1291626edf731dbc2263b50e45de4ace7e61ad08))
+
+
+### Bug Fixes
+
+* surface queued/pending magazines on the admin dashboard ([6daa32d](https://github.com/djkix/magazine-search/commit/6daa32d67f78125e315d8d8588d101ecdaf8a546))
+
 ## [0.14.1](https://github.com/djkix/magazine-search/compare/v0.14.0...v0.14.1) (2026-09-01)
 
 
