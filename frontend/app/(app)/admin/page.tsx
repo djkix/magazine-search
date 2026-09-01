@@ -49,7 +49,7 @@ export default function AdminDashboardPage() {
   }
 
   function filterQueryString(pageIndex: number) {
-    return `${filterScanStatusParam()}&sort=added&page=${pageIndex}&limit=${FILTER_PAGE_SIZE}`;
+    return `${filterScanStatusParam()}&sort=updated&page=${pageIndex}&limit=${FILTER_PAGE_SIZE}`;
   }
 
   function filterCountQueryString() {
@@ -346,7 +346,7 @@ export default function AdminDashboardPage() {
             <thead className="bg-surface-hover text-left font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
               <tr>
                 <th className="px-4 py-3">Titre</th>
-                <th className="px-4 py-3">Ajouté le</th>
+                <th className="px-4 py-3">Dernière activité</th>
                 <th className="px-4 py-3">Statut</th>
                 <th className="px-4 py-3">Actions</th>
               </tr>
@@ -364,7 +364,13 @@ export default function AdminDashboardPage() {
                 <tr key={m.id} className="bg-surface/40">
                   <td className="px-4 py-3 text-foreground">{m.title}</td>
                   <td className="px-4 py-3 font-mono text-xs text-foreground-muted">
-                    {new Date(m.created_at).toLocaleDateString("fr-FR")}
+                    {new Date(m.updated_at).toLocaleString("fr-FR", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={m.scan_status} />

@@ -130,7 +130,7 @@ def get_magazine_facets(
 def list_magazines(
     page: int = Query(0, ge=0),
     limit: int = Query(30, ge=1, le=100),
-    sort: str = Query("date", pattern="^(date|added)$"),
+    sort: str = Query("date", pattern="^(date|added|updated)$"),
     tag_id: int | None = Query(None, description="Restrict to magazines whose collection carries this tag"),
     collection_id: int | None = Query(None, description="Restrict to magazines in this collection"),
     theme_id: int | None = Query(None, description="Restrict to magazines assigned this theme"),
@@ -141,7 +141,12 @@ def list_magazines(
     has_sommaire: bool | None = Query(None, description="Restrict to magazines with (true) or without (false) at least one article"),
     db: Session = Depends(get_db),
 ):
-    order = Magazine.created_at.desc() if sort == "added" else Magazine.publication_date.desc().nulls_last()
+    if sort == "added":
+        order = Magazine.created_at.desc()
+    elif sort == "updated":
+        order = Magazine.updated_at.desc()
+    else:
+        order = Magazine.publication_date.desc().nulls_last()
     query = db.query(Magazine, func.count(Page.id)).outerjoin(Page, Page.magazine_id == Magazine.id)
     query = _apply_magazine_filters(
         query, tag_id, collection_id, theme_id, unassigned, year, issue_type, scan_status, has_sommaire

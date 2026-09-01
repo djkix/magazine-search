@@ -226,7 +226,7 @@ def get_stats(db: Session = Depends(get_db)):
         db.query(Magazine, func.count(Page.id))
         .outerjoin(Page, Page.magazine_id == Magazine.id)
         .group_by(Magazine.id)
-        .order_by(Magazine.created_at.desc())
+        .order_by(Magazine.updated_at.desc())
         .limit(10)
         .all()
     )

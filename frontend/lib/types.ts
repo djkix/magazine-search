@@ -40,6 +40,7 @@ export interface Magazine {
   collection_name: string | null;
   tags: Tag[];
   created_at: string;
+  updated_at: string;
   file_size: number;
   page_count: number;
   article_count: number;
