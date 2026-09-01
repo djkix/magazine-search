@@ -29,8 +29,22 @@ export default function AdminDashboardPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(null);
   const [filteredMagazines, setFilteredMagazines] = useState<Magazine[] | null>(null);
   const [filterLoading, setFilterLoading] = useState(false);
+  const [filteredTotal, setFilteredTotal] = useState<number | null>(null);
+  const [loadingMoreFiltered, setLoadingMoreFiltered] = useState(false);
   const [noSommaireCount, setNoSommaireCount] = useState<number | null>(null);
   const [reprocessingAllNoSommaire, setReprocessingAllNoSommaire] = useState(false);
+
+  const FILTER_PAGE_SIZE = 100;
+
+  function filterQueryString(pageIndex: number) {
+    return statusFilter === "no_sommaire"
+      ? `scan_status=done&has_sommaire=false&sort=added&page=${pageIndex}&limit=${FILTER_PAGE_SIZE}`
+      : `scan_status=${statusFilter}&sort=added&page=${pageIndex}&limit=${FILTER_PAGE_SIZE}`;
+  }
+
+  function filterCountQueryString() {
+    return statusFilter === "no_sommaire" ? "scan_status=done&has_sommaire=false" : `scan_status=${statusFilter}`;
+  }
 
   const scanJobTotal = scanJob ? scanJob.detected + scanJob.processing + scanJob.done + scanJob.failed : 0;
   const scanJobDone = scanJob ? scanJob.done + scanJob.failed : 0;
@@ -51,19 +65,40 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     if (!statusFilter) {
       setFilteredMagazines(null);
+      setFilteredTotal(null);
       return;
     }
     setFilterLoading(true);
-    const params =
-      statusFilter === "no_sommaire"
-        ? "scan_status=done&has_sommaire=false&sort=added&limit=500"
-        : `scan_status=${statusFilter}&sort=added&limit=100`;
-    api
-      .get<Magazine[]>(`/magazines?${params}`)
-      .then(setFilteredMagazines)
-      .catch(() => setFilteredMagazines([]))
+    Promise.all([
+      api.get<Magazine[]>(`/magazines?${filterQueryString(0)}`),
+      api.get<{ total: number }>(`/magazines/count?${filterCountQueryString()}`),
+    ])
+      .then(([mags, countRes]) => {
+        setFilteredMagazines(mags);
+        setFilteredTotal(countRes.total);
+      })
+      .catch((err) => {
+        setFilteredMagazines([]);
+        setFilteredTotal(null);
+        setError(err instanceof ApiError ? err.message : "Erreur lors du chargement des magazines filtrés");
+      })
       .finally(() => setFilterLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter]);
+
+  async function loadMoreFiltered() {
+    if (!filteredMagazines) return;
+    setLoadingMoreFiltered(true);
+    try {
+      const nextPage = Math.floor(filteredMagazines.length / FILTER_PAGE_SIZE);
+      const more = await api.get<Magazine[]>(`/magazines?${filterQueryString(nextPage)}`);
+      setFilteredMagazines((prev) => [...(prev ?? []), ...more]);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erreur lors du chargement des magazines filtrés");
+    } finally {
+      setLoadingMoreFiltered(false);
+    }
+  }
 
   useEffect(() => {
     api
@@ -114,6 +149,7 @@ export default function AdminDashboardPage() {
       loadStats();
       if (statusFilter) {
         setFilteredMagazines((prev) => prev?.filter((m) => m.id !== magazineId) ?? null);
+        setFilteredTotal((prev) => (prev !== null ? Math.max(0, prev - 1) : prev));
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Erreur lors de la relance");
@@ -128,7 +164,10 @@ export default function AdminDashboardPage() {
     try {
       await api.post<{ reprocessed: number }>("/admin/magazines/reprocess-no-sommaire");
       loadStats();
-      if (statusFilter === "no_sommaire") setFilteredMagazines([]);
+      if (statusFilter === "no_sommaire") {
+        setFilteredMagazines([]);
+        setFilteredTotal(0);
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Erreur lors de la relance");
     } finally {
@@ -344,6 +383,20 @@ export default function AdminDashboardPage() {
             </tbody>
           </table>
         </div>
+        {statusFilter && filteredMagazines && filteredTotal !== null && filteredMagazines.length < filteredTotal && (
+          <div className="mt-3 flex items-center justify-between">
+            <p className="font-mono text-xs text-foreground-muted">
+              Affichage de {filteredMagazines.length} sur {filteredTotal}
+            </p>
+            <button
+              onClick={loadMoreFiltered}
+              disabled={loadingMoreFiltered}
+              className="rounded-lg border border-outline-variant px-3 py-1.5 text-xs text-foreground disabled:opacity-50"
+            >
+              {loadingMoreFiltered ? "Chargement..." : "Charger plus"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

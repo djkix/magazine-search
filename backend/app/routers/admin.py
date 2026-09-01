@@ -38,7 +38,7 @@ from app.services.gemini_quota import (
     set_gemini_daily_limit,
     set_gemini_rpm_limit,
 )
-from app.services.scan import backfill_collections, get_latest_scan_job_id, get_scan_job_magazine_ids, run_scan
+from app.services.scan import get_latest_scan_job_id, get_scan_job_magazine_ids, run_collections_backfill, run_scan
 from app.services.toc import AVAILABLE_GEMINI_MODELS, get_gemini_model, set_gemini_model
 from app.worker.tasks import (
     handle_process_magazine_failure,
@@ -466,17 +466,13 @@ def regenerate_all_themes(db: Session = Depends(get_db)):
 
 
 @router.post("/collections/backfill")
-def backfill_collections_endpoint(db: Session = Depends(get_db)):
+def backfill_collections_endpoint():
     """Recompute every magazine's collection, issue_type, issue_number,
     publication_date and month label from its stored file path/title,
     fixing magazines scanned before this metadata was derived automatically
-    as well as ones mis-assigned by an older heuristic."""
-    updated_ids, resommaired_count = backfill_collections(db)
-    done_ids = {
-        m.id
-        for m in db.query(Magazine.id).filter(Magazine.scan_status == ScanStatus.done, Magazine.id.in_(updated_ids)).all()
-    }
-    for magazine_id in updated_ids:
-        if magazine_id in done_ids:
-            ingestion_queue.enqueue(reindex_magazine, magazine_id, job_timeout="10m")
-    return {"updated": len(updated_ids), "resommaired": resommaired_count}
+    as well as ones mis-assigned by an older heuristic. Runs in the
+    background (see run_collections_backfill) - at hundreds of magazines
+    the full loop can comfortably exceed a typical reverse-proxy timeout
+    if run synchronously inside this request."""
+    ingestion_queue.enqueue(run_collections_backfill, job_timeout="30m")
+    return {"status": "queued"}

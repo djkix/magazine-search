@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.database import SessionLocal
 from app.models import Collection, IssueType, Magazine, Page, ScanStatus
 from app.queue import ingestion_queue, redis_conn
 from app.services.issue_parser import (
@@ -105,13 +106,20 @@ def run_scan(db: Session) -> tuple[str, int]:
     hash and have their stored path and collection corrected, instead of
     being left pointing at a now-missing file.
 
+    Hashing (the expensive part - reads the whole file) is skipped for a
+    file already known at its current path with an unchanged size/mtime,
+    so a repeat scan's cost scales with what actually changed rather than
+    the whole library's size.
+
     Returns (job_id, number_of_new_files_detected).
     """
     nas_root = Path(settings.nas_mount_path)
     if not nas_root.exists():
         raise FileNotFoundError(f"NAS mount path not found: {nas_root}")
 
-    known_by_hash: dict[str, Magazine] = {m.file_hash: m for m in db.query(Magazine).all()}
+    known_magazines = db.query(Magazine).all()
+    known_by_hash: dict[str, Magazine] = {m.file_hash: m for m in known_magazines}
+    known_by_path: dict[str, Magazine] = {m.file_path: m for m in known_magazines}
 
     pdf_paths = sorted(nas_root.rglob("*.pdf"))
     candidates: dict[Path, tuple[int, float]] = {}
@@ -142,13 +150,27 @@ def run_scan(db: Session) -> tuple[str, int]:
     relocated_ids: set[int] = set()
 
     for path in stable_paths:
-        file_hash = _sha256_of_file(path)
         relative_path = str(path.relative_to(nas_root))
+        size, mtime = candidates[path]
+
+        # Hashing every file on every scan means the I/O cost grows with the
+        # whole library's size, not just what actually changed - skip it
+        # entirely for a file already known at this exact path whose size
+        # and mtime haven't budged since last time, which is the common
+        # case once the initial scan has run once.
+        unchanged = known_by_path.get(relative_path)
+        if (
+            unchanged is not None
+            and unchanged.file_size == size
+            and abs(unchanged.file_mtime.timestamp() - mtime) < 1
+        ):
+            continue
+
+        file_hash = _sha256_of_file(path)
 
         existing = known_by_hash.get(file_hash)
         if existing is not None:
             if existing.file_path != relative_path:
-                size, mtime = candidates[path]
                 dir_parts = _dir_parts(nas_root, path)
                 logger.info("Magazine %s relocated: %s -> %s", existing.id, existing.file_path, relative_path)
                 existing.filename = path.name
@@ -166,7 +188,6 @@ def run_scan(db: Session) -> tuple[str, int]:
                 relocated_ids.add(existing.id)
             continue
 
-        size, mtime = candidates[path]
         dir_parts = _dir_parts(nas_root, path)
         collection = _collection_for(db, dir_parts, collection_cache)
         issue_number, publication_date, issue_month_label = parse_issue_metadata(
@@ -313,3 +334,30 @@ def backfill_collections(db: Session) -> tuple[list[int], int]:
 
     db.commit()
     return updated_ids, resommaired_count
+
+
+def run_collections_backfill() -> None:
+    """RQ task wrapper for backfill_collections - run in the background
+    instead of synchronously inside the admin HTTP request, since at
+    hundreds of magazines the full loop (a DB round trip plus regex
+    parsing per magazine) can comfortably exceed a typical reverse-proxy
+    timeout."""
+    db = SessionLocal()
+    try:
+        updated_ids, resommaired_count = backfill_collections(db)
+        done_ids = {
+            m.id
+            for m in db.query(Magazine.id)
+            .filter(Magazine.scan_status == ScanStatus.done, Magazine.id.in_(updated_ids))
+            .all()
+        }
+        for magazine_id in updated_ids:
+            if magazine_id in done_ids:
+                ingestion_queue.enqueue(reindex_magazine, magazine_id, job_timeout="10m")
+        logger.info(
+            "Backfill finished: %d magazine(s) with updated collection/issue metadata, %d sommaire(s) re-extracted",
+            len(updated_ids),
+            resommaired_count,
+        )
+    finally:
+        db.close()

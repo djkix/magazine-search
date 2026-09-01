@@ -149,11 +149,8 @@ export default function AdminSettingsPage() {
     setBackfilling(true);
     setReindexMessage(null);
     try {
-      const data = await api.post<{ updated: number; resommaired: number }>("/admin/collections/backfill");
-      setReindexMessage(
-        `${data.updated} collection(s)/type(s) recalculé(s), sommaires ré-extraits pour ${data.resommaired} numéro(s).`
-      );
-      loadCollections();
+      await api.post("/admin/collections/backfill");
+      setReindexMessage("Recalcul lancé en arrière-plan — les collections et sommaires se mettront à jour progressivement.");
     } catch (err) {
       setCollectionError(err instanceof ApiError ? err.message : "Erreur");
     } finally {
