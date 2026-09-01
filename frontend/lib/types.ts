@@ -42,6 +42,7 @@ export interface Magazine {
   created_at: string;
   file_size: number;
   page_count: number;
+  article_count: number;
 }
 
 export interface Article {

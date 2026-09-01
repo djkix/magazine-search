@@ -22,9 +22,10 @@ def _get_magazine_or_404(magazine_id: int, db: Session) -> Magazine:
     return magazine
 
 
-def _to_magazine_out(magazine: Magazine, page_count: int) -> MagazineOut:
+def _to_magazine_out(magazine: Magazine, page_count: int, article_count: int = 0) -> MagazineOut:
     out = MagazineOut.model_validate(magazine)
     out.page_count = page_count
+    out.article_count = article_count
     out.collection_name = magazine.collection.name if magazine.collection else None
     out.tags = [TagOut(id=t.id, name=t.name) for t in magazine.collection.tags] if magazine.collection else []
     out.issue_month = magazine.issue_month_label
@@ -46,6 +47,8 @@ def _apply_magazine_filters(
     unassigned: bool,
     year: int | None,
     issue_type: IssueType | None = None,
+    scan_status: ScanStatus | None = None,
+    has_sommaire: bool | None = None,
 ):
     if unassigned:
         query = query.filter(Magazine.collection_id.is_(None))
@@ -65,6 +68,14 @@ def _apply_magazine_filters(
         query = query.filter(func.extract("year", Magazine.publication_date) == year)
     if issue_type is not None:
         query = query.filter(Magazine.issue_type == issue_type)
+    if scan_status is not None:
+        query = query.filter(Magazine.scan_status == scan_status)
+    if has_sommaire is not None:
+        magazine_ids_with_sommaire = query.session.query(Article.magazine_id).distinct()
+        if has_sommaire:
+            query = query.filter(Magazine.id.in_(magazine_ids_with_sommaire))
+        else:
+            query = query.filter(~Magazine.id.in_(magazine_ids_with_sommaire))
     return query
 
 
@@ -76,9 +87,13 @@ def count_magazines(
     unassigned: bool = Query(False, description="Restrict to magazines with no collection assigned"),
     year: int | None = Query(None, description="Restrict to magazines published in this year"),
     issue_type: IssueType | None = Query(None, description="Restrict to magazines of this issue type"),
+    scan_status: ScanStatus | None = Query(None, description="Restrict to magazines with this scan status"),
+    has_sommaire: bool | None = Query(None, description="Restrict to magazines with (true) or without (false) at least one article"),
     db: Session = Depends(get_db),
 ):
-    query = _apply_magazine_filters(db.query(Magazine.id), tag_id, collection_id, theme_id, unassigned, year, issue_type)
+    query = _apply_magazine_filters(
+        db.query(Magazine.id), tag_id, collection_id, theme_id, unassigned, year, issue_type, scan_status, has_sommaire
+    )
     return {"total": query.distinct().count()}
 
 
@@ -123,21 +138,32 @@ def list_magazines(
     year: int | None = Query(None, description="Restrict to magazines published in this year"),
     issue_type: IssueType | None = Query(None, description="Restrict to magazines of this issue type"),
     scan_status: ScanStatus | None = Query(None, description="Restrict to magazines with this scan status"),
+    has_sommaire: bool | None = Query(None, description="Restrict to magazines with (true) or without (false) at least one article"),
     db: Session = Depends(get_db),
 ):
     order = Magazine.created_at.desc() if sort == "added" else Magazine.publication_date.desc().nulls_last()
     query = db.query(Magazine, func.count(Page.id)).outerjoin(Page, Page.magazine_id == Magazine.id)
-    query = _apply_magazine_filters(query, tag_id, collection_id, theme_id, unassigned, year, issue_type)
-    if scan_status is not None:
-        query = query.filter(Magazine.scan_status == scan_status)
+    query = _apply_magazine_filters(
+        query, tag_id, collection_id, theme_id, unassigned, year, issue_type, scan_status, has_sommaire
+    )
     rows = query.group_by(Magazine.id).order_by(order, Magazine.title).offset(page * limit).limit(limit).all()
-    return [_to_magazine_out(magazine, page_count) for magazine, page_count in rows]
+
+    magazine_ids = [magazine.id for magazine, _page_count in rows]
+    article_counts = dict(
+        db.query(Article.magazine_id, func.count(Article.id))
+        .filter(Article.magazine_id.in_(magazine_ids))
+        .group_by(Article.magazine_id)
+        .all()
+    )
+    return [
+        _to_magazine_out(magazine, page_count, article_counts.get(magazine.id, 0)) for magazine, page_count in rows
+    ]
 
 
 @router.get("/{magazine_id}", response_model=MagazineOut)
 def get_magazine(magazine_id: int, db: Session = Depends(get_db)):
     magazine = _get_magazine_or_404(magazine_id, db)
-    return _to_magazine_out(magazine, len(magazine.pages))
+    return _to_magazine_out(magazine, len(magazine.pages), len(magazine.articles))
 
 
 @router.get("/{magazine_id}/articles", response_model=list[ArticleOut])
