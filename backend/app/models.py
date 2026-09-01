@@ -81,6 +81,12 @@ class Magazine(Base):
     )
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Unlike created_at (set once, at first scan), this refreshes on every
+    # row change - e.g. a reprocess/re-queue - so admin views can tell
+    # recent activity apart from when the magazine was first discovered.
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     toc_status: Mapped[OcrStatus] = mapped_column(
         Enum(OcrStatus, name="toc_status"), default=OcrStatus.pending, nullable=False

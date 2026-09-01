@@ -99,6 +99,7 @@ class MagazineOut(BaseModel):
     collection_name: str | None = None
     tags: list[TagOut] = []
     created_at: datetime
+    updated_at: datetime
     file_size: int
     page_count: int = 0
     article_count: int = 0
