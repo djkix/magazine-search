@@ -15,12 +15,21 @@ BACKUP_COUNT = 1
 
 class JsonLineFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
+        message = record.getMessage()
+        # logger.exception()/log(..., exc_info=True) previously had their
+        # traceback silently dropped here, since only getMessage() was
+        # used - leaving just a short message like "Batch sommaire
+        # extraction failed for magazines [60, 78]" with no indication of
+        # what actually failed, in the one place (this JSON log file) an
+        # admin can see it without a shell into the container.
+        if record.exc_info:
+            message = f"{message}\n{self.formatException(record.exc_info)}"
         return json.dumps(
             {
                 "timestamp": self.formatTime(record, "%Y-%m-%dT%H:%M:%S"),
                 "level": record.levelname,
                 "logger": record.name,
-                "message": record.getMessage(),
+                "message": message,
             }
         )
 
