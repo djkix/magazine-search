@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.14.1](https://github.com/djkix/magazine-search/compare/v0.14.0...v0.14.1) (2026-09-01)
+
+
+### Bug Fixes
+
+* paginate "Tous" article view instead of requesting an oversized limit ([fb17333](https://github.com/djkix/magazine-search/commit/fb1733321181f8879c8051b63be66c4fd933bfde))
+
+
+### Performance Improvements
+
+* prepare for a much larger library (800+ magazines) ([c9252cf](https://github.com/djkix/magazine-search/commit/c9252cf5307941f0325d2b4c8f1c298b0739f7ab))
+
 ## [0.14.0](https://github.com/djkix/magazine-search/compare/v0.13.3...v0.14.0) (2026-09-01)
 
 
