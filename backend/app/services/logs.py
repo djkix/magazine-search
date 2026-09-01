@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Iterator
 
-from app.logging_config import LOG_DIR
+from app.logging_config import BACKUP_COUNT, LOG_DIR
 
 COMPONENTS = ["backend", "worker"]
 
@@ -29,7 +29,14 @@ def read_logs(level: str | None = None, component: str | None = None, limit: int
     for comp in components:
         if comp not in COMPONENTS:
             continue
+        # RotatingFileHandler keeps the current file plus up to
+        # BACKUP_COUNT rotated ones (component.log.1, .2, ...) - reading
+        # only the current file meant the admin view would go completely
+        # blank right after a rotation, with everything sitting unread in
+        # the backup(s) until enough new activity accumulated again.
         entries.extend(_read_log_file(LOG_DIR / f"{comp}.log", comp))
+        for i in range(1, BACKUP_COUNT + 1):
+            entries.extend(_read_log_file(LOG_DIR / f"{comp}.log.{i}", comp))
 
     if level:
         level = level.upper()
