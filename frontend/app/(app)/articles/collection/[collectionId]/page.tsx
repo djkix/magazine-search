@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
-import type { Article, ArticleWithMagazine, LibraryOverview, Magazine, MagazineTheme } from "@/lib/types";
+import type { Article, ArticleWithMagazine, LibraryOverview, Magazine, MagazineFacets, MagazineTheme } from "@/lib/types";
 import { useUser } from "@/components/layout/UserContext";
 import PageContainer from "@/components/layout/PageContainer";
 import MagazineCard from "@/components/library/MagazineCard";
@@ -31,6 +31,9 @@ export default function CollectionArticlesPage() {
   const [articlesByMagazine, setArticlesByMagazine] = useState<Map<number, Article[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [facets, setFacets] = useState<MagazineFacets | null>(null);
+  const [yearFilter, setYearFilter] = useState<number | null>(null);
+  const [issueTypeFilter, setIssueTypeFilter] = useState<"hs" | "sp" | null>(null);
 
   // Free-text search falls back to a flat, unpaginated article search.
   const [searchResults, setSearchResults] = useState<ArticleWithMagazine[] | null>(null);
@@ -61,7 +64,29 @@ export default function CollectionArticlesPage() {
     const params = new URLSearchParams(extra);
     if (isUnassigned) params.set("unassigned", "true");
     else params.set("collection_id", collectionId);
+    if (yearFilter) params.set("year", String(yearFilter));
+    if (issueTypeFilter) params.set("issue_type", issueTypeFilter);
     return params;
+  }
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (isUnassigned) params.set("unassigned", "true");
+    else params.set("collection_id", collectionId);
+    api
+      .get<MagazineFacets>(`/magazines/facets?${params.toString()}`)
+      .then(setFacets)
+      .catch(() => setFacets(null));
+  }, [collectionId, isUnassigned]);
+
+  function selectYear(year: number | null) {
+    setYearFilter(year);
+    setIssueTypeFilter(null);
+  }
+
+  function selectIssueType(type: "hs" | "sp" | null) {
+    setIssueTypeFilter(type);
+    setYearFilter(null);
   }
 
   // Free-text search (flat, article-level, unpaginated).
@@ -131,11 +156,11 @@ export default function CollectionArticlesPage() {
       .catch((err) => setError(err instanceof ApiError ? err.message : "Erreur"))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewMode, collectionId, isUnassigned, page, pageSize, q]);
+  }, [viewMode, collectionId, isUnassigned, page, pageSize, q, yearFilter, issueTypeFilter]);
 
   useEffect(() => {
     setPage(0);
-  }, [pageSize, collectionId]);
+  }, [pageSize, collectionId, yearFilter, issueTypeFilter]);
 
   // "Par thématique".
   useEffect(() => {
@@ -322,9 +347,90 @@ export default function CollectionArticlesPage() {
           )}
         </div>
       ) : (
-        <div className="space-y-6">
-          {loading && <p className="text-sm text-foreground-muted">Chargement...</p>}
-          {groups.map(({ magazine, articles }) => (
+        <div className="flex flex-col gap-6 lg:flex-row">
+          {facets && (
+            <aside className="w-full shrink-0 lg:w-48">
+              <ul className="space-y-1 text-sm">
+                <li>
+                  <button
+                    onClick={() => selectYear(null)}
+                    className={`w-full rounded-lg px-2.5 py-1.5 text-left transition ${
+                      yearFilter === null && issueTypeFilter === null
+                        ? "bg-primary/10 text-primary-light"
+                        : "text-foreground-muted hover:bg-surface-hover"
+                    }`}
+                  >
+                    Toutes
+                  </button>
+                </li>
+                {facets.years.map((f) => (
+                  <li key={f.year}>
+                    <button
+                      onClick={() => selectYear(f.year)}
+                      className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left transition ${
+                        yearFilter === f.year ? "bg-primary/10 text-primary-light" : "text-foreground-muted hover:bg-surface-hover"
+                      }`}
+                    >
+                      <span>{f.year}</span>
+                      <span className="font-mono text-xs">{f.count}</span>
+                    </button>
+                  </li>
+                ))}
+                {facets.hs_count > 0 && (
+                  <li>
+                    <button
+                      onClick={() => selectIssueType("hs")}
+                      className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left transition ${
+                        issueTypeFilter === "hs" ? "bg-primary/10 text-primary-light" : "text-foreground-muted hover:bg-surface-hover"
+                      }`}
+                    >
+                      <span>Hors Séries</span>
+                      <span className="font-mono text-xs">{facets.hs_count}</span>
+                    </button>
+                  </li>
+                )}
+                {facets.sp_count > 0 && (
+                  <li>
+                    <button
+                      onClick={() => selectIssueType("sp")}
+                      className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left transition ${
+                        issueTypeFilter === "sp" ? "bg-primary/10 text-primary-light" : "text-foreground-muted hover:bg-surface-hover"
+                      }`}
+                    >
+                      <span>Numéros Spéciaux</span>
+                      <span className="font-mono text-xs">{facets.sp_count}</span>
+                    </button>
+                  </li>
+                )}
+              </ul>
+            </aside>
+          )}
+
+          <div className="min-w-0 flex-1 space-y-6">
+            {(yearFilter || issueTypeFilter) && (
+              <div className="flex items-center gap-2">
+                {yearFilter && (
+                  <button
+                    onClick={() => setYearFilter(null)}
+                    className="flex items-center gap-1 rounded-full bg-primary/20 px-3 py-1.5 text-xs text-primary-light"
+                  >
+                    {yearFilter}
+                    <Icon name="close" className="text-sm" />
+                  </button>
+                )}
+                {issueTypeFilter && (
+                  <button
+                    onClick={() => setIssueTypeFilter(null)}
+                    className="flex items-center gap-1 rounded-full bg-primary/20 px-3 py-1.5 text-xs text-primary-light"
+                  >
+                    {issueTypeFilter === "hs" ? "Hors Séries" : "Numéros Spéciaux"}
+                    <Icon name="close" className="text-sm" />
+                  </button>
+                )}
+              </div>
+            )}
+            {loading && <p className="text-sm text-foreground-muted">Chargement...</p>}
+            {groups.map(({ magazine, articles }) => (
             <div key={magazine.id} className="overflow-hidden rounded-xl border border-outline-variant">
               <div className="bg-surface-hover px-4 py-3">
                 <Link href={`/viewer/${magazine.id}/1`} className="text-sm font-semibold text-foreground hover:text-primary-light">
@@ -389,6 +495,7 @@ export default function CollectionArticlesPage() {
               </button>
             </div>
           )}
+          </div>
         </div>
       )}
     </PageContainer>
