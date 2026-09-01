@@ -84,31 +84,50 @@ export default function CollectionArticlesPage() {
   }, [q, collectionId, isUnassigned]);
 
   // Paginated "par numéro" browse (only relevant while not searching).
+  // The API caps `limit` at 100, so "Tous" can't be fetched in one request
+  // once a collection grows past that (a long-running monthly title can
+  // easily exceed 100 issues) - fetched instead as several 100-sized pages
+  // in parallel, using the count to know how many are needed.
+  const MAX_API_LIMIT = 100;
+
   useEffect(() => {
     if (viewMode !== "number" || q.trim()) return;
     setLoading(true);
     setError(null);
-    const limit = pageSize === "all" ? "1000" : pageSize;
-    const magParams = collectionParams({ page: pageSize === "all" ? "0" : String(page), limit });
     const countParams = collectionParams();
 
-    Promise.all([
-      api.get<Magazine[]>(`/magazines?${magParams.toString()}`),
-      api.get<{ total: number }>(`/magazines/count?${countParams.toString()}`),
-    ])
-      .then(async ([mags, countRes]) => {
-        setMagazines(mags);
-        setTotal(countRes.total);
-        const entries = await Promise.all(
-          mags.map((m) =>
-            api
-              .get<Article[]>(`/magazines/${m.id}/articles`)
-              .then((a): [number, Article[]] => [m.id, a])
-              .catch((): [number, Article[]] => [m.id, []])
-          )
+    async function load() {
+      const countRes = await api.get<{ total: number }>(`/magazines/count?${countParams.toString()}`);
+      setTotal(countRes.total);
+
+      let mags: Magazine[];
+      if (pageSize === "all") {
+        const pagesNeeded = Math.max(1, Math.ceil(countRes.total / MAX_API_LIMIT));
+        const chunks = await Promise.all(
+          Array.from({ length: pagesNeeded }, (_, i) => {
+            const magParams = collectionParams({ page: String(i), limit: String(MAX_API_LIMIT) });
+            return api.get<Magazine[]>(`/magazines?${magParams.toString()}`);
+          })
         );
-        setArticlesByMagazine(new Map(entries));
-      })
+        mags = chunks.flat();
+      } else {
+        const magParams = collectionParams({ page: String(page), limit: pageSize });
+        mags = await api.get<Magazine[]>(`/magazines?${magParams.toString()}`);
+      }
+
+      setMagazines(mags);
+      const entries = await Promise.all(
+        mags.map((m) =>
+          api
+            .get<Article[]>(`/magazines/${m.id}/articles`)
+            .then((a): [number, Article[]] => [m.id, a])
+            .catch((): [number, Article[]] => [m.id, []])
+        )
+      );
+      setArticlesByMagazine(new Map(entries));
+    }
+
+    load()
       .catch((err) => setError(err instanceof ApiError ? err.message : "Erreur"))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
