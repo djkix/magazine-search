@@ -40,6 +40,16 @@ def extract_and_store_articles(db, magazine: Magazine) -> None:
             key=lambda e: e["start_page"],
         )
 
+        # Locks the magazine row so a second concurrent call for the same
+        # magazine - e.g. the admin "Relancer" button on a full reprocess
+        # and the lighter "toc/retry" action both landing close together -
+        # waits here instead of interleaving its own delete+insert with
+        # this one. Without this, under READ COMMITTED, a concurrent run's
+        # DELETE only removes rows already committed at the time it runs,
+        # so two overlapping runs each insert their own full set and both
+        # end up in the table side by side as duplicates.
+        db.query(Magazine).filter(Magazine.id == magazine.id).with_for_update().first()
+
         db.query(Article).filter(Article.magazine_id == magazine.id).delete()
         for i, entry in enumerate(entries):
             if "end_page" in entry:

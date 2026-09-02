@@ -42,6 +42,8 @@ export default function AdminDashboardPage() {
   const [noSommaireCount, setNoSommaireCount] = useState<number | null>(null);
   const [reprocessingAllNoSommaire, setReprocessingAllNoSommaire] = useState(false);
   const [progressById, setProgressById] = useState<Record<number, { current: number; total: number }>>({});
+  const [deduplicatingArticles, setDeduplicatingArticles] = useState(false);
+  const [dedupeMessage, setDedupeMessage] = useState<string | null>(null);
 
   const FILTER_PAGE_SIZE = 100;
 
@@ -247,6 +249,22 @@ export default function AdminDashboardPage() {
     }
   }
 
+  async function deduplicateArticles() {
+    setDeduplicatingArticles(true);
+    setDedupeMessage(null);
+    setError(null);
+    try {
+      const result = await api.post<{ deleted: number }>("/admin/articles/deduplicate");
+      setDedupeMessage(
+        result.deleted > 0 ? `${result.deleted} article(s) en double supprimé(s).` : "Aucun doublon trouvé."
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erreur lors de la suppression des doublons");
+    } finally {
+      setDeduplicatingArticles(false);
+    }
+  }
+
   function toggleStatusFilter(status: Exclude<StatusFilter, null>) {
     setStatusFilter((prev) => (prev === status ? null : status));
   }
@@ -387,6 +405,14 @@ export default function AdminDashboardPage() {
           {retrying ? "Relance en cours..." : `Réessayer les ${stats.failed} échec(s)`}
         </Button>
       )}
+
+      <div className="flex items-center gap-3">
+        <Button onClick={deduplicateArticles} disabled={deduplicatingArticles} variant="secondary" className="w-fit">
+          <Icon name="content_copy" className={deduplicatingArticles ? "animate-spin" : ""} />
+          {deduplicatingArticles ? "Nettoyage en cours..." : "Supprimer les articles en double"}
+        </Button>
+        {dedupeMessage && <p className="text-sm text-foreground-muted">{dedupeMessage}</p>}
+      </div>
 
       <div>
         <div className="mb-3 flex items-center justify-between">
