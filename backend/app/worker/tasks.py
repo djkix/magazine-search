@@ -33,7 +33,11 @@ def extract_and_store_articles(db, magazine: Magazine) -> None:
     try:
         pages = db.query(Page).filter(Page.magazine_id == magazine.id).order_by(Page.page_number).all()
         last_page_number = max((p.page_number for p in pages), default=0)
-        entries = sorted(extract_articles_from_ocr(pages), key=lambda e: e["start_page"])
+        processed_path = Path(settings.processed_dir) / f"{magazine.id}.pdf"
+        entries = sorted(
+            extract_articles_from_ocr(pages, pdf_path=processed_path if processed_path.exists() else None),
+            key=lambda e: e["start_page"],
+        )
 
         db.query(Article).filter(Article.magazine_id == magazine.id).delete()
         for i, entry in enumerate(entries):
