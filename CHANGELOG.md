@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.3](https://github.com/djkix/magazine-search/compare/v0.16.2...v0.16.3) (2026-09-02)
+
+
+### Bug Fixes
+
+* prevent and clean up duplicate article rows from concurrent extraction ([bb68548](https://github.com/djkix/magazine-search/commit/bb685487a4d19572b8ffae889fdbc40e0a943d21))
+
 ## [0.16.2](https://github.com/djkix/magazine-search/compare/v0.16.1...v0.16.2) (2026-09-02)
 
 
