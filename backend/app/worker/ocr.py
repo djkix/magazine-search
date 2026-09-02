@@ -134,19 +134,56 @@ def _strip_nul(text: str) -> str:
     return text.replace("\x00", "") if "\x00" in text else text
 
 
+MIN_COLUMN_GAP_POINTS = 60
+
+
 def _blocks_by_column(page: fitz.Page) -> str:
-    """Vertical fallback reading order: split blocks into a left/right
-    column by x-position and read each column fully top-to-bottom before
-    moving to the next - the natural order for a genuine multi-column
-    layout (e.g. two full-height columns), which linear "text" mode can
-    scramble by following the PDF's internal content-stream order instead."""
-    blocks = [b for b in page.get_text("blocks") if b[6] == 0 and b[4].strip()]
-    if not blocks:
+    """Vertical fallback reading order: read the left column fully
+    top-to-bottom, then the right column - the natural order for a
+    genuine multi-column layout, which linear "text" mode can scramble by
+    following the PDF's internal content-stream order instead.
+
+    Works at word level (grouped back into their original PyMuPDF lines
+    via (block_no, line_no)) rather than whole blocks, because some
+    two-column sommaires are laid out as a literal two-column table where
+    each physical line already contains both columns side by side - e.g.
+    "8 conseils ... 36    Les choisir comme un expert ... 54" - which
+    PyMuPDF hands back as one block/line, so a block-level left/right
+    split can't separate them; the two halves need to be told apart
+    within the line itself. A line's words are split at the single
+    largest horizontal gap between them when that gap is wide enough
+    (MIN_COLUMN_GAP_POINTS) to be a real column gutter rather than
+    ordinary word spacing - otherwise the whole line is classified as one
+    side by its own position, which is what makes this also work for a
+    genuine full-height two-column layout (nothing to split within any
+    single line there, just left-block lines and right-block lines)."""
+    words = page.get_text("words")
+    if not words:
         return ""
     mid_x = (page.rect.x0 + page.rect.x1) / 2
-    left = sorted((b for b in blocks if (b[0] + b[2]) / 2 < mid_x), key=lambda b: b[1])
-    right = sorted((b for b in blocks if (b[0] + b[2]) / 2 >= mid_x), key=lambda b: b[1])
-    return "\n".join(b[4] for b in [*left, *right])
+
+    lines: dict[tuple[int, int], list] = {}
+    for w in words:
+        lines.setdefault((w[5], w[6]), []).append(w)
+
+    left_lines: list[tuple[float, str]] = []
+    right_lines: list[tuple[float, str]] = []
+    for line_words in lines.values():
+        line_words.sort(key=lambda w: w[0])
+        y = min(w[1] for w in line_words)
+        gaps = [(line_words[i + 1][0] - line_words[i][2], i) for i in range(len(line_words) - 1)]
+        gap, split_at = max(gaps, default=(0, -1))
+        if gap >= MIN_COLUMN_GAP_POINTS:
+            left_lines.append((y, " ".join(w[4] for w in line_words[: split_at + 1])))
+            right_lines.append((y, " ".join(w[4] for w in line_words[split_at + 1 :])))
+        elif (line_words[0][0] + line_words[-1][2]) / 2 < mid_x:
+            left_lines.append((y, " ".join(w[4] for w in line_words)))
+        else:
+            right_lines.append((y, " ".join(w[4] for w in line_words)))
+
+    left_lines.sort(key=lambda item: item[0])
+    right_lines.sort(key=lambda item: item[0])
+    return "\n".join(text for _, text in [*left_lines, *right_lines])
 
 
 def _blocks_by_row(page: fitz.Page) -> str:
