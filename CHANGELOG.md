@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/djkix/magazine-search/compare/v0.15.2...v0.16.0) (2026-09-02)
+
+
+### Features
+
+* auto-refresh admin dashboard and show OCR progress percentage ([b5de082](https://github.com/djkix/magazine-search/commit/b5de0824bb0ec6a4352faf72ca285f587941d6ba))
+
 ## [0.15.2](https://github.com/djkix/magazine-search/compare/v0.15.1...v0.15.2) (2026-09-02)
 
 
