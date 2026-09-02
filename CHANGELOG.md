@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.2](https://github.com/djkix/magazine-search/compare/v0.16.1...v0.16.2) (2026-09-02)
+
+
+### Bug Fixes
+
+* dot-leader parsing, garbled-text detection, and theme quota leak ([e50c723](https://github.com/djkix/magazine-search/commit/e50c723ae0cfb168ac55c730e924f070cfab16bc))
+
 ## [0.16.1](https://github.com/djkix/magazine-search/compare/v0.16.0...v0.16.1) (2026-09-02)
 
 
