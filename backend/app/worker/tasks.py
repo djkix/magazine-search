@@ -81,16 +81,22 @@ def process_pending_theme_batch() -> None:
     OCR jobs, so by the time the first one actually runs, most or all of
     that batch's magazines already have no themes yet - naturally
     coalescing a large backlog into a handful of requests instead of one
-    per magazine."""
+    per magazine.
+
+    Pending is tracked via `themed_at` (set below for every magazine in the
+    batch, whether or not Gemini found it a theme) rather than "has no
+    theme_magazines row" - a magazine Gemini can't theme (e.g. too few
+    articles) would otherwise never get excluded, so it kept being
+    resubmitted, and re-billed against the daily quota, every single time
+    any other magazine's OCR completed and re-enqueued this job."""
     db = SessionLocal()
     try:
         pending = (
             db.query(Magazine)
-            .outerjoin(theme_magazines, theme_magazines.c.magazine_id == Magazine.id)
             .filter(
                 Magazine.scan_status == ScanStatus.done,
                 Magazine.toc_status == OcrStatus.done,
-                theme_magazines.c.magazine_id.is_(None),
+                Magazine.themed_at.is_(None),
             )
             .order_by(Magazine.id)
             .limit(THEME_BATCH_SIZE)
@@ -113,9 +119,11 @@ def process_pending_theme_batch() -> None:
 
         for magazine, _articles in magazines_with_articles:
             theme_names = results.get(magazine.id)
-            if not theme_names:
-                continue
             magazine = db.get(Magazine, magazine.id)
+            magazine.themed_at = func.now()
+            if not theme_names:
+                db.commit()
+                continue
             themes = []
             seen_ids = set()
             for name in theme_names:
