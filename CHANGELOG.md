@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.1](https://github.com/djkix/magazine-search/compare/v0.16.0...v0.16.1) (2026-09-02)
+
+
+### Bug Fixes
+
+* try all sommaire reading-order strategies and keep the best result ([8a64c8a](https://github.com/djkix/magazine-search/commit/8a64c8a2a62d2ce42aa4287973ac68f7c23ac2a9))
+
 ## [0.16.0](https://github.com/djkix/magazine-search/compare/v0.15.2...v0.16.0) (2026-09-02)
 
 
