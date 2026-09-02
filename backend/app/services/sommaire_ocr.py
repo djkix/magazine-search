@@ -77,8 +77,22 @@ def _is_sommaire_heading(line: str) -> bool:
     right after the matched word (a following space or punctuation, not a
     letter) so a longer French word sharing the same prefix isn't matched
     (e.g. "sommairement") while a legitimate multi-word variant still is
-    (e.g. "Sommaire interactif")."""
-    normalized = re.sub(r"\s+", " ", _collapse_letter_spacing(line)).strip().lower()
+    (e.g. "Sommaire interactif").
+
+    "content"/"contents" are also ordinary French words ("des lecteurs
+    contents", "un article content..."), so unlike "sommaire" (rarely
+    used mid-sentence) they can appear as an incidental word inside a
+    wrapped line of body prose - e.g. "...contents et cela va laisser..."
+    genuinely starts with the word "contents" followed by a space, which
+    would otherwise match. A decorative heading is always set capitalized
+    in these layouts, while a line wrapped mid-sentence from body text is
+    not, so requiring the line's own (pre-lowercasing) first letter to be
+    uppercase filters out this kind of false positive without needing to
+    single out which heading words are ambiguous."""
+    collapsed = re.sub(r"\s+", " ", _collapse_letter_spacing(line)).strip()
+    if not collapsed or not collapsed[0].isupper():
+        return False
+    normalized = collapsed.lower()
     if len(normalized) > MAX_HEADING_LENGTH:
         return False
     for word in _HEADING_WORDS:
