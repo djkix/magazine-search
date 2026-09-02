@@ -262,34 +262,35 @@ def extract_articles_from_ocr(pages: list[Page], pdf_path: Path | None = None) -
     after OCR.
 
     The default (linear) text extraction gets the reading order wrong on
-    some multi-column sommaire pages - rather than switching every page to
-    a different reconstruction (which regressed other, more common
-    layouts when tried), this only reaches for an alternate reading order
-    as a fallback: once we already know which page is the sommaire (via
-    its heading) but the default text yielded zero entries from it, which
-    is a strong, cheap signal that the text order on that specific page is
-    the problem. `pdf_path`, when given, lets that retry re-open the
-    actual PDF page instead of only ever working from the one text
-    already stored."""
+    many real two-column sommaire pages - not just producing zero entries
+    (which would be easy to detect and fall back from), but sometimes one
+    lone, badly mangled entry whose page range stretches to the end of the
+    magazine, which looks like a "success" if only checked for emptiness.
+    So rather than trying alternate reading-order reconstructions (column-
+    based, then row-based) only as a fallback when linear text found
+    nothing, all of them are tried whenever `pdf_path` is available, and
+    whichever yields the most entries wins - a genuine sommaire has many
+    entries, so a parse that only manages a handful is almost certainly
+    the wrong reading order, not a magazine with an unusually short one."""
     boilerplate = _find_boilerplate_templates(pages)
     sommaire_page_numbers = _find_sommaire_pages(pages, boilerplate)
     if not sommaire_page_numbers:
         return []
 
     candidate_pages = [p for p in pages if p.page_number in sommaire_page_numbers and p.raw_text]
-    articles: list[dict] = []
+    linear_articles: list[dict] = []
     for page in candidate_pages:
-        articles.extend(_parse_entries(page.raw_text, boilerplate))
-    if articles or not pdf_path:
-        return articles
+        linear_articles.extend(_parse_entries(page.raw_text, boilerplate))
 
-    for strategy in ("columns", "rows"):
-        articles = []
-        for page_number in sorted(sommaire_page_numbers):
-            alt_text = extract_page_text_alternate(pdf_path, page_number, strategy)
-            if alt_text:
-                articles.extend(_parse_entries(alt_text, boilerplate))
-        if articles:
-            return articles
+    best = linear_articles
+    if pdf_path:
+        for strategy in ("columns", "rows"):
+            strategy_articles: list[dict] = []
+            for page_number in sorted(sommaire_page_numbers):
+                alt_text = extract_page_text_alternate(pdf_path, page_number, strategy)
+                if alt_text:
+                    strategy_articles.extend(_parse_entries(alt_text, boilerplate))
+            if len(strategy_articles) > len(best):
+                best = strategy_articles
 
-    return []
+    return best
