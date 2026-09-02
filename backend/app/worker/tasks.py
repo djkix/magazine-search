@@ -12,9 +12,10 @@ from app.queue import ingestion_queue
 from app.services.issue_parser import extract_issue_number_from_cover_text, extract_year_from_cover_text
 from app.services.magazine_themes import generate_magazine_themes
 from app.services.meili import ensure_index_configured, index_page, index_pages
+from app.services.progress import clear_magazine_progress, set_magazine_progress
 from app.services.sommaire_ocr import extract_articles_from_ocr
 from app.services.theme_batch import assign_themes_batch
-from app.worker.ocr import detect_language, ensure_text_layer, extract_pages, render_cover_thumbnail
+from app.worker.ocr import detect_language, ensure_text_layer, extract_pages, get_page_count, render_cover_thumbnail
 
 logger = logging.getLogger("worker.tasks")
 settings = get_settings()
@@ -213,6 +214,7 @@ def handle_process_magazine_failure(job, connection, type, value, traceback) -> 
         db.rollback()
         logger.exception("Failed to mark magazine %s failed after job failure/timeout", magazine_id)
     finally:
+        clear_magazine_progress(magazine_id)
         db.close()
 
 
@@ -242,6 +244,7 @@ def process_magazine(magazine_id: int) -> None:
 
         ensure_index_configured()
 
+        total_pages = get_page_count(processed_path)
         cover_text = None
         for page_data in extract_pages(processed_path):
             if page_data["page_number"] == 1:
@@ -264,6 +267,7 @@ def process_magazine(magazine_id: int) -> None:
             db.flush()
 
             index_page(page, magazine)
+            set_magazine_progress(magazine_id, page_data["page_number"], total_pages)
 
         if cover_text and (magazine.publication_date is None or magazine.issue_number is None):
             if magazine.publication_date is None:
@@ -290,6 +294,7 @@ def process_magazine(magazine_id: int) -> None:
         logger.exception("Failed to process magazine %s", magazine_id)
         raise
     finally:
+        clear_magazine_progress(magazine_id)
         db.close()
 
 

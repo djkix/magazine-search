@@ -31,6 +31,7 @@ from app.schemas import (
 )
 from app.security import hash_password
 from app.services.logs import read_logs
+from app.services.progress import get_magazine_progress
 from app.services.gemini_quota import (
     get_gemini_daily_limit,
     get_gemini_rpm_limit,
@@ -186,6 +187,14 @@ def current_scan():
     """The most recently triggered scan's job id, if any, so the dashboard can
     resume showing its progress after a page reload."""
     return {"job_id": get_latest_scan_job_id()}
+
+
+@router.get("/magazines/{magazine_id}/progress")
+def get_magazine_progress_endpoint(magazine_id: int):
+    """Live page-processing progress for a magazine currently being OCR'd
+    and indexed (see app.services.progress) - null once it's done, failed,
+    or was never started, since the underlying Redis key is cleared then."""
+    return get_magazine_progress(magazine_id)
 
 
 @router.get("/scan/{job_id}/status", response_model=ScanStatusResponse)

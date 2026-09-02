@@ -33,27 +33,50 @@ export default function AdminDashboardPage() {
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(null);
+  const statusFilterRef = useRef<StatusFilter>(null);
   const [filteredMagazines, setFilteredMagazines] = useState<Magazine[] | null>(null);
   const [filterLoading, setFilterLoading] = useState(false);
   const [filteredTotal, setFilteredTotal] = useState<number | null>(null);
   const [loadingMoreFiltered, setLoadingMoreFiltered] = useState(false);
   const [noSommaireCount, setNoSommaireCount] = useState<number | null>(null);
   const [reprocessingAllNoSommaire, setReprocessingAllNoSommaire] = useState(false);
+  const [progressById, setProgressById] = useState<Record<number, { current: number; total: number }>>({});
 
   const FILTER_PAGE_SIZE = 100;
 
-  function filterScanStatusParam() {
-    if (statusFilter === "pending") return PENDING_SCAN_STATUSES;
-    if (statusFilter === "no_sommaire") return "scan_status=done&has_sommaire=false";
-    return `scan_status=${statusFilter}`;
+  async function refreshProgress(magazines: Magazine[]) {
+    const processingIds = magazines.filter((m) => m.scan_status === "processing").map((m) => m.id);
+    if (processingIds.length === 0) return;
+    const entries = await Promise.all(
+      processingIds.map((id) =>
+        api
+          .get<{ current: number; total: number } | null>(`/admin/magazines/${id}/progress`)
+          .then((p): [number, { current: number; total: number } | null] => [id, p])
+          .catch((): [number, { current: number; total: number } | null] => [id, null])
+      )
+    );
+    setProgressById((prev) => {
+      const next = { ...prev };
+      for (const [id, p] of entries) {
+        if (p) next[id] = p;
+        else delete next[id];
+      }
+      return next;
+    });
   }
 
-  function filterQueryString(pageIndex: number) {
-    return `${filterScanStatusParam()}&sort=updated&page=${pageIndex}&limit=${FILTER_PAGE_SIZE}`;
+  function filterScanStatusParam(filter: StatusFilter) {
+    if (filter === "pending") return PENDING_SCAN_STATUSES;
+    if (filter === "no_sommaire") return "scan_status=done&has_sommaire=false";
+    return `scan_status=${filter}`;
   }
 
-  function filterCountQueryString() {
-    return filterScanStatusParam();
+  function filterQueryString(filter: StatusFilter, pageIndex: number) {
+    return `${filterScanStatusParam(filter)}&sort=updated&page=${pageIndex}&limit=${FILTER_PAGE_SIZE}`;
+  }
+
+  function filterCountQueryString(filter: StatusFilter) {
+    return filterScanStatusParam(filter);
   }
 
   const scanJobTotal = scanJob ? scanJob.detected + scanJob.processing + scanJob.done + scanJob.failed : 0;
@@ -62,7 +85,10 @@ export default function AdminDashboardPage() {
   function loadStats() {
     api
       .get<AdminStats>("/admin/stats")
-      .then(setStats)
+      .then((data) => {
+        setStats(data);
+        refreshProgress(data.recent);
+      })
       .catch((err) => setError(err instanceof ApiError ? err.message : "Erreur"));
     api
       .get<{ total: number }>("/magazines/count?scan_status=done&has_sommaire=false")
@@ -70,7 +96,41 @@ export default function AdminDashboardPage() {
       .catch(() => setNoSommaireCount(null));
   }
 
-  useEffect(loadStats, []);
+  // The stat cards only ever reflected whatever loadStats() last fetched -
+  // with no periodic refresh, they'd silently go stale while the worker
+  // kept progressing through the queue in the background, showing e.g.
+  // "0 en cours" even while a filtered view (fetched fresh on click)
+  // showed a magazine actively processing. Refreshed here every 5s,
+  // reading the live filter via a ref so the interval (set up once) never
+  // acts on a stale closure of statusFilter.
+  useEffect(() => {
+    statusFilterRef.current = statusFilter;
+  }, [statusFilter]);
+
+  function refreshFilteredFirstPage() {
+    const filter = statusFilterRef.current;
+    if (!filter) return;
+    Promise.all([
+      api.get<Magazine[]>(`/magazines?${filterQueryString(filter, 0)}`),
+      api.get<{ total: number }>(`/magazines/count?${filterCountQueryString(filter)}`),
+    ])
+      .then(([mags, countRes]) => {
+        setFilteredMagazines(mags);
+        setFilteredTotal(countRes.total);
+        refreshProgress(mags);
+      })
+      .catch(() => {});
+  }
+
+  useEffect(() => {
+    loadStats();
+    const interval = setInterval(() => {
+      loadStats();
+      refreshFilteredFirstPage();
+    }, 5000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!statusFilter) {
@@ -80,12 +140,13 @@ export default function AdminDashboardPage() {
     }
     setFilterLoading(true);
     Promise.all([
-      api.get<Magazine[]>(`/magazines?${filterQueryString(0)}`),
-      api.get<{ total: number }>(`/magazines/count?${filterCountQueryString()}`),
+      api.get<Magazine[]>(`/magazines?${filterQueryString(statusFilter, 0)}`),
+      api.get<{ total: number }>(`/magazines/count?${filterCountQueryString(statusFilter)}`),
     ])
       .then(([mags, countRes]) => {
         setFilteredMagazines(mags);
         setFilteredTotal(countRes.total);
+        refreshProgress(mags);
       })
       .catch((err) => {
         setFilteredMagazines([]);
@@ -101,7 +162,7 @@ export default function AdminDashboardPage() {
     setLoadingMoreFiltered(true);
     try {
       const nextPage = Math.floor(filteredMagazines.length / FILTER_PAGE_SIZE);
-      const more = await api.get<Magazine[]>(`/magazines?${filterQueryString(nextPage)}`);
+      const more = await api.get<Magazine[]>(`/magazines?${filterQueryString(statusFilter, nextPage)}`);
       setFilteredMagazines((prev) => [...(prev ?? []), ...more]);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Erreur lors du chargement des magazines filtrés");
@@ -374,6 +435,21 @@ export default function AdminDashboardPage() {
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={m.scan_status} />
+                    {m.scan_status === "processing" && progressById[m.id] && (
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <div className="h-1 w-16 overflow-hidden rounded-full bg-outline-variant/40">
+                          <div
+                            className="h-full bg-primary transition-[width] duration-500"
+                            style={{
+                              width: `${Math.round((progressById[m.id].current / progressById[m.id].total) * 100)}%`,
+                            }}
+                          />
+                        </div>
+                        <span className="font-mono text-[10px] text-primary-light">
+                          {Math.round((progressById[m.id].current / progressById[m.id].total) * 100)}%
+                        </span>
+                      </div>
+                    )}
                     {m.scan_status === "failed" && m.error_message && (
                       <p
                         className="mt-1 max-w-md truncate font-mono text-[10px] text-red-400"

@@ -20,6 +20,14 @@ def all_pages_have_native_text(pdf_path: Path) -> bool:
         doc.close()
 
 
+def get_page_count(pdf_path: Path) -> int:
+    doc = fitz.open(pdf_path)
+    try:
+        return doc.page_count
+    finally:
+        doc.close()
+
+
 def ensure_text_layer(source_path: Path, output_path: Path) -> None:
     """Write a copy of source_path to output_path with a text layer on every page.
 
