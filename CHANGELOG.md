@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.4](https://github.com/djkix/magazine-search/compare/v0.16.3...v0.16.4) (2026-09-02)
+
+
+### Bug Fixes
+
+* false sommaire-heading match and word-level column splitting ([e896d9e](https://github.com/djkix/magazine-search/commit/e896d9e2dabf42d20ff6c5a1c6f64732c272be9f))
+
 ## [0.16.3](https://github.com/djkix/magazine-search/compare/v0.16.2...v0.16.3) (2026-09-02)
 
 
