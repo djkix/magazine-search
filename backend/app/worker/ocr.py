@@ -1,3 +1,4 @@
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -20,6 +21,62 @@ def all_pages_have_native_text(pdf_path: Path) -> bool:
         doc.close()
 
 
+# A handful of extremely common, unambiguous French/English words - real
+# prose of any length is dense with these; a systematic glyph-to-Unicode
+# mismatch (see _native_text_is_garbled) can't coincidentally reproduce
+# them, since every occurrence of a given real word is remapped to the
+# same wrong output every time, never back to the word itself.
+_COMMON_WORDS = {
+    "le", "la", "les", "de", "des", "un", "une", "et", "à", "dans", "pour",
+    "que", "qui", "est", "sur", "avec", "par", "ce", "en", "au", "aux",
+    "the", "and", "of", "to", "in", "for", "is", "on", "with", "by", "at",
+    "from", "this", "that", "are", "was",
+}
+_WORD_RE = re.compile(r"[a-zà-öø-ÿ]{2,}")
+MIN_PAGE_TOKENS_TO_JUDGE = 15
+GARBLED_PAGE_COMMON_WORD_RATIO = 0.10
+MIN_GARBLED_PAGES = 3
+MIN_GARBLED_PAGE_FRACTION = 0.05
+
+
+def _native_text_is_garbled(pdf_path: Path) -> bool:
+    """Some PDFs carry non-empty native text that is nevertheless unusable -
+    typically a subset/custom font whose glyph-to-Unicode mapping is wrong,
+    so PyMuPDF extracts a consistent-looking but meaningless character
+    substitution instead of real words (e.g. "lll\\nWhy |\\n| |" instead of
+    readable French/English). all_pages_have_native_text can't catch this,
+    since the text is non-empty - so this checks instead whether each
+    page's text contains a plausible density of the handful of extremely
+    common short words every real page of prose is full of, and calls the
+    whole document garbled once enough individual pages come up short.
+
+    Judged per page (rather than over one pooled sample) because the
+    corruption is typically page/font-specific, not document-wide - some
+    pages (covers, full-page ads/images) are also genuinely too short or
+    proper-noun-heavy to judge either way, so those are skipped rather than
+    counted as evidence in either direction. A handful of low-content pages
+    misfiring isn't enough on its own - MIN_GARBLED_PAGES guards against a
+    short document (or a couple of legitimately stopword-sparse pages, e.g.
+    a credits page) tripping this from one or two false positives."""
+    doc = fitz.open(pdf_path)
+    try:
+        judged = 0
+        garbled_pages = 0
+        for page in doc:
+            tokens = _WORD_RE.findall(page.get_text("text").lower())
+            if len(tokens) < MIN_PAGE_TOKENS_TO_JUDGE:
+                continue
+            judged += 1
+            hits = sum(1 for t in tokens if t in _COMMON_WORDS)
+            if (hits / len(tokens)) < GARBLED_PAGE_COMMON_WORD_RATIO:
+                garbled_pages += 1
+        if judged == 0:
+            return False
+        return garbled_pages >= MIN_GARBLED_PAGES and (garbled_pages / judged) >= MIN_GARBLED_PAGE_FRACTION
+    finally:
+        doc.close()
+
+
 def get_page_count(pdf_path: Path) -> int:
     doc = fitz.open(pdf_path)
     try:
@@ -33,15 +90,25 @@ def ensure_text_layer(source_path: Path, output_path: Path) -> None:
 
     Pages that already carry a native text layer are left untouched; only pages
     without one are sent through OCR (ocrmypdf's --skip-text does this per page).
+
+    A document whose native text is garbled (see _native_text_is_garbled)
+    needs a different flag even where text is technically present:
+    --skip-text would leave those pages untouched too, since ocrmypdf also
+    considers them "already have text" - --force-ocr instead rasterizes and
+    re-OCRs every page, discarding the bad text. Only checked once per
+    document at first processing, so the extra pass's cost is a one-time
+    thing, not a recurring one.
     """
-    if all_pages_have_native_text(source_path):
+    has_native_text = all_pages_have_native_text(source_path)
+    garbled = _native_text_is_garbled(source_path)
+    if has_native_text and not garbled:
         shutil.copyfile(source_path, output_path)
         return
 
     result = subprocess.run(
         [
             "ocrmypdf",
-            "--skip-text",
+            "--force-ocr" if garbled else "--skip-text",
             "--language",
             "fra+eng",
             "--output-type",

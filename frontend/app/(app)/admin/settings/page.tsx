@@ -187,9 +187,10 @@ export default function AdminSettingsPage() {
 
       <div className="space-y-3 rounded-xl border border-outline-variant bg-surface/60 p-6">
         <div>
-          <p className="text-sm font-medium text-foreground">Modèle Gemini (extraction des sommaires)</p>
+          <p className="text-sm font-medium text-foreground">Modèle Gemini (regroupement des thématiques)</p>
           <p className="mt-1 text-xs text-foreground-muted">
-            Utilisé pour extraire titre + page des articles depuis le sommaire OCRisé de chaque magazine.
+            Le sommaire (titre + page de chaque article) est extrait localement depuis l&apos;OCR, sans Gemini.
+            Gemini n&apos;est utilisé que pour regrouper plusieurs magazines sous des thématiques communes.
           </p>
         </div>
 

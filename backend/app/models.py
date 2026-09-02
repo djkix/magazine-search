@@ -93,6 +93,14 @@ class Magazine(Base):
     )
     toc_error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Set once a Gemini theme-batch has actually considered this magazine,
+    # whether or not it came out of it with any theme - without this, a
+    # magazine Gemini couldn't find a theme for (e.g. too few articles) has
+    # no way to tell "not tried yet" from "tried, found nothing", so it kept
+    # being resubmitted - and re-billed against the daily quota - every time
+    # any other magazine's OCR completed and re-enqueued the batch job.
+    themed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     issue_type: Mapped[IssueType] = mapped_column(
         Enum(IssueType, name="issue_type"), default=IssueType.normal, nullable=False
     )

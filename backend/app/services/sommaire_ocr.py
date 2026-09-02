@@ -17,9 +17,14 @@ MAX_HEADING_SEARCH_PAGE = 30
 #
 # 1. "Title ......... p.NN" (dot leaders) or, in a tabular/column layout,
 #    "Title            p.NN-MM" (a run of plain whitespace instead of dots) -
-#    the page reference trails the title on the same line.
+#    the page reference trails the title on the same line. Some magazines'
+#    dot leaders come out of OCR as individual periods each separated by a
+#    thin space (U+2009) rather than a run of consecutive dots, e.g.
+#    "Title. . . . . p. 6" - so the leader is matched as any
+#    3+-character run mixing dots and whitespace, not just a consecutive
+#    run of one or the other.
 _TRAILING_RE = re.compile(
-    r"^(?P<title>.+?)(?:[.·…]{3,}|\s{3,})\s*(?:p\.?\s*)?"
+    r"^(?P<title>.+?)(?:[.·…\s]{3,})(?:p\.?\s*)?"
     r"(?P<page>\d{1,4})(?:\s*[-–]\s*(?P<page_end>\d{1,4}))?\s*$",
     re.IGNORECASE,
 )
