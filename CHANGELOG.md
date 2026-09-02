@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.2](https://github.com/djkix/magazine-search/compare/v0.15.1...v0.15.2) (2026-09-02)
+
+
+### Bug Fixes
+
+* try alternate reading orders only as a fallback, not by default ([42ec65f](https://github.com/djkix/magazine-search/commit/42ec65f30c2606577fdcecf4b1bf7af5c251bdbc))
+
 ## [0.15.1](https://github.com/djkix/magazine-search/compare/v0.15.0...v0.15.1) (2026-09-01)
 
 
