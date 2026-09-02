@@ -277,6 +277,25 @@ def _get_article_or_404(article_id: int, db: Session) -> Article:
     return article
 
 
+@router.post("/articles/deduplicate")
+def deduplicate_articles(db: Session = Depends(get_db)):
+    """One-off cleanup for exact-duplicate Article rows: a race between two
+    concurrent extraction runs for the same magazine (e.g. a full reprocess
+    and a TOC-only retry overlapping, or the same action double-clicked)
+    could each delete only what the other hadn't committed yet, so both
+    runs' rows ended up side by side - see extract_and_store_articles's
+    row lock, which now prevents this from recurring. Keeps the oldest row
+    per (magazine_id, title, start_page)."""
+    keep_ids = (
+        db.query(func.min(Article.id).label("id"))
+        .group_by(Article.magazine_id, Article.title, Article.start_page)
+        .subquery()
+    )
+    deleted = db.query(Article).filter(~Article.id.in_(db.query(keep_ids.c.id))).delete(synchronize_session=False)
+    db.commit()
+    return {"deleted": deleted}
+
+
 @router.post("/magazines/{magazine_id}/toc/retry")
 def retry_toc_extraction(magazine_id: int, db: Session = Depends(get_db)):
     magazine = db.get(Magazine, magazine_id)
