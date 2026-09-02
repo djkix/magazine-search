@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
 import type { AdminStats, Magazine, RetryFailedResponse, ScanStatusResponse, ScanTriggerResponse } from "@/lib/types";
 import StatCard from "@/components/admin/StatCard";
@@ -423,7 +424,16 @@ export default function AdminDashboardPage() {
               {!filterLoading &&
               (statusFilter ? filteredMagazines ?? [] : stats?.recent ?? []).map((m) => (
                 <tr key={m.id} className="bg-surface/40">
-                  <td className="px-4 py-3 text-foreground">{m.title}</td>
+                  <td className="px-4 py-3 text-foreground">
+                    <Link
+                      href={`/viewer/${m.id}/1`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-primary-light hover:underline"
+                    >
+                      {m.title}
+                    </Link>
+                  </td>
                   <td className="px-4 py-3 font-mono text-xs text-foreground-muted">
                     {new Date(m.updated_at).toLocaleString("fr-FR", {
                       day: "2-digit",
