@@ -1,7 +1,9 @@
 import re
+from pathlib import Path
 
 from app.models import Page
 from app.services.toc import MAX_SOMMAIRE_PAGE
+from app.worker.ocr import extract_page_text_alternate
 
 # The "SOMMAIRE" heading search looks much further into the magazine than
 # the entry-density fallback below - some magazines (glossy monthlies with
@@ -152,12 +154,123 @@ def _find_sommaire_pages(pages: list[Page], boilerplate: set[str]) -> set[int]:
     return {best_page, best_page + 1}
 
 
-def extract_articles_from_ocr(pages: list[Page]) -> list[dict]:
+def _parse_entries(text: str, boilerplate: set[str]) -> list[dict]:
+    """Runs the pattern-matching state machine over one page's text and
+    returns whatever entries it finds. Pulled out of extract_articles_from_ocr
+    so the same parser can be re-run against an alternate reading-order
+    reconstruction of the same page when the default (linear) text yielded
+    nothing."""
+    articles: list[dict] = []
+
+    # `pending_page`/`pending_title_lines`: an entry whose page number is
+    # already known and is waiting for its title (leading-style, number
+    # first). `generic_pending`: title text accumulated with no page
+    # number yet (trailing-style, title first) - a bare number arriving
+    # while this is non-empty closes it as that entry's page instead of
+    # starting a new leading-style one.
+    pending_title_lines: list[str] = []
+    pending_page: int | None = None
+    generic_pending: list[str] = []
+
+    def flush_leading_entry() -> None:
+        nonlocal pending_page, pending_title_lines
+        if pending_page is not None and pending_title_lines:
+            title = " ".join(pending_title_lines).strip()
+            if title:
+                articles.append({"title": title, "start_page": pending_page})
+        pending_page = None
+        pending_title_lines = []
+
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or _is_boilerplate(line, boilerplate):
+            flush_leading_entry()
+            generic_pending.clear()
+            continue
+
+        m_trailing = _TRAILING_RE.match(line)
+        if m_trailing:
+            flush_leading_entry()
+            title_part = m_trailing.group("title").strip(" .·…")
+            title = " ".join([*generic_pending, title_part]).strip()
+            generic_pending.clear()
+            try:
+                start_page = int(m_trailing.group("page"))
+            except ValueError:
+                continue
+            if not title or not (1 <= start_page <= 999):
+                continue
+            entry = {"title": title, "start_page": start_page}
+            if m_trailing.group("page_end"):
+                try:
+                    entry["end_page"] = int(m_trailing.group("page_end"))
+                except ValueError:
+                    pass
+            articles.append(entry)
+            continue
+
+        m_leading = _LEADING_INLINE_RE.match(line)
+        if m_leading:
+            flush_leading_entry()
+            generic_pending.clear()
+            pending_page = int(m_leading.group("page"))
+            pending_title_lines = [m_leading.group("title").strip()]
+            continue
+
+        m_bare = _BARE_NUMBER_RE.match(line)
+        if m_bare:
+            page_number = int(m_bare.group("page"))
+            if generic_pending and pending_page is None:
+                # A trailing-style title was accumulating with no page
+                # number yet - this bare number closes it (its badge
+                # landed on its own line instead of after dots).
+                title = " ".join(generic_pending).strip()
+                generic_pending.clear()
+                if title and 1 <= page_number <= 999:
+                    articles.append({"title": title, "start_page": page_number})
+                continue
+            flush_leading_entry()
+            pending_page = page_number
+            pending_title_lines = []
+            continue
+
+        if _is_section_label(line):
+            # A kicker/category label - never part of a title, and it
+            # separates whatever came before from what follows.
+            flush_leading_entry()
+            generic_pending.clear()
+            continue
+
+        if pending_page is not None:
+            pending_title_lines.append(line)
+            if len(pending_title_lines) > MAX_TITLE_CONTINUATION_LINES:
+                pending_title_lines.pop(0)
+        else:
+            generic_pending.append(line)
+            if len(generic_pending) > MAX_TITLE_CONTINUATION_LINES:
+                generic_pending.pop(0)
+
+    flush_leading_entry()
+    return articles
+
+
+def extract_articles_from_ocr(pages: list[Page], pdf_path: Path | None = None) -> list[dict]:
     """Best-effort, purely local extraction of a magazine's sommaire
     (title + start page, and end page when the entry itself gives a range)
     straight from its own OCR'd text - no Gemini call, so no quota/cost and
     no dependency on the account's rate limits. Runs synchronously right
-    after OCR."""
+    after OCR.
+
+    The default (linear) text extraction gets the reading order wrong on
+    some multi-column sommaire pages - rather than switching every page to
+    a different reconstruction (which regressed other, more common
+    layouts when tried), this only reaches for an alternate reading order
+    as a fallback: once we already know which page is the sommaire (via
+    its heading) but the default text yielded zero entries from it, which
+    is a strong, cheap signal that the text order on that specific page is
+    the problem. `pdf_path`, when given, lets that retry re-open the
+    actual PDF page instead of only ever working from the one text
+    already stored."""
     boilerplate = _find_boilerplate_templates(pages)
     sommaire_page_numbers = _find_sommaire_pages(pages, boilerplate)
     if not sommaire_page_numbers:
@@ -165,96 +278,18 @@ def extract_articles_from_ocr(pages: list[Page]) -> list[dict]:
 
     candidate_pages = [p for p in pages if p.page_number in sommaire_page_numbers and p.raw_text]
     articles: list[dict] = []
-
     for page in candidate_pages:
-        # `pending_page`/`pending_title_lines`: an entry whose page number is
-        # already known and is waiting for its title (leading-style, number
-        # first). `generic_pending`: title text accumulated with no page
-        # number yet (trailing-style, title first) - a bare number arriving
-        # while this is non-empty closes it as that entry's page instead of
-        # starting a new leading-style one.
-        pending_title_lines: list[str] = []
-        pending_page: int | None = None
-        generic_pending: list[str] = []
+        articles.extend(_parse_entries(page.raw_text, boilerplate))
+    if articles or not pdf_path:
+        return articles
 
-        def flush_leading_entry() -> None:
-            nonlocal pending_page, pending_title_lines
-            if pending_page is not None and pending_title_lines:
-                title = " ".join(pending_title_lines).strip()
-                if title:
-                    articles.append({"title": title, "start_page": pending_page})
-            pending_page = None
-            pending_title_lines = []
+    for strategy in ("columns", "rows"):
+        articles = []
+        for page_number in sorted(sommaire_page_numbers):
+            alt_text = extract_page_text_alternate(pdf_path, page_number, strategy)
+            if alt_text:
+                articles.extend(_parse_entries(alt_text, boilerplate))
+        if articles:
+            return articles
 
-        for raw_line in page.raw_text.splitlines():
-            line = raw_line.strip()
-            if not line or _is_boilerplate(line, boilerplate):
-                flush_leading_entry()
-                generic_pending.clear()
-                continue
-
-            m_trailing = _TRAILING_RE.match(line)
-            if m_trailing:
-                flush_leading_entry()
-                title_part = m_trailing.group("title").strip(" .·…")
-                title = " ".join([*generic_pending, title_part]).strip()
-                generic_pending.clear()
-                try:
-                    start_page = int(m_trailing.group("page"))
-                except ValueError:
-                    continue
-                if not title or not (1 <= start_page <= 999):
-                    continue
-                entry = {"title": title, "start_page": start_page}
-                if m_trailing.group("page_end"):
-                    try:
-                        entry["end_page"] = int(m_trailing.group("page_end"))
-                    except ValueError:
-                        pass
-                articles.append(entry)
-                continue
-
-            m_leading = _LEADING_INLINE_RE.match(line)
-            if m_leading:
-                flush_leading_entry()
-                generic_pending.clear()
-                pending_page = int(m_leading.group("page"))
-                pending_title_lines = [m_leading.group("title").strip()]
-                continue
-
-            m_bare = _BARE_NUMBER_RE.match(line)
-            if m_bare:
-                page_number = int(m_bare.group("page"))
-                if generic_pending and pending_page is None:
-                    # A trailing-style title was accumulating with no page
-                    # number yet - this bare number closes it (its badge
-                    # landed on its own line instead of after dots).
-                    title = " ".join(generic_pending).strip()
-                    generic_pending.clear()
-                    if title and 1 <= page_number <= 999:
-                        articles.append({"title": title, "start_page": page_number})
-                    continue
-                flush_leading_entry()
-                pending_page = page_number
-                pending_title_lines = []
-                continue
-
-            if _is_section_label(line):
-                # A kicker/category label - never part of a title, and it
-                # separates whatever came before from what follows.
-                flush_leading_entry()
-                generic_pending.clear()
-                continue
-
-            if pending_page is not None:
-                pending_title_lines.append(line)
-                if len(pending_title_lines) > MAX_TITLE_CONTINUATION_LINES:
-                    pending_title_lines.pop(0)
-            else:
-                generic_pending.append(line)
-                if len(generic_pending) > MAX_TITLE_CONTINUATION_LINES:
-                    generic_pending.pop(0)
-
-        flush_leading_entry()
-
-    return articles
+    return []

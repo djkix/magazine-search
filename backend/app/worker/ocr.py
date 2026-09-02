@@ -59,20 +59,29 @@ def _strip_nul(text: str) -> str:
     return text.replace("\x00", "") if "\x00" in text else text
 
 
-def _reconstruct_reading_order(page: fitz.Page) -> str:
-    """PyMuPDF's raw "text" mode follows the PDF's internal content stream
-    order, which for a magazine's side-by-side columns (common in a
-    sommaire page, e.g. a full-width section banner followed by a left and
-    right column of entries) doesn't reliably match the visual reading
-    order - entries can come out missing, merged, or attributed to the
-    wrong page number as a result.
-
-    Reconstructed instead from positioned text blocks, grouped into
-    horizontal bands (blocks whose vertical extent overlaps) and, within
-    each band, ordered left-to-right - approximates "read top-to-bottom,
-    left-to-right within a row" the way a person actually reads the page."""
+def _blocks_by_column(page: fitz.Page) -> str:
+    """Vertical fallback reading order: split blocks into a left/right
+    column by x-position and read each column fully top-to-bottom before
+    moving to the next - the natural order for a genuine multi-column
+    layout (e.g. two full-height columns), which linear "text" mode can
+    scramble by following the PDF's internal content-stream order instead."""
     blocks = [b for b in page.get_text("blocks") if b[6] == 0 and b[4].strip()]
-    blocks.sort(key=lambda b: b[1])  # top-to-bottom by y0
+    if not blocks:
+        return ""
+    mid_x = (page.rect.x0 + page.rect.x1) / 2
+    left = sorted((b for b in blocks if (b[0] + b[2]) / 2 < mid_x), key=lambda b: b[1])
+    right = sorted((b for b in blocks if (b[0] + b[2]) / 2 >= mid_x), key=lambda b: b[1])
+    return "\n".join(b[4] for b in [*left, *right])
+
+
+def _blocks_by_row(page: fitz.Page) -> str:
+    """Horizontal fallback reading order: group blocks into horizontal
+    bands (blocks whose vertical extent overlaps) and read left-to-right
+    within each band - suits a page that alternates full-width banners
+    with a column pair beneath them, rather than genuine full-height
+    columns (where _blocks_by_column fits better)."""
+    blocks = [b for b in page.get_text("blocks") if b[6] == 0 and b[4].strip()]
+    blocks.sort(key=lambda b: b[1])
 
     bands: list[list] = []
     band_bottom: float | None = None
@@ -87,9 +96,32 @@ def _reconstruct_reading_order(page: fitz.Page) -> str:
 
     lines = []
     for band in bands:
-        band.sort(key=lambda b: b[0])  # left-to-right by x0
+        band.sort(key=lambda b: b[0])
         lines.extend(block[4] for block in band)
     return "\n".join(lines)
+
+
+def extract_page_text_alternate(pdf_path: Path, page_number: int, strategy: str) -> str | None:
+    """Re-extracts a single page's text using an alternate reading-order
+    reconstruction ("columns" or "rows"), instead of the default linear
+    order - used on demand as a fallback when the default text yielded
+    nothing usable from a page already known to be the sommaire (see
+    sommaire_ocr.extract_articles_from_ocr). Not used by default: linear
+    order is right far more often, and applying a reconstruction
+    unconditionally previously regressed pages it wasn't needed for.
+    Returns None if the page doesn't exist or the file can't be opened."""
+    try:
+        doc = fitz.open(pdf_path)
+    except Exception:  # noqa: BLE001 - best-effort fallback, never worth crashing the caller
+        return None
+    try:
+        if page_number < 1 or page_number > doc.page_count:
+            return None
+        page = doc.load_page(page_number - 1)
+        text = _blocks_by_column(page) if strategy == "columns" else _blocks_by_row(page)
+        return _strip_nul(text)
+    finally:
+        doc.close()
 
 
 def extract_pages(pdf_path: Path) -> list[dict]:
@@ -98,7 +130,7 @@ def extract_pages(pdf_path: Path) -> list[dict]:
     try:
         for page_number, page in enumerate(doc, start=1):
             rect = page.rect
-            raw_text = _strip_nul(_reconstruct_reading_order(page))
+            raw_text = _strip_nul(page.get_text("text"))
             words_raw = page.get_text("words")  # x0, y0, x1, y1, word, block_no, line_no, word_no
             words = [
                 {
