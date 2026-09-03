@@ -244,6 +244,7 @@ class SearchHit(BaseModel):
     page_id: int
     snippet: str
     words: list[WordBox] = []
+    publication_date: str | None = None
 
 
 class SearchResponse(BaseModel):
