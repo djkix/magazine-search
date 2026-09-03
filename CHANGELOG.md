@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.0](https://github.com/djkix/magazine-search/compare/v0.16.4...v0.17.0) (2026-09-03)
+
+
+### Features
+
+* publication date in viewer search results, fix quota counter inflation ([8c53790](https://github.com/djkix/magazine-search/commit/8c53790fe6c8ef762001c5d25814034c6073978d))
+
 ## [0.16.4](https://github.com/djkix/magazine-search/compare/v0.16.3...v0.16.4) (2026-09-02)
 
 
