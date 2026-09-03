@@ -130,13 +130,20 @@ def consume_gemini_quota(db: Session, model: str) -> None:
     limit = get_gemini_daily_limit(db)
     if limit is not None and limit > 0:
         key = _daily_key(model)
-        count = redis_conn.incr(key)
-        if count == 1:
-            redis_conn.expire(key, QUOTA_KEY_TTL_SECONDS)
-        if count > limit:
+        # Checked before incrementing (rather than incrementing first and
+        # raising if over) so that once the daily cap is hit, every further
+        # attempt that day - and there can be many, since a batch gets
+        # retried on every subsequent magazine reprocess until it succeeds -
+        # keeps failing fast without also inflating the counter shown in
+        # the admin settings well past the real number of Gemini calls made.
+        current = int(redis_conn.get(key) or 0)
+        if current >= limit:
             raise GeminiQuotaExceeded(
                 f"Quota Gemini journalier atteint ({limit} requêtes/jour pour {model}) — réessayez demain."
             )
+        count = redis_conn.incr(key)
+        if count == 1:
+            redis_conn.expire(key, QUOTA_KEY_TTL_SECONDS)
         logger.info("Gemini request %d/%d today for %s", count, limit, model)
 
     rpm_limit = get_gemini_rpm_limit(db)

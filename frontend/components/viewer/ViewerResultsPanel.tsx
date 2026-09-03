@@ -34,6 +34,13 @@ export default function ViewerResultsPanel({
 
   const maxOccurrence = Math.max(0, ...(results?.hits.map((h) => h.occurrence_count) ?? []));
 
+  function formatPublicationDate(isoDate: string | null): string | null {
+    if (!isoDate) return null;
+    const date = new Date(isoDate);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toLocaleDateString("fr-FR", { year: "numeric", month: "long" });
+  }
+
   return (
     <div className="flex h-full flex-col p-4">
       <p className="mb-3 font-mono text-xs uppercase tracking-wider text-foreground-muted">
@@ -73,6 +80,12 @@ export default function ViewerResultsPanel({
                 <Icon name="description" className="text-xs" />
                 Page {hit.page_number}
               </p>
+              {formatPublicationDate(hit.publication_date) && (
+                <p className="mb-1 flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
+                  <Icon name="calendar_today" className="text-xs" />
+                  {formatPublicationDate(hit.publication_date)}
+                </p>
+              )}
               <p
                 className="line-clamp-3 text-foreground-muted"
                 dangerouslySetInnerHTML={{ __html: sanitizeHighlightedSnippet(hit.snippet) }}

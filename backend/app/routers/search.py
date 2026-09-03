@@ -117,6 +117,7 @@ def search(
                 page_id=page_id,
                 snippet=snippet,
                 words=words,
+                publication_date=best.get("publication_date"),
             )
         )
 
