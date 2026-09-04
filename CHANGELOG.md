@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.1](https://github.com/djkix/magazine-search/compare/v0.17.0...v0.17.1) (2026-09-04)
+
+
+### Bug Fixes
+
+* prevent DuplicatePreparedStatement from a connection shared across fork ([2555b0d](https://github.com/djkix/magazine-search/commit/2555b0d8c6e9909a47151f5060c4918cf4aa0ca1))
+
 ## [0.17.0](https://github.com/djkix/magazine-search/compare/v0.16.4...v0.17.0) (2026-09-03)
 
 
