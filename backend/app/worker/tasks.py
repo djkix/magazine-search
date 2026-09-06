@@ -10,7 +10,6 @@ from app.database import SessionLocal
 from app.models import Article, Magazine, OcrStatus, Page, PageLanguage, ScanStatus, Theme, theme_magazines
 from app.queue import ingestion_queue
 from app.services.issue_parser import extract_issue_number_from_cover_text, extract_year_from_cover_text
-from app.services.magazine_themes import generate_magazine_themes
 from app.services.meili import ensure_index_configured, index_page, index_pages
 from app.services.progress import clear_magazine_progress, set_magazine_progress
 from app.services.sommaire_ocr import extract_articles_from_ocr
@@ -147,42 +146,26 @@ def process_pending_theme_batch() -> None:
                     themes.append(theme)
             magazine.themes = themes
             db.commit()
+
+        # A bulk "regenerate all" sweep resets themed_at for far more than
+        # THEME_BATCH_SIZE magazines at once, with nothing else left to
+        # naturally re-trigger this job the way a fresh OCR completion
+        # does - so it has to re-enqueue itself to keep draining the
+        # backlog 8 at a time (respecting the same quota/RPM throttling
+        # each time) instead of silently leaving the rest at 0 themes.
+        still_pending = (
+            db.query(Magazine.id)
+            .filter(
+                Magazine.scan_status == ScanStatus.done,
+                Magazine.toc_status == OcrStatus.done,
+                Magazine.themed_at.is_(None),
+            )
+            .first()
+        )
+        if still_pending:
+            ingestion_queue.enqueue(process_pending_theme_batch, job_timeout="15m")
     finally:
         db.close()
-
-
-def _assign_magazine_themes(db, magazine: Magazine, force: bool = False) -> None:
-    """Best-effort, one-time: generated once at indexing time from the
-    magazine's sommaire, then left alone - not something to redo on every
-    TOC retry. Failure here must not affect toc_status. `force=True` (used
-    by the admin "Régénérer les thématiques" action) bypasses the
-    already-has-themes guard, e.g. to retry a magazine that got 0 themes
-    from a transient Gemini issue."""
-    try:
-        if magazine.themes and not force:
-            return
-        articles = db.query(Article).filter(Article.magazine_id == magazine.id).order_by(Article.start_page).all()
-        theme_names = generate_magazine_themes(db, articles)
-        if not theme_names:
-            return
-
-        themes = []
-        seen_ids = set()
-        for name in theme_names:
-            theme = db.query(Theme).filter(func.lower(Theme.name) == name.lower()).first()
-            if theme is None:
-                theme = Theme(name=name)
-                db.add(theme)
-                db.flush()
-            if theme.id not in seen_ids:
-                seen_ids.add(theme.id)
-                themes.append(theme)
-
-        magazine.themes = themes
-        db.commit()
-    except Exception:  # noqa: BLE001 - non-fatal, sommaire itself already succeeded
-        db.rollback()
-        logger.exception("Theme generation failed for magazine %s", magazine.id)
 
 
 def recover_orphaned_processing_magazines() -> list[int]:
@@ -326,21 +309,6 @@ def retry_toc(magazine_id: int) -> None:
             logger.warning("Magazine %s not found, skipping TOC retry", magazine_id)
             return
         extract_and_store_articles(db, magazine)
-    finally:
-        db.close()
-
-
-def regenerate_magazine_themes(magazine_id: int) -> None:
-    """Force-regenerate a magazine's themes even if it already has some -
-    triggered from the admin "Régénérer les thématiques" action, e.g. to
-    retry magazines left at 0 themes by a past transient Gemini failure."""
-    db = SessionLocal()
-    try:
-        magazine = db.get(Magazine, magazine_id)
-        if magazine is None:
-            logger.warning("Magazine %s not found, skipping theme regeneration", magazine_id)
-            return
-        _assign_magazine_themes(db, magazine, force=True)
     finally:
         db.close()
 
