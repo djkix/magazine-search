@@ -44,7 +44,7 @@ from app.services.toc import AVAILABLE_GEMINI_MODELS, get_gemini_model, set_gemi
 from app.worker.tasks import (
     handle_process_magazine_failure,
     process_magazine,
-    regenerate_magazine_themes,
+    process_pending_theme_batch,
     reindex_magazine,
     retry_toc,
 )
@@ -486,11 +486,23 @@ def regenerate_all_themes(db: Session = Depends(get_db)):
     already have some - unlike reindexing the search index, theme
     assignment is otherwise only ever computed once per magazine, so a
     magazine left at 0 themes by a past transient Gemini failure has no
-    other way to retry."""
-    magazine_ids = [m.id for m in db.query(Magazine.id).filter(Magazine.scan_status == ScanStatus.done).all()]
-    for magazine_id in magazine_ids:
-        ingestion_queue.enqueue(regenerate_magazine_themes, magazine_id, job_timeout="10m")
-    return {"enqueued": len(magazine_ids)}
+    other way to retry.
+
+    Resets themed_at (and clears any existing themes) so every magazine
+    looks "pending" again, then hands off to the same batched pipeline
+    used after ordinary OCR completion (process_pending_theme_batch,
+    THEME_BATCH_SIZE magazines per Gemini request) - not one job per
+    magazine, which would burn one full Gemini request per magazine and
+    could exhaust the whole day's quota from a single click on any
+    library past a couple of dozen magazines.
+    """
+    magazines = db.query(Magazine).filter(Magazine.scan_status == ScanStatus.done).all()
+    for magazine in magazines:
+        magazine.themed_at = None
+        magazine.themes = []
+    db.commit()
+    ingestion_queue.enqueue(process_pending_theme_batch, job_timeout="15m")
+    return {"enqueued": len(magazines)}
 
 
 @router.post("/collections/backfill")
