@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.2](https://github.com/djkix/magazine-search/compare/v0.17.1...v0.17.2) (2026-09-06)
+
+
+### Bug Fixes
+
+* batch the "regenerate all themes" bulk action instead of one request per magazine ([2d230bf](https://github.com/djkix/magazine-search/commit/2d230bf131d497c1c4946dd66b2d515830775b3c))
+
 ## [0.17.1](https://github.com/djkix/magazine-search/compare/v0.17.0...v0.17.1) (2026-09-04)
 
 
