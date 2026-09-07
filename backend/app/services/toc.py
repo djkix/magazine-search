@@ -14,7 +14,10 @@ GEMINI_MODEL_SETTING_KEY = "gemini_model"
 AVAILABLE_GEMINI_MODELS = [
     {"id": "gemini-3.5-flash", "label": "Gemini 3.5 Flash (rapide, par défaut)"},
     {"id": "gemini-3.1-pro", "label": "Gemini 3.1 Pro (plus précis, plus lent)"},
-    {"id": "gemini-2.5-flash-lite", "label": "Gemini 2.5 Flash-Lite (le moins cher)"},
+    # gemini-2.5-flash-lite was retired by Google ("no longer available for
+    # new users", 404 on every request) - gemini-3.5-flash-lite is its
+    # direct successor per Google's own error message.
+    {"id": "gemini-3.5-flash-lite", "label": "Gemini 3.5 Flash-Lite (le moins cher)"},
 ]
 
 
