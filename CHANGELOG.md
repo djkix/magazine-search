@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.0](https://github.com/djkix/magazine-search/compare/v0.17.3...v0.18.0) (2026-09-07)
+
+
+### Features
+
+* visually separate normal issues from HS/SP in the library grid ([5d14829](https://github.com/djkix/magazine-search/commit/5d14829826e1339d7799abe5fb9892f56049b2cd))
+
 ## [0.17.3](https://github.com/djkix/magazine-search/compare/v0.17.2...v0.17.3) (2026-09-07)
 
 
