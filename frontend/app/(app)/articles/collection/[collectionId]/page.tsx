@@ -7,7 +7,6 @@ import { api, ApiError } from "@/lib/api";
 import type { Article, ArticleWithMagazine, LibraryOverview, Magazine, MagazineFacets, MagazineTheme } from "@/lib/types";
 import { useUser } from "@/components/layout/UserContext";
 import PageContainer from "@/components/layout/PageContainer";
-import MagazineCard from "@/components/library/MagazineCard";
 import Icon from "@/components/ui/Icon";
 
 const PAGE_SIZE_OPTIONS = ["10", "20", "50", "all"] as const;
@@ -45,6 +44,7 @@ export default function CollectionArticlesPage() {
   const [selectedTheme, setSelectedTheme] = useState<MagazineTheme | null>(null);
   const [themeMagazines, setThemeMagazines] = useState<Magazine[]>([]);
   const [themeMagazinesLoading, setThemeMagazinesLoading] = useState(false);
+  const [themeArticlesByMagazine, setThemeArticlesByMagazine] = useState<Map<number, Article[]>>(new Map());
 
   useEffect(() => {
     if (isUnassigned) {
@@ -180,8 +180,28 @@ export default function CollectionArticlesPage() {
     const p = collectionParams({ theme_id: String(selectedTheme.id), limit: "100" });
     api
       .get<Magazine[]>(`/magazines?${p.toString()}`)
-      .then(setThemeMagazines)
-      .catch(() => setThemeMagazines([]))
+      .then(async (mags) => {
+        setThemeMagazines(mags);
+        // A theme is assigned to the whole issue, not to individual
+        // articles, so the magazine list alone ("Consommation, 8
+        // numéros") gives no way to tell what within each issue actually
+        // relates to it - showing each one's own article list (title +
+        // page, exactly like "Par numéro") lets the reader scan for the
+        // relevant piece instead of opening every issue blind.
+        const entries = await Promise.all(
+          mags.map((m) =>
+            api
+              .get<Article[]>(`/magazines/${m.id}/articles`)
+              .then((a): [number, Article[]] => [m.id, a])
+              .catch((): [number, Article[]] => [m.id, []])
+          )
+        );
+        setThemeArticlesByMagazine(new Map(entries));
+      })
+      .catch(() => {
+        setThemeMagazines([]);
+        setThemeArticlesByMagazine(new Map());
+      })
       .finally(() => setThemeMagazinesLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTheme]);
@@ -283,10 +303,42 @@ export default function CollectionArticlesPage() {
             </button>
             <h2 className="text-lg font-semibold text-foreground">{selectedTheme.name}</h2>
             {themeMagazinesLoading && <p className="text-sm text-foreground-muted">Chargement...</p>}
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-              {themeMagazines.map((m) => (
-                <MagazineCard key={m.id} magazine={m} />
-              ))}
+            <div className="space-y-6">
+              {themeMagazines.map((magazine) => {
+                const articles = themeArticlesByMagazine.get(magazine.id) ?? [];
+                return (
+                  <div key={magazine.id} className="overflow-hidden rounded-xl border border-outline-variant">
+                    <div className="bg-surface-hover px-4 py-3">
+                      <Link
+                        href={`/viewer/${magazine.id}/1`}
+                        className="text-sm font-semibold text-foreground hover:text-primary-light"
+                      >
+                        {magazine.title}
+                        {magazine.issue_number ? ` — ${magazine.issue_number}` : ""}
+                      </Link>
+                    </div>
+                    <ul className="divide-y divide-outline-variant">
+                      {articles.map((article) => (
+                        <li key={article.id}>
+                          <Link
+                            href={`/viewer/${magazine.id}/${article.start_page}`}
+                            className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-surface/60 hover:text-primary-light"
+                          >
+                            <span className="min-w-0 truncate">{article.title}</span>
+                            <span className="shrink-0 font-mono text-xs text-foreground-muted">
+                              p.{article.start_page}
+                              {article.end_page && article.end_page !== article.start_page ? `–${article.end_page}` : ""}
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                      {articles.length === 0 && (
+                        <li className="px-4 py-3 text-sm text-foreground-muted">Aucun sommaire pour ce numéro.</li>
+                      )}
+                    </ul>
+                  </div>
+                );
+              })}
             </div>
             {!themeMagazinesLoading && themeMagazines.length === 0 && (
               <p className="py-8 text-center text-sm text-foreground-muted">Aucun magazine pour cette thématique.</p>
