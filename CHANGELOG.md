@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.3](https://github.com/djkix/magazine-search/compare/v0.17.2...v0.17.3) (2026-09-07)
+
+
+### Bug Fixes
+
+* retired Gemini model, show per-article detail in theme view ([33c1e06](https://github.com/djkix/magazine-search/commit/33c1e0619ae9aaaa36b7fa38f684454f5b614de1))
+
 ## [0.17.2](https://github.com/djkix/magazine-search/compare/v0.17.1...v0.17.2) (2026-09-06)
 
 
