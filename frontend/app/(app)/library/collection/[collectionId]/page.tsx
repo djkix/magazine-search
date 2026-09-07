@@ -11,6 +11,11 @@ import Icon from "@/components/ui/Icon";
 
 const PAGE_SIZE = 100;
 const ISSUE_TYPE_ORDER: Record<Magazine["issue_type"], number> = { normal: 0, hs: 1, sp: 2 };
+const ISSUE_TYPE_LABEL: Record<Magazine["issue_type"], string> = {
+  normal: "Numéros",
+  hs: "Hors Séries",
+  sp: "Numéros Spéciaux",
+};
 
 type IssueTypeFilter = "hs" | "sp" | null;
 
@@ -88,6 +93,17 @@ export default function CollectionLibraryPage() {
       return (b.publication_date ?? "").localeCompare(a.publication_date ?? "");
     });
   }, [items, sortMode]);
+
+  // Grouped by issue type for display - even sorted by date, a normal
+  // issue and an HS/SP one sitting right next to each other in the same
+  // grid read as one continuous list, easy to mistake for the same kind
+  // of issue. Each non-empty group keeps sortedItems' own order within
+  // it, just partitioned into separate blocks with a heading between.
+  const groupedByType = useMemo(() => {
+    return (Object.keys(ISSUE_TYPE_ORDER) as Magazine["issue_type"][])
+      .map((type) => ({ type, items: sortedItems.filter((m) => m.issue_type === type) }))
+      .filter((group) => group.items.length > 0);
+  }, [sortedItems]);
 
   function selectYear(year: number | null) {
     setYearFilter(year);
@@ -204,9 +220,20 @@ export default function CollectionLibraryPage() {
             <p className="text-sm text-foreground-muted">Aucun magazine dans cette collection.</p>
           )}
 
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {sortedItems.map((m) => (
-              <MagazineCard key={m.id} magazine={m} onYearClick={selectYear} />
+          <div className="space-y-8">
+            {groupedByType.map((group) => (
+              <div key={group.type}>
+                {groupedByType.length > 1 && (
+                  <h2 className="mb-3 font-mono text-xs uppercase tracking-wider text-foreground-muted">
+                    {ISSUE_TYPE_LABEL[group.type]}
+                  </h2>
+                )}
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                  {group.items.map((m) => (
+                    <MagazineCard key={m.id} magazine={m} onYearClick={selectYear} />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
 
