@@ -6,6 +6,7 @@ import { api, ApiError } from "@/lib/api";
 import type { SearchHit, SearchResponse } from "@/lib/types";
 import { sanitizeHighlightedSnippet } from "@/lib/sanitize";
 import { occurrenceColorRgb } from "@/lib/occurrenceColor";
+import { formatYearMonth } from "@/lib/formatDate";
 import Icon from "@/components/ui/Icon";
 
 export default function ViewerResultsPanel({
@@ -33,13 +34,6 @@ export default function ViewerResultsPanel({
   }, [searchParamsString]);
 
   const maxOccurrence = Math.max(0, ...(results?.hits.map((h) => h.occurrence_count) ?? []));
-
-  function formatPublicationDate(isoDate: string | null): string | null {
-    if (!isoDate) return null;
-    const date = new Date(isoDate);
-    if (Number.isNaN(date.getTime())) return null;
-    return date.toLocaleDateString("fr-FR", { year: "numeric", month: "long" });
-  }
 
   return (
     <div className="flex h-full flex-col p-4">
@@ -76,14 +70,22 @@ export default function ViewerResultsPanel({
                   {hit.occurrence_count}
                 </span>
               </div>
-              <p className="mb-1 flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
-                <Icon name="description" className="text-xs" />
-                Page {hit.page_number}
+              <p className="mb-1 flex items-center gap-3 font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
+                <span className="flex items-center gap-1">
+                  <Icon name="description" className="text-xs" />
+                  Page {hit.page_number}
+                </span>
+                {hit.issue_number && (
+                  <span className="flex items-center gap-1">
+                    <Icon name="tag" className="text-xs" />
+                    N° {hit.issue_number}
+                  </span>
+                )}
               </p>
-              {formatPublicationDate(hit.publication_date) && (
+              {formatYearMonth(hit.publication_date) && (
                 <p className="mb-1 flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
                   <Icon name="calendar_today" className="text-xs" />
-                  {formatPublicationDate(hit.publication_date)}
+                  {formatYearMonth(hit.publication_date)}
                 </p>
               )}
               <p

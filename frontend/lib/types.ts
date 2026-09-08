@@ -126,6 +126,7 @@ export interface SearchHit {
   snippet: string;
   words: WordBox[];
   publication_date: string | null;
+  issue_number: string | null;
 }
 
 export interface SearchResponse {

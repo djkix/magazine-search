@@ -28,6 +28,32 @@ def _escape_filter_value(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
+def _build_hit(raw: dict, terms: set[str], db: Session, occurrence_count: int | None = None) -> SearchHit:
+    page_id = raw["page_id"]
+    formatted = raw.get("_formatted", {})
+    snippet = formatted.get("raw_text", raw.get("raw_text", ""))
+
+    db_page = db.get(Page, page_id)
+    words: list[WordBox] = []
+    if db_page and db_page.words:
+        words = [WordBox(**w) for w in db_page.words if re.sub(r"\W+", "", w["text"]).lower() in terms]
+
+    return SearchHit(
+        magazine_id=raw["magazine_id"],
+        magazine_title=raw["magazine_title"],
+        # In a single-magazine result, occurrence_count is this page's own
+        # matched-word count; across magazines (occurrence_count passed in
+        # explicitly), it's how many pages of that magazine matched.
+        occurrence_count=occurrence_count if occurrence_count is not None else (len(words) or 1),
+        page_number=raw["page_number"],
+        page_id=page_id,
+        snippet=snippet,
+        words=words,
+        publication_date=raw.get("publication_date"),
+        issue_number=raw.get("issue_number"),
+    )
+
+
 @router.get("/search", response_model=SearchResponse)
 def search(
     q: str = Query(..., min_length=1),
@@ -73,6 +99,25 @@ def search(
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Search backend error") from exc
 
     raw_hits = results["hits"]
+    terms = _matched_terms(q)
+
+    if magazine_id is not None:
+        # Single-magazine context (the viewer's "find in this document"):
+        # grouping by magazine like the cross-library search below would
+        # collapse everything down to just the one best-matching page,
+        # since there's only one magazine in the result set - instead
+        # return every matching page, in page order, so the caller can
+        # step through occurrences one page at a time.
+        raw_hits.sort(key=lambda h: h["page_number"])
+        start = page * limit
+        page_hits = raw_hits[start : start + limit]
+        hits = [_build_hit(raw, terms, db) for raw in page_hits]
+        return SearchResponse(
+            query=q,
+            total_hits=len(raw_hits),
+            hits=hits,
+            processing_time_ms=results.get("processingTimeMs", 0),
+        )
 
     # One row per magazine, not per page: group hits by magazine, keeping each
     # group's own hits in Meilisearch's original relevance order so the first
@@ -90,36 +135,7 @@ def search(
     start = page * limit
     page_magazine_ids = magazine_ids_ranked[start : start + limit]
 
-    terms = _matched_terms(q)
-    hits: list[SearchHit] = []
-    for magazine_id_ in page_magazine_ids:
-        group = groups[magazine_id_]
-        best = group[0]
-        page_id = best["page_id"]
-        formatted = best.get("_formatted", {})
-        snippet = formatted.get("raw_text", best.get("raw_text", ""))
-
-        db_page = db.get(Page, page_id)
-        words: list[WordBox] = []
-        if db_page and db_page.words:
-            words = [
-                WordBox(**w)
-                for w in db_page.words
-                if re.sub(r"\W+", "", w["text"]).lower() in terms
-            ]
-
-        hits.append(
-            SearchHit(
-                magazine_id=best["magazine_id"],
-                magazine_title=best["magazine_title"],
-                occurrence_count=len(group),
-                page_number=best["page_number"],
-                page_id=page_id,
-                snippet=snippet,
-                words=words,
-                publication_date=best.get("publication_date"),
-            )
-        )
+    hits = [_build_hit(groups[mid][0], terms, db, occurrence_count=len(groups[mid])) for mid in page_magazine_ids]
 
     return SearchResponse(
         query=q,
