@@ -3,6 +3,7 @@ import Icon from "@/components/ui/Icon";
 import type { SearchHit } from "@/lib/types";
 import { sanitizeHighlightedSnippet } from "@/lib/sanitize";
 import { occurrenceColorRgb } from "@/lib/occurrenceColor";
+import { formatYearMonth } from "@/lib/formatDate";
 
 export default function ResultCard({
   hit,
@@ -14,6 +15,7 @@ export default function ResultCard({
   maxOccurrence: number;
 }) {
   const rgb = occurrenceColorRgb(hit.occurrence_count, maxOccurrence);
+  const yearMonth = formatYearMonth(hit.publication_date);
 
   return (
     <Link
@@ -35,6 +37,22 @@ export default function ResultCard({
           </span>
         </span>
       </div>
+      {(yearMonth || hit.issue_number) && (
+        <p className="mb-2 flex items-center gap-3 font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
+          {yearMonth && (
+            <span className="flex items-center gap-1">
+              <Icon name="calendar_today" className="text-xs" />
+              {yearMonth}
+            </span>
+          )}
+          {hit.issue_number && (
+            <span className="flex items-center gap-1">
+              <Icon name="tag" className="text-xs" />
+              N° {hit.issue_number}
+            </span>
+          )}
+        </p>
+      )}
       <p
         className="text-sm leading-relaxed text-foreground-muted"
         dangerouslySetInnerHTML={{ __html: sanitizeHighlightedSnippet(hit.snippet) }}

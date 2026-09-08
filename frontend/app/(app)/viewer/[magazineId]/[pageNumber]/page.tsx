@@ -8,6 +8,7 @@ import PdfViewer from "@/components/viewer/PdfViewer";
 import ViewerToolbar from "@/components/viewer/ViewerToolbar";
 import ViewerSearchPanel from "@/components/viewer/ViewerSearchPanel";
 import ViewerResultsPanel from "@/components/viewer/ViewerResultsPanel";
+import ViewerFindInDocument from "@/components/viewer/ViewerFindInDocument";
 import ViewerMetaPanel from "@/components/viewer/ViewerMetaPanel";
 import ViewerMobileNav from "@/components/viewer/ViewerMobileNav";
 
@@ -130,6 +131,7 @@ function ViewerContent() {
         </div>
 
         <aside className="hidden overflow-y-auto border-l border-outline-variant bg-surface/40 lg:block">
+          <ViewerFindInDocument magazineId={magazineId} onSelectHit={handleSelectHit} />
           <ViewerMetaPanel magazine={magazine} onGoToPage={goToPage} />
         </aside>
       </div>
@@ -157,7 +159,12 @@ function ViewerContent() {
               onSelectHit={handleSelectHit}
             />
           ))}
-        {mobilePanel === "meta" && <ViewerMetaPanel magazine={magazine} onGoToPage={goToPage} />}
+        {mobilePanel === "meta" && (
+          <>
+            <ViewerFindInDocument magazineId={magazineId} onSelectHit={handleSelectHit} />
+            <ViewerMetaPanel magazine={magazine} onGoToPage={goToPage} />
+          </>
+        )}
       </ViewerMobileNav>
     </div>
   );
