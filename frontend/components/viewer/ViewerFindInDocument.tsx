@@ -1,9 +1,37 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import type { SearchHit, SearchResponse } from "@/lib/types";
 import Icon from "@/components/ui/Icon";
+
+// Navigating to a hit's page changes the URL's page-number segment, which
+// resets this component's own local state (it isn't derived from the URL
+// like the other panels are, so it can't "reconstruct" itself the way they
+// do) - persisting to sessionStorage, keyed per magazine, means a remount
+// picks the search straight back up instead of going blank mid-browse.
+function storageKey(magazineId: number) {
+  return `viewer-find:${magazineId}`;
+}
+
+type StoredState = { q: string; hits: SearchHit[]; index: number };
+
+function loadStoredState(magazineId: number): StoredState | null {
+  try {
+    const raw = sessionStorage.getItem(storageKey(magazineId));
+    return raw ? (JSON.parse(raw) as StoredState) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveStoredState(magazineId: number, state: StoredState) {
+  try {
+    sessionStorage.setItem(storageKey(magazineId), JSON.stringify(state));
+  } catch {
+    // best-effort only (private browsing, storage full, etc.)
+  }
+}
 
 export default function ViewerFindInDocument({
   magazineId,
@@ -18,6 +46,16 @@ export default function ViewerFindInDocument({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    const stored = loadStoredState(magazineId);
+    if (stored) {
+      setQ(stored.q);
+      setHits(stored.hits);
+      setIndex(stored.index);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [magazineId]);
+
   async function runSearch() {
     const term = q.trim();
     if (!term) return;
@@ -29,6 +67,7 @@ export default function ViewerFindInDocument({
       );
       setHits(data.hits);
       setIndex(0);
+      saveStoredState(magazineId, { q: term, hits: data.hits, index: 0 });
       if (data.hits.length > 0) onSelectHit(data.hits[0]);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Erreur de recherche");
@@ -42,6 +81,7 @@ export default function ViewerFindInDocument({
     if (!hits || hits.length === 0) return;
     const next = (index + delta + hits.length) % hits.length;
     setIndex(next);
+    saveStoredState(magazineId, { q, hits, index: next });
     onSelectHit(hits[next]);
   }
 
