@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.1](https://github.com/djkix/magazine-search/compare/v0.19.0...v0.19.1) (2026-09-08)
+
+
+### Bug Fixes
+
+* find-in-document search state wiped by page navigation ([4fa4292](https://github.com/djkix/magazine-search/commit/4fa4292814042acc60876c8979340fedd1934c94))
+
 ## [0.19.0](https://github.com/djkix/magazine-search/compare/v0.18.0...v0.19.0) (2026-09-08)
 
 
