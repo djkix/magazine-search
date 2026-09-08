@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.0](https://github.com/djkix/magazine-search/compare/v0.18.0...v0.19.0) (2026-09-08)
+
+
+### Features
+
+* date/issue number on search results, find-in-document navigation ([d9f3976](https://github.com/djkix/magazine-search/commit/d9f39768af1d337371ff55eb8b65402a0eba4d31))
+
 ## [0.18.0](https://github.com/djkix/magazine-search/compare/v0.17.3...v0.18.0) (2026-09-07)
 
 
