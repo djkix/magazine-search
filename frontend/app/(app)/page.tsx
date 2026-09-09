@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, redirectToLogin } from "@/lib/api";
 import type { Magazine } from "@/lib/types";
 import PageContainer from "@/components/layout/PageContainer";
 import MagazineCard from "@/components/library/MagazineCard";
@@ -19,7 +19,7 @@ export default function HomePage() {
       .get<Magazine[]>("/magazines?limit=8&sort=added")
       .then(setRecent)
       .catch((err) => {
-        if (err instanceof ApiError && err.status === 401) window.location.href = "/login";
+        if (err instanceof ApiError && err.status === 401) redirectToLogin();
       });
   }, []);
 

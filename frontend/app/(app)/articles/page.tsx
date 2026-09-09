@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, redirectToLogin } from "@/lib/api";
 import type { LibraryOverview } from "@/lib/types";
 import PageContainer from "@/components/layout/PageContainer";
 import CollectionCard from "@/components/library/CollectionCard";
@@ -15,7 +15,7 @@ export default function ArticlesPage() {
       .get<LibraryOverview>("/collections")
       .then(setOverview)
       .catch((err) => {
-        if (err instanceof ApiError && err.status === 401) window.location.href = "/login";
+        if (err instanceof ApiError && err.status === 401) redirectToLogin();
       })
       .finally(() => setLoading(false));
   }, []);

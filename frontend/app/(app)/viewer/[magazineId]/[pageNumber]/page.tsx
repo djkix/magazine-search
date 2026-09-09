@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { api, ApiError, fileUrl } from "@/lib/api";
+import { api, ApiError, fileUrl, redirectToLogin } from "@/lib/api";
 import type { Magazine, SearchHit, WordBox } from "@/lib/types";
 import PdfViewer from "@/components/viewer/PdfViewer";
 import ViewerToolbar from "@/components/viewer/ViewerToolbar";
@@ -56,7 +56,7 @@ function ViewerContent() {
       .then(setMagazine)
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) {
-          window.location.href = "/login";
+          redirectToLogin();
           return;
         }
         setError(err instanceof ApiError ? err.message : "Magazine introuvable");
