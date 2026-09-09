@@ -1,0 +1,10 @@
+[extend]
+# Garde l'intégralité du jeu de règles par défaut de gitleaks ; on n'ajoute
+# qu'une exception ciblée ci-dessous, on ne le remplace pas.
+useDefault = true
+
+[allowlist]
+description = "Secrets de test explicitement fictifs, jamais utilisés en dehors des tests"
+paths = [
+  '''backend/tests/conftest\.py''',
+]
