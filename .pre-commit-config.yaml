@@ -3,3 +3,25 @@ repos:
     rev: v8.18.4
     hooks:
       - id: gitleaks
+
+  # Mêmes règles restreintes que la CI (voir .github/workflows/ci.yml) :
+  # uniquement les erreurs réelles, pas le style, pour ne pas bloquer les
+  # commits sur du code qui n'a jamais été passé à un linter.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: [--select=E9,F63,F7,F82,F541, --output-format=concise]
+        files: ^backend/
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
