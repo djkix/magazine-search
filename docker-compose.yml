@@ -1,7 +1,14 @@
 services:
   app-backend:
-    image: ghcr.io/djkix/magazine-search-backend:latest
+    image: ghcr.io/djkix/magazine-search-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    # NOTE sécurité : --forwarded-allow-ips="*" fait confiance à l'en-tête
+    # X-Forwarded-For de n'importe quel client, ce qui permet de réinitialiser
+    # le compteur anti-force-brute du login à volonté. Le port n'étant plus
+    # publié sur l'hôte (voir « expose » ci-dessous), seul un client déjà
+    # présent sur le réseau Docker interne peut en profiter. Pour fermer
+    # complètement : remplacer "*" par l'adresse du conteneur app-frontend,
+    # seul client légitime du backend. À valider sur la stack en marche.
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips="*"
     env_file: .env
     environment:
@@ -15,8 +22,13 @@ services:
     volumes:
       - app_data:/data
       - ${NAS_MOUNT_PATH}:/mnt/nas:ro
-    ports:
-      - "${BACKEND_PORT:-8000}:8000"
+    # Le backend n'est PLUS publié sur l'hôte : il n'est joignable que depuis
+    # le réseau Docker interne, via app-frontend qui relaie /api/*. Le reverse
+    # proxy n'a besoin que du port du frontend. Pour un accès de débogage
+    # ponctuel : docker compose exec app-backend ... ou rétablir « ports »
+    # temporairement en local.
+    expose:
+      - "8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -28,7 +40,7 @@ services:
       - internal
 
   worker:
-    image: ghcr.io/djkix/magazine-search-backend:latest
+    image: ghcr.io/djkix/magazine-search-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     command: python -m app.worker.run
     env_file: .env
@@ -59,9 +71,18 @@ services:
       - internal
 
   app-frontend:
-    image: ghcr.io/djkix/magazine-search-frontend:latest
+    image: ghcr.io/djkix/magazine-search-frontend:${IMAGE_TAG:-latest}
     restart: unless-stopped
-    env_file: .env
+    # Pas de « env_file: .env » ici : cela injectait TOUS les secrets du
+    # backend (JWT_SECRET_KEY, POSTGRES_PASSWORD, MEILI_MASTER_KEY,
+    # GEMINI_API_KEY) dans le conteneur Next.js, qui n'en a aucun besoin.
+    # Seules les quatre variables réellement lues par le frontend sont
+    # transmises.
+    environment:
+      TZ: ${TZ:-Europe/Paris}
+      BACKEND_INTERNAL_URL: http://app-backend:8000
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
+      NEXT_PUBLIC_APP_VERSION: ${NEXT_PUBLIC_APP_VERSION:-}
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
@@ -96,6 +117,33 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    networks:
+      - internal
+
+  # Sauvegarde périodique de Postgres avec rotation. La base est la seule
+  # donnée non reconstructible de la stack : les PDF du NAS peuvent être
+  # re-scannés, mais pas le texte OCR ni les sommaires payés à l'API Gemini.
+  # Vérifier régulièrement qu'une restauration fonctionne :
+  #   gunzip -c backups/<fichier>.sql.gz | docker compose exec -T postgres \
+  #     psql -U "$POSTGRES_USER" -d <base_de_test>
+  db-backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGHOST: ${POSTGRES_HOST}
+      PGPORT: ${POSTGRES_PORT}
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+    volumes:
+      - ./ops/pg_backup.sh:/usr/local/bin/pg_backup.sh:ro
+      - ${BACKUP_DIR:-./backups}:/backups
+    entrypoint: ["/bin/sh", "/usr/local/bin/pg_backup.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - internal
 

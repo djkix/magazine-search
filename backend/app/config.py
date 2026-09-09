@@ -1,6 +1,40 @@
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Valeurs proposées par le `.env.example` ou héritées d'anciennes versions.
+# Elles sont publiques : les accepter au démarrage reviendrait à signer les
+# jetons avec un secret que n'importe quel lecteur du dépôt connaît.
+_SECRETS_INTERDITS = {
+    "changeme",
+    "change-me",
+    "dev-secret-change-me",
+    "changeme-generate-a-long-random-secret",
+    "changeme-generate-a-long-random-key",
+    "__REMPLACER__",
+    "secret",
+    "password",
+}
+
+_LONGUEUR_SECRET_MIN = 32
+
+
+def _rejeter_secret_faible(valeur: str, nom: str, longueur_min: int) -> str:
+    """Refuse une valeur vide, connue publiquement ou trop courte."""
+    valeur = valeur.strip()
+    if not valeur:
+        raise ValueError(f"{nom} est obligatoire et ne doit pas être vide.")
+    if valeur.lower() in _SECRETS_INTERDITS:
+        raise ValueError(
+            f"{nom} utilise une valeur par défaut connue publiquement. "
+            "Générez-en une nouvelle, par exemple avec « openssl rand -hex 32 »."
+        )
+    if len(valeur) < longueur_min:
+        raise ValueError(
+            f"{nom} doit faire au moins {longueur_min} caractères (actuellement {len(valeur)})."
+        )
+    return valeur
 
 
 class Settings(BaseSettings):
@@ -12,17 +46,38 @@ class Settings(BaseSettings):
     redis_port: int = 6379
 
     meili_host: str = "http://localhost:7700"
-    meili_master_key: str = ""
+    # Sans valeur de repli : l'application refuse de démarrer si la variable
+    # d'environnement est absente, plutôt que de tourner sans protection.
+    meili_master_key: str
     meili_index_pages: str = "pages"
 
-    jwt_secret_key: str = "dev-secret-change-me"
+    jwt_secret_key: str
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
 
     backend_cors_origins: str = ""
 
+    # Le compte d'amorçage reste facultatif : laissé vide, aucun compte n'est
+    # créé. Mais s'il est renseigné, le mot de passe doit être sérieux.
     admin_bootstrap_email: str = ""
     admin_bootstrap_password: str = ""
+
+    @field_validator("jwt_secret_key")
+    @classmethod
+    def _valider_jwt_secret(cls, v: str) -> str:
+        return _rejeter_secret_faible(v, "JWT_SECRET_KEY", _LONGUEUR_SECRET_MIN)
+
+    @field_validator("meili_master_key")
+    @classmethod
+    def _valider_meili_key(cls, v: str) -> str:
+        return _rejeter_secret_faible(v, "MEILI_MASTER_KEY", 16)
+
+    @field_validator("admin_bootstrap_password")
+    @classmethod
+    def _valider_mdp_bootstrap(cls, v: str) -> str:
+        if not v:
+            return v
+        return _rejeter_secret_faible(v, "ADMIN_BOOTSTRAP_PASSWORD", 12)
 
     nas_mount_path: str = "/mnt/nas"
     covers_dir: str = "/data/covers"
