@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.1](https://github.com/djkix/magazine-search/compare/v0.20.0...v0.20.1) (2026-09-09)
+
+
+### Bug Fixes
+
+* clear stale session cookie on 401 instead of looping to login ([a17b3f5](https://github.com/djkix/magazine-search/commit/a17b3f54e9e7822f2096ba80ca7005a3356a54d0))
+
 ## [0.20.0](https://github.com/djkix/magazine-search/compare/v0.19.1...v0.20.0) (2026-09-09)
 
 
