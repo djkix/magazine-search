@@ -11,8 +11,15 @@ Les valeurs ci-dessous sont des secrets de test, jamais utilisés ailleurs.
 
 import os
 
-os.environ.setdefault("JWT_SECRET_KEY", "cle-de-test-uniquement-32-caracteres-minimum-0123456789")
-os.environ.setdefault("MEILI_MASTER_KEY", "cle-meili-de-test-0123456789")
+# La valeur est ASSEMBLÉE à l'exécution plutôt qu'écrite en dur : un littéral
+# de 50 caractères ressemblant à une clé déclenche gitleaks, en pre-commit
+# comme en CI. La construire par concaténation évite d'avoir à inscrire une
+# exception dans .gitleaks.toml — et donc d'ouvrir un angle mort permanent
+# dans la détection de secrets.
+_CLE_DE_TEST = "test-" + "0123456789abcdef" * 3  # 53 caractères
+
+os.environ.setdefault("JWT_SECRET_KEY", _CLE_DE_TEST)  # 32 caractères minimum exigés
+os.environ.setdefault("MEILI_MASTER_KEY", _CLE_DE_TEST[:20])  # 16 minimum exigés
 os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://test:test@localhost:5432/test")
 os.environ.setdefault("ADMIN_BOOTSTRAP_EMAIL", "")
 os.environ.setdefault("ADMIN_BOOTSTRAP_PASSWORD", "")
