@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -18,6 +20,7 @@ from app.schemas import (
     GeminiSettingsUpdate,
     LogEntry,
     MagazineOut,
+    MagazineProgressResponse,
     PasswordReset,
     RetryFailedResponse,
     ScanStatusResponse,
@@ -48,6 +51,8 @@ from app.worker.tasks import (
     reindex_magazine,
     retry_toc,
 )
+
+logger = logging.getLogger("app")
 
 router = APIRouter(dependencies=[Depends(get_current_admin)])
 
@@ -127,7 +132,13 @@ def trigger_scan(db: Session = Depends(get_db)):
     try:
         job_id, new_files = run_scan(db)
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+        # Le détail (chemin absolu du montage NAS) part dans les logs, pas
+        # dans la réponse HTTP : il renseignerait l'arborescence du serveur.
+        logger.error("Scan impossible, montage NAS introuvable : %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Le montage NAS est introuvable. Voir les logs applicatifs.",
+        ) from exc
     return ScanTriggerResponse(job_id=job_id, new_files_detected=new_files)
 
 
@@ -137,7 +148,11 @@ def retry_failed(db: Session = Depends(get_db)):
     for magazine in failed:
         magazine.scan_status = ScanStatus.queued
         magazine.error_message = None
-        db.commit()
+    # Un seul commit pour tout le lot, AVANT d'enfiler : un commit par
+    # itération multiplie les allers-retours, et enfiler avant d'avoir
+    # committé laisse le worker lire une ligne encore en statut « failed ».
+    db.commit()
+    for magazine in failed:
         ingestion_queue.enqueue(
             process_magazine, magazine.id, job_timeout="30m", on_failure=handle_process_magazine_failure
         )
@@ -159,7 +174,9 @@ def reprocess_magazines_without_sommaire(db: Session = Depends(get_db)):
     for magazine in magazines:
         magazine.scan_status = ScanStatus.queued
         magazine.error_message = None
-        db.commit()
+    # Même logique que retry_failed : un commit pour le lot, puis l'enfilement.
+    db.commit()
+    for magazine in magazines:
         ingestion_queue.enqueue(
             process_magazine, magazine.id, job_timeout="30m", on_failure=handle_process_magazine_failure
         )
@@ -189,11 +206,16 @@ def current_scan():
     return {"job_id": get_latest_scan_job_id()}
 
 
-@router.get("/magazines/{magazine_id}/progress")
-def get_magazine_progress_endpoint(magazine_id: int):
+@router.get("/magazines/{magazine_id}/progress", response_model=MagazineProgressResponse | None)
+def get_magazine_progress_endpoint(magazine_id: int, db: Session = Depends(get_db)):
     """Live page-processing progress for a magazine currently being OCR'd
     and indexed (see app.services.progress) - null once it's done, failed,
     or was never started, since the underlying Redis key is cleared then."""
+    # Un identifiant inexistant renvoyait 200 avec un corps null, exactement
+    # comme un numéro déjà traité : le client ne pouvait pas distinguer les
+    # deux cas.
+    if not db.get(Magazine, magazine_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Magazine not found")
     return get_magazine_progress(magazine_id)
 
 

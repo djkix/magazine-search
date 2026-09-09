@@ -37,9 +37,16 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
+class LoginResponse(BaseModel):
+    """Réponse de /login : le jeton n'est PAS renvoyé dans le corps.
+
+    L'authentification repose entièrement sur le cookie httpOnly posé par la
+    réponse. Renvoyer aussi le jeton en clair invitait à le stocker côté
+    client (localStorage), où il redevient lisible par n'importe quel script.
+    Le frontend ne l'utilisait pas.
+    """
+
+    status: str = "authenticated"
 
 
 # ---- Users ----
@@ -96,6 +103,17 @@ class PageOut(BaseModel):
     words: list[WordBox] | None = None
     ocr_status: OcrStatus
     error_message: str | None = None
+
+
+class MagazineProgressResponse(BaseModel):
+    """Progression page par page d'un numéro en cours de traitement.
+
+    `null` une fois le traitement terminé, échoué, ou jamais démarré : la clé
+    Redis sous-jacente est effacée dans ces cas.
+    """
+
+    current: int
+    total: int
 
 
 class TagOut(BaseModel):

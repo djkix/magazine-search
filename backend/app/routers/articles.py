@@ -9,9 +9,25 @@ from app.schemas import ArticleWithMagazine
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
+def echapper_like(terme: str) -> str:
+    """Neutralise les jokers LIKE fournis par l'utilisateur.
+
+    Sans cela, « % » et « _ » saisis dans le champ de recherche sont
+    interprétés par PostgreSQL : « % » seul renvoie toute la table, et un
+    terme truffé de jokers force un balayage complet.
+    L'antislash est échappé en premier, sinon il neutraliserait les
+    échappements ajoutés ensuite.
+    """
+    return terme.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 @router.get("", response_model=list[ArticleWithMagazine])
 def list_articles(
-    q: str | None = Query(None, description="Filter by article title (case-insensitive substring)"),
+    q: str | None = Query(
+        None,
+        max_length=200,
+        description="Filter by article title (case-insensitive substring)",
+    ),
     collection_id: int | None = Query(None, description="Restrict to magazines in this collection"),
     unassigned: bool = Query(False, description="Restrict to magazines with no collection assigned"),
     page: int = Query(0, ge=0),
@@ -20,7 +36,7 @@ def list_articles(
 ):
     query = db.query(Article, Magazine.title, Magazine.issue_number).join(Magazine, Magazine.id == Article.magazine_id)
     if q:
-        query = query.filter(Article.title.ilike(f"%{q}%"))
+        query = query.filter(Article.title.ilike(f"%{echapper_like(q)}%", escape="\\"))
     if unassigned:
         query = query.filter(Magazine.collection_id.is_(None))
     elif collection_id is not None:

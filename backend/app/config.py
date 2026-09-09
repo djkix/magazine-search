@@ -52,10 +52,16 @@ class Settings(BaseSettings):
     meili_index_pages: str = "pages"
 
     jwt_secret_key: str
-    jwt_algorithm: str = "HS256"
+    # jwt_algorithm a été retiré volontairement : l'algorithme est désormais
+    # figé dans app/security.py (JWT_ALGORITHM). Le laisser configurable
+    # permettait d'affaiblir la signature depuis l'environnement.
     jwt_expire_minutes: int = 1440
 
     backend_cors_origins: str = ""
+
+    # /docs, /redoc et /openapi.json cartographient toute la surface d'API.
+    # Fermés par défaut : à n'activer qu'en développement local.
+    enable_api_docs: bool = False
 
     # Le compte d'amorçage reste facultatif : laissé vide, aucun compte n'est
     # créé. Mais s'il est renseigné, le mot de passe doit être sérieux.
