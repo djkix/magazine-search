@@ -231,6 +231,13 @@ Toutes les variables sont définies dans `.env`. Voir
 | --- | --- |
 | `IMAGE_TAG` | Tag des images applicatives déployées. `latest` redéploie un contenu différent à chaque merge, sans retour arrière possible : préférer un tag de version (`v0.19.1`) en production. |
 
+**Délais d'attente**
+
+| Variable | Rôle |
+| --- | --- |
+| `OCR_TIMEOUT_SECONDS` | Délai maximum du sous-processus `ocrmypdf` (défaut : 1500, soit 25 min). Doit rester sous le `job_timeout` RQ de 30 min, pour que l'échec soit reporté sur le numéro plutôt que par la mort du job. |
+| `MEILI_TIMEOUT_SECONDS` | Délai maximum des appels HTTP vers Meilisearch (défaut : 15). |
+
 **Stockage et sauvegarde**
 
 | Variable | Rôle |
