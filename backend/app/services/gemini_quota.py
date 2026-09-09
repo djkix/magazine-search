@@ -102,9 +102,14 @@ def _wait_for_rpm_slot(model: str, limit: int) -> None:
     for _ in range(MAX_RPM_WAITS):
         minute_bucket = int(time.time() // 60)
         key = f"gemini_rpm:{model}:{minute_bucket}"
-        count = redis_conn.incr(key)
-        if count == 1:
-            redis_conn.expire(key, RPM_KEY_TTL_SECONDS)
+        # incr + expire dans une transaction : séparés, un arrêt du process
+        # entre les deux laissait une clé sans expiration, définitivement en
+        # place dans Redis. La clé étant horodatée à la minute, rafraîchir son
+        # TTL à chaque incrément est sans conséquence.
+        pipe = redis_conn.pipeline()
+        pipe.incr(key)
+        pipe.expire(key, RPM_KEY_TTL_SECONDS)
+        count = pipe.execute()[0]
         if count <= limit:
             return
         seconds_left = 60 - (time.time() % 60)
@@ -141,9 +146,12 @@ def consume_gemini_quota(db: Session, model: str) -> None:
             raise GeminiQuotaExceeded(
                 f"Quota Gemini journalier atteint ({limit} requêtes/jour pour {model}) — réessayez demain."
             )
-        count = redis_conn.incr(key)
-        if count == 1:
-            redis_conn.expire(key, QUOTA_KEY_TTL_SECONDS)
+        # Même correction que dans _wait_for_rpm_slot : la clé quotidienne
+        # porte la date, son TTL peut donc être rafraîchi sans risque.
+        pipe = redis_conn.pipeline()
+        pipe.incr(key)
+        pipe.expire(key, QUOTA_KEY_TTL_SECONDS)
+        count = pipe.execute()[0]
         logger.info("Gemini request %d/%d today for %s", count, limit, model)
 
     rpm_limit = get_gemini_rpm_limit(db)
