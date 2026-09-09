@@ -6,6 +6,10 @@ from pathlib import Path
 import fitz  # PyMuPDF
 from langdetect import DetectorFactory, LangDetectException, detect_langs
 
+from app.config import get_settings
+
+settings = get_settings()
+
 DetectorFactory.seed = 0  # deterministic langdetect results
 
 MIN_NATIVE_TEXT_CHARS = 20
@@ -105,25 +109,42 @@ def ensure_text_layer(source_path: Path, output_path: Path) -> None:
         shutil.copyfile(source_path, output_path)
         return
 
-    result = subprocess.run(
-        [
-            "ocrmypdf",
-            "--force-ocr" if garbled else "--skip-text",
-            "--language",
-            "fra+eng",
-            "--output-type",
-            "pdf",
-            "--optimize",
-            "0",
-            str(source_path),
-            str(output_path),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "ocrmypdf",
+                "--force-ocr" if garbled else "--skip-text",
+                "--language",
+                "fra+eng",
+                "--output-type",
+                "pdf",
+                "--optimize",
+                "0",
+                str(source_path),
+                str(output_path),
+            ],
+            # stdout part à la poubelle : il n'est jamais lu, et sur un gros
+            # document la sortie de progression était intégralement chargée en
+            # mémoire. Seul stderr, utilisé pour le message d'erreur, est
+            # conservé.
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+            # Sans timeout, un PDF pathologique bloque l'unique worker
+            # indéfiniment. La borne est tenue sous le job_timeout RQ de 30 min
+            # pour que l'échec soit signalé proprement sur le numéro plutôt que
+            # par la mort du job.
+            timeout=settings.ocr_timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"ocrmypdf interrompu après {settings.ocr_timeout_seconds} s "
+            f"(document trop volumineux ou corrompu)"
+        ) from exc
+
     if result.returncode != 0:
-        raise RuntimeError(f"ocrmypdf failed (code {result.returncode}): {result.stderr[-2000:]}")
+        raise RuntimeError(f"ocrmypdf failed (code {result.returncode}): {(result.stderr or '')[-2000:]}")
 
 
 def _strip_nul(text: str) -> str:
@@ -264,7 +285,14 @@ def render_cover_thumbnail(pdf_path: Path, output_path: Path, max_width: int = 6
     doc = fitz.open(pdf_path)
     try:
         page = doc.load_page(0)
-        zoom = max_width / page.rect.width
+        largeur = page.rect.width
+        if largeur <= 0:
+            # Page de dimension nulle (PDF malformé) : sans cette garde, la
+            # division lève ZeroDivisionError et fait échouer tout le job.
+            raise RuntimeError("Première page de dimension nulle, miniature impossible")
+        # Plafonné à 1 : au-delà, on rendrait la page plus grande que sa taille
+        # native pour la réduire ensuite, sans gain de qualité.
+        zoom = min(max_width / largeur, 1.0)
         pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
         pix.save(str(output_path))
     finally:

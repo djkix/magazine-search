@@ -180,7 +180,9 @@ class CollectionUpdate(BaseModel):
 
 
 class CollectionTagsUpdate(BaseModel):
-    tag_ids: list[int]
+    # Borne de cardinalité : sans elle, une liste arbitrairement longue est
+    # acceptée et part telle quelle dans un IN (...) SQL.
+    tag_ids: list[int] = Field(default_factory=list, max_length=200)
 
 
 class ArticleOut(BaseModel):

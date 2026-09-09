@@ -1,7 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func
+from sqlalchemy import distinct, func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -61,8 +61,16 @@ router = APIRouter(dependencies=[Depends(get_current_admin)])
 
 
 @router.get("/users", response_model=list[UserOut])
-def list_users(db: Session = Depends(get_db)):
-    return db.query(User).order_by(User.created_at).all()
+def list_users(
+    page: int = Query(0, ge=0),
+    limit: int = Query(500, ge=1, le=1000),
+    db: Session = Depends(get_db),
+):
+    # Borne haute volontairement généreuse : sur une instance auto-hébergée le
+    # nombre de comptes se compte en dizaines, la pagination ne change donc
+    # rien en pratique — elle supprime seulement le cas où une table anormale
+    # serait renvoyée d'un bloc.
+    return db.query(User).order_by(User.created_at).offset(page * limit).limit(limit).all()
 
 
 @router.post("/users", response_model=UserOut, status_code=status.HTTP_201_CREATED)
@@ -253,18 +261,28 @@ def get_stats(db: Session = Depends(get_db)):
     def count_of(*statuses: ScanStatus) -> int:
         return sum(counts.get(s, 0) for s in statuses)
 
+    # Deux jointures sortantes dans la même requête produisent un produit
+    # cartésien : sans « distinct », un numéro de 80 pages et 12 articles
+    # compterait 960 pages et 960 articles. article_count restait par ailleurs
+    # à 0 côté tableau de bord, faute d'être calculé.
     recent_rows = (
-        db.query(Magazine, func.count(Page.id))
+        db.query(
+            Magazine,
+            func.count(distinct(Page.id)),
+            func.count(distinct(Article.id)),
+        )
         .outerjoin(Page, Page.magazine_id == Magazine.id)
+        .outerjoin(Article, Article.magazine_id == Magazine.id)
         .group_by(Magazine.id)
         .order_by(Magazine.updated_at.desc())
         .limit(10)
         .all()
     )
     recent = []
-    for magazine, page_count in recent_rows:
+    for magazine, page_count, article_count in recent_rows:
         out = MagazineOut.model_validate(magazine)
         out.page_count = page_count
+        out.article_count = article_count
         recent.append(out)
 
     return AdminStatsResponse(
@@ -300,7 +318,13 @@ def _get_article_or_404(article_id: int, db: Session) -> Article:
 
 
 @router.post("/articles/deduplicate")
-def deduplicate_articles(db: Session = Depends(get_db)):
+def deduplicate_articles(
+    dry_run: bool = Query(
+        True,
+        description="Compter sans supprimer. Passer explicitement false pour appliquer.",
+    ),
+    db: Session = Depends(get_db),
+):
     """One-off cleanup for exact-duplicate Article rows: a race between two
     concurrent extraction runs for the same magazine (e.g. a full reprocess
     and a TOC-only retry overlapping, or the same action double-clicked)
@@ -308,14 +332,25 @@ def deduplicate_articles(db: Session = Depends(get_db)):
     runs' rows ended up side by side - see extract_and_store_articles's
     row lock, which now prevents this from recurring. Keeps the oldest row
     per (magazine_id, title, start_page)."""
+    # NOTE : le regroupement ignore end_page. Deux articles de même titre et
+    # même page de début mais de pages de fin différentes sont donc traités
+    # comme des doublons, et le plus récent est supprimé. Vérifier le compte
+    # en dry-run avant d'appliquer.
     keep_ids = (
         db.query(func.min(Article.id).label("id"))
         .group_by(Article.magazine_id, Article.title, Article.start_page)
         .subquery()
     )
-    deleted = db.query(Article).filter(~Article.id.in_(db.query(keep_ids.c.id))).delete(synchronize_session=False)
+    doublons = db.query(Article).filter(~Article.id.in_(db.query(keep_ids.c.id)))
+
+    if dry_run:
+        # Aucune écriture : on renvoie ce qui SERAIT supprimé.
+        return {"deleted": 0, "would_delete": doublons.count(), "dry_run": True}
+
+    deleted = doublons.delete(synchronize_session=False)
     db.commit()
-    return {"deleted": deleted}
+    logger.warning("Déduplication des articles : %d ligne(s) supprimée(s)", deleted)
+    return {"deleted": deleted, "would_delete": deleted, "dry_run": False}
 
 
 @router.post("/magazines/{magazine_id}/toc/retry")
@@ -393,8 +428,12 @@ def update_gemini_settings(payload: GeminiSettingsUpdate, db: Session = Depends(
 
 
 @router.get("/tags", response_model=list[TagOut])
-def list_tags(db: Session = Depends(get_db)):
-    return db.query(Tag).order_by(Tag.name).all()
+def list_tags(
+    page: int = Query(0, ge=0),
+    limit: int = Query(500, ge=1, le=1000),
+    db: Session = Depends(get_db),
+):
+    return db.query(Tag).order_by(Tag.name).offset(page * limit).limit(limit).all()
 
 
 @router.post("/tags", response_model=TagOut, status_code=status.HTTP_201_CREATED)
@@ -440,8 +479,12 @@ def _to_collection_out(collection: Collection) -> CollectionOut:
 
 
 @router.get("/collections", response_model=list[CollectionOut])
-def list_collections(db: Session = Depends(get_db)):
-    collections = db.query(Collection).order_by(Collection.name).all()
+def list_collections(
+    page: int = Query(0, ge=0),
+    limit: int = Query(500, ge=1, le=1000),
+    db: Session = Depends(get_db),
+):
+    collections = db.query(Collection).order_by(Collection.name).offset(page * limit).limit(limit).all()
     return [_to_collection_out(c) for c in collections]
 
 
@@ -464,7 +507,14 @@ def set_collection_tags(collection_id: int, payload: CollectionTagsUpdate, db: S
 
     tags = db.query(Tag).filter(Tag.id.in_(payload.tag_ids)).all()
     if len(tags) != len(set(payload.tag_ids)):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="One or more tags not found")
+        # 422 et non 404 : la ressource visée par l'URL (la collection) existe
+        # bien, c'est le corps de la requête qui référence des tags absents.
+        # Un 404 laissait croire que la collection elle-même était introuvable.
+        connus = {t.id for t in tags}
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Tags inconnus : {sorted(set(payload.tag_ids) - connus)}",
+        )
 
     collection.tags = tags
     db.commit()

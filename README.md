@@ -271,6 +271,10 @@ un reverse proxy, avec un petit nombre de comptes de confiance.
   périmé faire boucler l'application sur l'écran de connexion.
 - **Surface d'API** : `/api/docs`, `/api/redoc` et `/api/openapi.json` sont
   fermés par défaut (`ENABLE_API_DOCS`).
+- **Messages d'erreur** : les erreurs de traitement stockées en base et
+  affichées dans le backoffice sont courtes et débarrassées des chemins
+  absolus. La trace Python complète n'est écrite que dans les logs
+  applicatifs, jamais renvoyée par l'API.
 - **Surface réseau** : seul le frontend est publié. Le backend, PostgreSQL,
   Redis et Meilisearch restent sur le réseau Docker interne.
 - **Cloisonnement** : le conteneur frontend ne reçoit que les quatre variables
@@ -343,6 +347,11 @@ docker compose start app-backend worker
    les occurrences sont surlignées dans le viewer.
 4. **Organisation** — créer des tags dans les réglages et les rattacher aux
    collections.
+
+> **Déduplication des articles** — `POST /api/admin/articles/deduplicate`
+> fonctionne en simulation par défaut : il renvoie `would_delete` sans rien
+> supprimer. Passer `?dry_run=false` pour appliquer. Le critère de doublon
+> ignore `end_page`, donc vérifiez le compte simulé avant d'appliquer.
 
 ## Développement local
 
