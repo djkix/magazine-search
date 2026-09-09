@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,7 +19,24 @@ logger = logging.getLogger("app")
 
 settings = get_settings()
 
-app = FastAPI(title="Magazine Search API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Le schéma est géré par les migrations Alembic, lancées par entrypoint.sh
+    # avant le démarrage de l'application.
+    bootstrap_admin()
+    yield
+
+
+app = FastAPI(
+    title="Magazine Search API",
+    lifespan=lifespan,
+    # Fermés par défaut : /docs et /openapi.json cartographient toute la
+    # surface d'API pour qui sait où regarder. À activer via ENABLE_API_DOCS
+    # en développement local uniquement.
+    docs_url="/api/docs" if settings.enable_api_docs else None,
+    redoc_url="/api/redoc" if settings.enable_api_docs else None,
+    openapi_url="/api/openapi.json" if settings.enable_api_docs else None,
+)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -63,15 +81,12 @@ def bootstrap_admin() -> None:
         )
         db.add(admin_user)
         db.commit()
-        logger.info("Bootstrap admin account created: %s", settings.admin_bootstrap_email)
+        # L'adresse n'est pas journalisée : les logs applicatifs sont
+        # consultables depuis le backoffice, inutile d'y exposer l'identifiant
+        # du compte administrateur.
+        logger.info("Compte administrateur d'amorçage créé")
     finally:
         db.close()
-
-
-@app.on_event("startup")
-def on_startup() -> None:
-    # Schema is managed by Alembic migrations, run via entrypoint.sh before the app starts.
-    bootstrap_admin()
 
 
 @app.get("/api/health")

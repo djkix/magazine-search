@@ -217,6 +217,11 @@ Toutes les variables sont définies dans `.env`. Voir
 | --- | --- |
 | `FRONTEND_PORT` | Port publié sur l'hôte — le seul que le reverse proxy doit atteindre. |
 | `BACKEND_CORS_ORIGINS` | Origines tierces autorisées, séparées par des virgules. Vide = aucune, ce qui est le cas normal puisque le frontend relaie `/api/*` sur sa propre origine. |
+| `ENABLE_API_DOCS` | Expose `/api/docs`, `/api/redoc` et `/api/openapi.json`. `false` par défaut : ces pages cartographient toute la surface d'API. À n'activer qu'en développement local. |
+
+> `JWT_ALGORITHM` n'est plus lue : l'algorithme est figé dans le code
+> (`app/security.py`) pour qu'une variable mal renseignée ne puisse pas
+> affaiblir la signature des jetons.
 
 > `BACKEND_PORT` n'est plus utilisée : le backend n'est plus publié sur l'hôte.
 
@@ -252,12 +257,20 @@ un reverse proxy, avec un petit nombre de comptes de confiance.
 - **Mots de passe** : hachés en Argon2. 12 caractères minimum à la création et
   à la réinitialisation. La règle n'est volontairement **pas** appliquée à la
   connexion, pour ne pas divulguer la politique ni bloquer un compte ancien.
-- **Sessions** : JWT en cookie `httpOnly`, `Secure`, `SameSite=Lax`. Le jeton
-  porte une empreinte du hash du mot de passe, de sorte qu'un changement de mot
-  de passe invalide les sessions existantes. Un cookie devenu invalide (session
-  expirée, ou `JWT_SECRET_KEY` changé) est effacé côté client dès le premier
-  appel API en échec, pour ne jamais laisser un cookie périmé faire boucler
-  l'application sur l'écran de connexion.
+- **Énumération des comptes** : la connexion vérifie un hash factice lorsque
+  l'adresse est inconnue, pour que le temps de réponse soit le même qu'avec un
+  compte existant. Le message d'erreur est identique dans les deux cas.
+- **Sessions** : JWT en cookie `httpOnly`, `Secure`, `SameSite=Strict`. Le
+  jeton n'est **pas** renvoyé dans le corps de la réponse : l'authentification
+  repose uniquement sur le cookie, ce qui évite qu'il finisse stocké en
+  `localStorage`. Il porte `iat`, `jti`, `exp`, et une empreinte du hash du mot
+  de passe — un changement de mot de passe invalide donc les sessions
+  existantes. L'algorithme de signature est figé dans le code (`HS256`) et non
+  pilotable par l'environnement. Un cookie devenu invalide est effacé côté
+  client dès le premier appel API en échec, pour ne jamais laisser un cookie
+  périmé faire boucler l'application sur l'écran de connexion.
+- **Surface d'API** : `/api/docs`, `/api/redoc` et `/api/openapi.json` sont
+  fermés par défaut (`ENABLE_API_DOCS`).
 - **Surface réseau** : seul le frontend est publié. Le backend, PostgreSQL,
   Redis et Meilisearch restent sur le réseau Docker interne.
 - **Cloisonnement** : le conteneur frontend ne reçoit que les quatre variables
