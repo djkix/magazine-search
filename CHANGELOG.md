@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.20.0](https://github.com/djkix/magazine-search/compare/v0.19.1...v0.20.0) (2026-09-09)
+
+
+### Features
+
+* **frontend:** en-têtes de sécurité HTTP et script typecheck ([7ebc4af](https://github.com/djkix/magazine-search/commit/7ebc4af34d169e927708e52eda5ab0e3eb16f801))
+
+
+### Bug Fixes
+
+* **backend:** fail-fast sur les secrets, CORS strict, rate limiting Redis ([21937e4](https://github.com/djkix/magazine-search/commit/21937e46bd66245a298e9e53db1b46b32306cd8e))
+* **infra:** fermer le backend, cloisonner les secrets, sauvegarder Postgres ([e1e0869](https://github.com/djkix/magazine-search/commit/e1e086914ef2ba3b87ede2dbbcd0fa9c89b06b8a))
+* revue de sécurité — secrets, CORS, rate limiting, backup Postgres ([4024e0b](https://github.com/djkix/magazine-search/commit/4024e0b8fa77addea3e7628581d39a43bdb58794))
+
 ## [0.19.1](https://github.com/djkix/magazine-search/compare/v0.19.0...v0.19.1) (2026-09-08)
 
 
