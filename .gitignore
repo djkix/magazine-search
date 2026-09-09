@@ -36,3 +36,4 @@ redis-data/
 
 # Logs
 *.log
+.ge_spark/
