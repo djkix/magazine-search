@@ -1,14 +1,39 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 from app.models import IssueType, OcrStatus, PageLanguage, ScanStatus
+
+# Longueur minimale exigée à la CRÉATION d'un mot de passe. Volontairement
+# non appliquée à la connexion : y imposer la règle renverrait un 422 au lieu
+# d'un 401 pour un mot de passe trop court, ce qui divulguerait la politique
+# et empêcherait les comptes plus anciens de se connecter pour la changer.
+MDP_LONGUEUR_MIN = 12
+MDP_LONGUEUR_MAX = 128
+
+
+def _valider_plage_de_pages(modele):
+    """Refuse une page de fin antérieure à la page de début.
+
+    Partagé par ArticleCreate et ArticleUpdate. Les deux bornes étant
+    facultatives à la mise à jour, le contrôle ne s'applique que lorsque les
+    deux valeurs sont fournies.
+    """
+    debut = modele.start_page
+    fin = modele.end_page
+    if debut is not None and fin is not None and fin < debut:
+        raise ValueError(
+            f"end_page ({fin}) ne peut pas être inférieure à start_page ({debut})."
+        )
+    return modele
+
 
 # ---- Auth ----
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
+    # Pas de contrainte de longueur ici : voir la note ci-dessus.
     password: str
 
 
@@ -34,19 +59,19 @@ class UserOut(BaseModel):
 
 class UserCreate(BaseModel):
     email: EmailStr
-    display_name: str
-    password: str
+    display_name: str = Field(min_length=1, max_length=120)
+    password: str = Field(min_length=MDP_LONGUEUR_MIN, max_length=MDP_LONGUEUR_MAX)
     is_admin: bool = False
 
 
 class UserUpdate(BaseModel):
-    display_name: str | None = None
+    display_name: str | None = Field(default=None, min_length=1, max_length=120)
     is_active: bool | None = None
     is_admin: bool | None = None
 
 
 class PasswordReset(BaseModel):
-    new_password: str
+    new_password: str = Field(min_length=MDP_LONGUEUR_MIN, max_length=MDP_LONGUEUR_MAX)
 
 
 # ---- Magazines / Pages ----
@@ -156,15 +181,23 @@ class ArticleWithMagazine(ArticleOut):
 
 
 class ArticleCreate(BaseModel):
-    title: str
-    start_page: int
-    end_page: int | None = None
+    title: str = Field(min_length=1, max_length=500)
+    start_page: int = Field(ge=1)
+    end_page: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def _verifier_ordre_des_pages(self) -> "ArticleCreate":
+        return _valider_plage_de_pages(self)
 
 
 class ArticleUpdate(BaseModel):
-    title: str | None = None
-    start_page: int | None = None
-    end_page: int | None = None
+    title: str | None = Field(default=None, min_length=1, max_length=500)
+    start_page: int | None = Field(default=None, ge=1)
+    end_page: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def _verifier_ordre_des_pages(self) -> "ArticleUpdate":
+        return _valider_plage_de_pages(self)
 
 
 # ---- Magazine themes ----

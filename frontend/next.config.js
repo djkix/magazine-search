@@ -14,6 +14,27 @@ const nextConfig = {
       },
     ];
   },
+  async headers() {
+    // Le navigateur ne parle qu'à cette origine : c'est donc ici, et non sur
+    // le backend, que les en-têtes de sécurité doivent être posés.
+    // Volontairement sans Content-Security-Policy pour l'instant : le viewer
+    // pdf.js utilise des workers et du blob:, une CSP mal calibrée casserait
+    // la lecture des PDF. À ajouter séparément, après test sur le viewer.
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;
