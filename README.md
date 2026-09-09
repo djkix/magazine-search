@@ -1,8 +1,9 @@
 # Magazine Search
 
-Application web auto-hébergée de gestion, OCR et recherche plein texte d'une collection de magazines PDF stockés sur un NAS (NFS).
+Application web auto-hébergée de gestion, OCR et recherche plein texte d'une
+collection de magazines PDF stockés sur un NAS (NFS).
 
-Voir [`cahier-des-charges-v2.md`](./cahier-des-charges-v2.md) pour la spécification complète.
+Spécification complète : [`cahier-des-charges-v2.md`](./cahier-des-charges-v2.md).
 
 ## Sommaire
 
@@ -12,40 +13,96 @@ Voir [`cahier-des-charges-v2.md`](./cahier-des-charges-v2.md) pour la spécifica
 - [Prérequis](#prérequis)
 - [Déploiement](#déploiement)
 - [Configuration](#configuration)
+- [Sécurité](#sécurité)
+- [Sauvegarde et restauration](#sauvegarde-et-restauration)
 - [Utilisation](#utilisation)
 - [Développement local](#développement-local)
-- [CI/CD](#cicd)
+- [Qualité et CI/CD](#qualité-et-cicd)
 - [Versioning et changelog](#versioning-et-changelog)
 - [Hors scope V1](#hors-scope-v1)
 - [Licence](#licence)
 
 ## Fonctionnalités
 
-- **Scan du NAS** : détection des nouveaux PDF, déduplication par hash de contenu, attente de stabilité du fichier avant traitement (évite de traiter un fichier encore en cours de copie).
-- **Pipeline d'ingestion asynchrone** (file RQ) : détection de texte natif, OCR conditionnel (`fra+eng`) via `ocrmypdf`/Tesseract, extraction des bounding boxes mot par mot pour le surlignage, génération d'une miniature de couverture. Le texte extrait est nettoyé des caractères NUL parfois produits par un mapping de police corrompu, qui feraient sinon échouer tout l'enregistrement du numéro en base. Un mapping de police corrompu peut aussi produire du texte non-nul mais illisible (ex. "lll Why | | | Il Ill") au lieu d'échouer franchement - indétectable par la seule présence de texte, donc détecté séparément par la densité de mots courants français/anglais (« le », « la », « the », « and »...) sur chaque page : si assez de pages en manquent, l'OCR réel est forcé sur tout le document (`--force-ocr`, qui réécrit le texte même là où il existe déjà) plutôt que sauté (`--skip-text`, qui aurait laissé les pages déjà "non vides" telles quelles). Ce contrôle ne coûte qu'un balayage de texte déjà extrait, et le forçage de l'OCR ne se déclenche (et ne coûte du temps) qu'une fois, au premier traitement du numéro concerné. Le worker traite chaque job dans un process forké séparé (isolation en cas de PDF corrompu) ; les statements préparés côté serveur PostgreSQL sont désactivés (`prepare_threshold=None`) et la connexion utilisée au démarrage du worker est explicitement fermée avant d'entrer dans la boucle de traitement, pour éviter qu'une connexion ne se retrouve partagée entre deux processus après un fork (source d'erreurs `DuplicatePreparedStatement` sinon).
-- **Collections et tags** :
-  - une **collection** (ex. « Que Choisir ») regroupe automatiquement tous les numéros d'un même titre, déduite du répertoire de premier niveau sous la racine du NAS lors du scan (y compris si un numéro est déplacé vers un autre répertoire par la suite, ou rangé dans un sous-dossier par année/Hors-Séries) ;
-  - un **tag** (ex. « Bricolage », « Guide achat ») est créé et géré à la main dans l'admin, et peut regrouper plusieurs collections — une collection peut elle-même porter plusieurs tags.
-- **Bibliothèque et sommaires en deux niveaux** : parcours par collection (couverture représentative + nombre de numéros), puis détail des numéros — numéro, mois (ou plage de mois pour un bimestriel, ex. « Septembre-Octobre »), année (cliquable pour filtrer) et indicateur Hors-Série/Spécial, tous déduits automatiquement du nom de fichier — ou du sommaire de la collection sélectionnée, triable par date ou par type - numéros normaux et Hors-Séries/Spéciaux sont toujours affichés en blocs séparés (avec un intitulé), même triés par date, pour ne jamais les confondre au même endroit de la grille. Une colonne latérale liste les années présentes dans la collection ainsi que les Hors-Séries/Numéros Spéciaux, chacun cliquable pour filtrer la grille — même colonne, même comportement, sur la vue « Sommaires » d'une collection. Pour un Hors-Série/Spécial dont le nom de fichier ne porte ni date ni numéro (courant pour une édition nommée par son thème), l'année et le numéro sont recherchés en repli dans le texte déjà extrait par l'OCR de la couverture.
-- **Thématiques automatiques** (optionnel, Gemini) : une fois les sommaires extraits, Gemini regroupe plusieurs numéros par requête (par lots de 8) et leur attribue 1 à 3 thématiques (ex. « Automobile », « Santé ») en réutilisant le vocabulaire déjà en place dans le reste de la bibliothèque pour éviter les quasi-doublons — c'est le seul appel Gemini de tout le pipeline d'ingestion. Sur `/articles`, l'onglet « Par thématique » d'une collection les liste (regroupées, avec un compteur de numéros) — cliquer une thématique affiche les numéros concernés, chacun avec son propre sommaire (titre + page de chaque article) - une thématique est assignée à tout le numéro, pas à un article en particulier, donc la seule liste des numéros ne dit pas ce qui, dedans, s'y rapporte. Un bouton « Régénérer les thématiques » dans les réglages admin permet de forcer une nouvelle génération, y compris pour les numéros qui en ont déjà - il repasse par ce même pipeline par lots de 8 (au lieu d'une requête par magazine), pour ne pas épuiser le quota du jour en un clic sur une bibliothèque de plus d'une vingtaine de numéros.
-- **Recherche plein texte** (Meilisearch) avec surlignage des termes, filtres (titre, année, numéro, un ou plusieurs tags — la recherche se limite alors aux collections associées à ces tags), un résultat par magazine (avec son nombre d'occurrences du terme recherché, colorée du gris au vert selon son poids relatif) plutôt qu'un par page, classés par pertinence puis par fraîcheur.
-- **Extraction automatique du sommaire** (titre + page de chaque article), entièrement locale : le texte répétitif (en-tête/pied de page reproduit sur presque chaque page, quel que soit son contenu) est ensuite détecté et écarté, la page sommaire est repérée (mot « SOMMAIRE »/« CONTENTS »/« SUMMARY »/« INDEX », y compris en typographie espacée ou en plusieurs mots, et seulement quand la ligne elle-même est en majuscule/capitale initiale — comme l'est toujours un titre décoratif — pour ignorer le cas où « content(s) » apparaît incidemment comme un mot français ordinaire au milieu d'une phrase, cherché jusqu'à la page 30 pour les magazines au sommaire tardif, ou à défaut la page la plus dense en entrées parmi les 8 premières), et les entrées sont enfin extraites par reconnaissance de motif — points de suite (y compris quand chaque point est séparé par une espace fine, un artefact d'OCR courant sur ce type de mise en page), alignement tabulaire, numéro de page en tête ou dans son propre encart après le titre — directement sur le texte déjà OCRisé, sans aucun appel Gemini — donc instantanée, gratuite et jamais bloquée par un quota. Comme un sommaire en vraie mise en page à colonnes peut donner avec le texte linéaire non pas zéro résultat mais une unique entrée mal fusionnée (dont la page de fin s'étend jusqu'à la fin du magazine — un faux « succès » si on ne teste que l'absence de résultat), deux reconstructions alternatives de l'ordre de lecture (par colonnes — y compris quand les deux colonnes partagent la même ligne physique dans un vrai tableau à 2 colonnes, détecté par le plus grand espacement horizontal au sein de chaque ligne —, puis par bandes horizontales) sont systématiquement tentées en plus de la lecture linéaire sur la page identifiée comme le sommaire, et c'est la variante ayant trouvé le plus d'entrées qui est retenue. L'extraction verrouille la ligne du magazine pendant le remplacement de ses articles, pour qu'une relance déclenchée deux fois pour le même numéro (ex. « Relancer » et un retry TOC qui se chevauchent) ne finisse pas par insérer les deux jeux d'articles côte à côte en double - et un bouton « Supprimer les articles en double » dans le tableau de bord nettoie ceux déjà en base. Vue globale de tous les articles, et correction manuelle depuis le viewer (admin). Un échec d'extraction (bug de traitement) est distingué d'un sommaire réellement vide et affiché comme tel (avec possibilité de relancer), aussi bien dans le viewer que dans la vue « Sommaires » par collection. Seule l'attribution des thématiques passe encore par Gemini (voir ci-dessus) ; un quota Gemini journalier auto-géré (configurable dans les réglages, 20 requêtes/jour par défaut pour coller au tier gratuit) évite de dépasser la limite du compte, avec une limite de requêtes/minute (5 par défaut) qui fait patienter l'app plutôt que d'insister quand elle est atteinte, pour ne jamais risquer de se faire limiter plus sévèrement par Google pour abus. Le compteur du jour n'est incrémenté qu'après vérification qu'il reste du budget (et non l'inverse), pour qu'une fois le quota atteint, les tentatives suivantes qui échouent aussitôt (un lot de thématiques est retenté à chaque nouveau magazine reprocessé jusqu'à ce qu'il aboutisse) ne gonflent pas artificiellement le chiffre affiché au-delà du nombre réel d'appels effectués. Les réglages affichent la consommation du jour pour vérifier en un coup d'œil si le quota est encore disponible. Modèle Gemini configurable depuis l'admin.
-- **Viewer PDF intégré** (`pdf.js`) en défilement continu, saut direct à une page ou à un article du sommaire, overlay de surlignage des termes recherchés. En arrivant depuis un résultat de recherche, la colonne de gauche liste les autres magazines correspondant à la même recherche (avec leur nombre d'occurrences, leur date de publication et leur numéro, pour repérer en un coup d'œil si un résultat très cité est récent ou ancien) pour naviguer entre eux sans revenir à la page de recherche - la page de résultats globale (`/search`) affiche les mêmes informations. Au-dessus des métadonnées, un champ « Rechercher dans ce numéro » permet de chercher un mot dans le magazine ouvert et de passer d'une occurrence à l'autre (précédent/suivant), sans changer de magazine. Le PDF est chargé par requêtes HTTP Range (le serveur les honore nativement) : `pdf.js` ne télécharge que les octets nécessaires à la page affichée plutôt que tout le fichier (30-75 Mo) d'un coup, ce qui accélère surtout l'ouverture sur mobile.
-- **Authentification multi-utilisateurs** (admin + comptes standards), sessions JWT invalidées automatiquement à la réinitialisation d'un mot de passe.
-- **Backoffice admin** : tableau de bord auto-rafraîchi (compteurs et vue filtrée toutes les 5 secondes, pour ne jamais afficher un statut périmé pendant qu'un scan avance en arrière-plan), avec un pourcentage de progression (page en cours / nombre total de pages) pour le magazine en cours de traitement plutôt qu'un simple badge « en cours » sans indication d'avancement, barre de progression du scan en cours (reprise automatique à l'écran si un scan était déjà en cours), « Activité récente » triée et horodatée (date + heure) par dernière activité réelle du magazine plutôt que par date d'ajout initiale — un numéro remis en file par une relance apparaît donc en tête, pas coincé au milieu de numéros ajoutés le même jour, compteurs cliquables (terminés/en file d'attente/en cours/échecs/sans sommaire) qui filtrent la liste des magazines sur ce statut, sans limite d'ancienneté, pour identifier et relancer directement les numéros concernés (individuellement, ou tous d'un coup pour les « sans sommaire », utile après une amélioration de l'extraction pour rattraper toute la bibliothèque déjà scannée), avec pagination (« Charger plus ») au-delà des 100 premiers résultats pour rester utilisable avec une grosse bibliothèque ; le recalcul des collections/sommaires tourne en arrière-plan plutôt que dans la requête admin, pour ne pas expirer sur une bibliothèque de plusieurs centaines de numéros. Le scan ne relit et ne rehash que les fichiers réellement nouveaux ou modifiés (taille/date inchangées = ignoré), pour que son coût suive la taille du NAS ajoutée plutôt que la taille totale de la bibliothèque ; gestion des comptes, relance d'un scan/OCR par magazine, page de logs applicatifs filtrable (niveau, composant) avec rotation (le fichier de sauvegarde après rotation reste consultable, pas seulement le courant ; les traces d'exception y sont conservées), réglages (modèle Gemini, tags et rattachement des collections, réindexation manuelle du moteur de recherche). Un job d'OCR interrompu par dépassement de délai (fichier trop volumineux ou corrompu) est automatiquement marqué en échec au lieu de rester bloqué indéfiniment en « en cours » ; un numéro resté « en cours » parce que le worker a été arrêté en plein traitement (ex. redéploiement) est de la même façon récupéré et marqué en échec au redémarrage du worker, ce qui débloque aussi la barre de progression du scan qui l'attendait indéfiniment.
+**Ingestion**
+
+- Scan du NAS avec déduplication par hash de contenu et attente de stabilité
+  du fichier (un PDF encore en cours de copie n'est pas traité).
+- Pipeline asynchrone (file RQ) : détection de texte natif, OCR conditionnel
+  `fra+eng` via `ocrmypdf`/Tesseract, extraction des bounding boxes mot par mot
+  pour le surlignage, miniature de couverture.
+- Détection des PDF à mapping de police corrompu : un texte présent mais
+  illisible (« lll Why | | | Il Ill ») est repéré par la densité de mots
+  courants français/anglais, ce qui déclenche un `--force-ocr` au lieu d'un
+  `--skip-text` qui aurait laissé les pages en l'état.
+- Isolation par job : chaque traitement tourne dans un process forké, de sorte
+  qu'un PDF corrompu ne fasse pas tomber le worker.
+- Reprise après panne : un job expiré ou interrompu par un redéploiement est
+  marqué en échec au redémarrage plutôt que de rester bloqué « en cours ».
+
+**Organisation**
+
+- **Collections** déduites automatiquement du répertoire de premier niveau du
+  NAS (un titre de magazine = une collection), y compris si un numéro est
+  déplacé ensuite.
+- **Tags** créés à la main dans l'admin, rattachables à plusieurs collections.
+- Numéro, mois (ou plage pour un bimestriel), année et indicateur
+  Hors-Série/Spécial déduits du nom de fichier, avec repli sur le texte extrait
+  quand le nom ne porte ni date ni numéro.
+- Extraction automatique des sommaires via l'API Google Gemini (optionnelle).
+
+**Consultation**
+
+- Recherche plein texte (Meilisearch) avec filtres titre, année, numéro et
+  tags ; un résultat par magazine, classé par nombre d'occurrences.
+- Viewer PDF (`pdf.js`) avec surlignage des occurrences et recherche dans le
+  document.
+- Bibliothèque et sommaires en deux niveaux : collections, puis numéros —
+  normaux et Hors-Séries toujours présentés en blocs distincts.
+
+**Administration**
+
+- Tableau de bord auto-rafraîchi : compteurs cliquables par statut, progression
+  page par page du numéro en cours, activité récente triée par dernière
+  activité réelle.
+- Relance ciblée d'un scan ou d'un OCR, individuellement ou en lot.
+- Logs applicatifs filtrables (niveau, composant) avec rotation.
+- Réglages : modèle Gemini, tags, réindexation manuelle du moteur de recherche.
 
 ## Architecture
 
 ```
-├── app-backend         FastAPI : API, auth, scan, admin
-├── app-frontend        Next.js
-├── worker               RQ : OCR + indexation + extraction du sommaire
-├── redis                 file de tâches RQ
-├── postgres              utilisateurs, magazines, pages, tags, collections
-├── meilisearch            index de recherche plein texte
+                    ┌───────────────────────────┐
+   navigateur ──────►  Nginx Proxy Manager (TLS) │   hors de ce compose
+                    └─────────────┬─────────────┘
+                                  │ un seul port : FRONTEND_PORT
+                    ┌─────────────▼─────────────┐
+                    │  app-frontend (Next.js)   │  relaie /api/* en interne
+                    └─────────────┬─────────────┘
+                                  │ réseau Docker interne
+                    ┌─────────────▼─────────────┐
+                    │  app-backend (FastAPI)    │  non publié sur l'hôte
+                    └──┬────────┬────────┬──────┘
+                       │        │        │
+              ┌────────▼──┐ ┌───▼────┐ ┌─▼─────────────┐
+              │ PostgreSQL│ │ Redis  │ │ Meilisearch   │
+              └────▲──────┘ └───┬────┘ └───────────────┘
+                   │            │ file RQ
+              ┌────┴──────┐ ┌───▼──────────────────────┐
+              │ db-backup │ │ worker (OCR, Gemini)     │
+              └───────────┘ └──────────┬───────────────┘
+                                       │ lecture seule
+                                 ┌─────▼─────┐
+                                 │  NAS NFS  │
+                                 └───────────┘
 ```
 
-Le reverse proxy et la terminaison TLS (Let's Encrypt) ne sont **pas** gérés par ce `docker-compose.yml` : ils sont délégués à **Nginx Proxy Manager (NPM)**, déployé séparément sur l'hôte. Le navigateur ne parle qu'au frontend : `app-frontend` relaie en interne (via `next.config.js` → `rewrites()`) les appels `/api/*` vers `app-backend` sur le réseau Docker interne — NPM n'a donc besoin de forwarder qu'**un seul port** (`FRONTEND_PORT`), sans routage par chemin.
+Le navigateur ne parle qu'au frontend. Le reverse proxy et la terminaison TLS
+sont délégués à **Nginx Proxy Manager**, déployé séparément sur l'hôte : il n'a
+besoin de forwarder qu'**un seul port**, sans routage par chemin.
+
+Le backend n'est **pas** publié sur l'hôte — il n'est joignable que depuis le
+réseau Docker interne.
 
 ## Stack technique
 
@@ -53,65 +110,237 @@ Le reverse proxy et la terminaison TLS (Let's Encrypt) ne sont **pas** gérés p
 | --- | --- |
 | Backend | Python 3.12, FastAPI, SQLAlchemy 2.0, Alembic, Pydantic v2 |
 | Frontend | Next.js 14 (App Router), React 18, Tailwind CSS |
-| Files d'attente | RQ (Redis Queue) |
+| Base de données | PostgreSQL 16 |
+| File d'attente | RQ (Redis Queue) |
 | Recherche | Meilisearch |
 | OCR | `ocrmypdf` / Tesseract (`fra+eng`) |
 | Extraction de sommaire | API Google Gemini (`google-genai`) |
 | Viewer PDF | `pdf.js` |
-| Base de données | PostgreSQL 16 |
 | Déploiement | Docker Compose, images publiées sur GHCR |
 
 ## Prérequis
 
-- Docker + Docker Compose v2.
-- Un partage NAS monté en NFS sur l'hôte (lecture seule), contenant les PDF, organisé en un répertoire de premier niveau par titre de magazine (ce nom devient automatiquement le nom de la collection) — les PDF peuvent être rangés directement dedans ou dans des sous-dossiers (par année, Hors-Séries, etc.), ces sous-dossiers n'affectent pas le nom de la collection mais un sous-dossier "Hors Séries"/"Numéros Spéciaux" est détecté pour marquer le numéro comme tel.
-- Nginx Proxy Manager (ou équivalent) déjà installé sur l'hôte, avec un nom de domaine pointant dessus si exposition hors LAN.
-- Une clé API Google Gemini si vous souhaitez l'extraction automatique des sommaires (fonctionnalité optionnelle).
+- Docker et Docker Compose v2.
+- Un partage NAS monté en NFS sur l'hôte, **en lecture seule**, organisé en un
+  répertoire de premier niveau par titre de magazine — ce nom devient le nom de
+  la collection. Les PDF peuvent être rangés directement dedans ou dans des
+  sous-dossiers (année, Hors-Séries…) : ces sous-dossiers n'affectent pas la
+  collection, mais un dossier « Hors Séries » ou « Numéros Spéciaux » marque le
+  numéro comme tel.
+- Nginx Proxy Manager (ou équivalent) sur l'hôte, avec un nom de domaine si
+  l'application est exposée hors LAN.
+- Une clé API Google Gemini, uniquement si vous voulez l'extraction automatique
+  des sommaires.
 
 ## Déploiement
 
-1. Copier `.env.example` vers `.env` et renseigner toutes les valeurs (secrets, chemin NAS, ports, etc.). `.env` ne doit jamais être commité.
-2. Vérifier que `NAS_MOUNT_PATH` pointe vers un répertoire déjà monté en NFS sur l'hôte.
-3. Démarrer la stack :
+**1. Préparer la configuration**
 
-   ```bash
-   docker compose up -d
-   ```
+```bash
+cp .env.example .env
+```
 
-4. Dans NPM, créer un **Proxy Host** pour votre domaine :
-   - Onglet *Details* : `Forward Hostname/IP` = IP de l'hôte Docker, `Forward Port` = `${FRONTEND_PORT}` (ex. `3001`). C'est tout — pas de *Custom Locations* à ajouter, `/api` est relayé en interne par le frontend.
-   - Onglet *SSL* : activer Let's Encrypt + *Force SSL* (le cookie de session est `Secure`, donc l'app doit être servie en HTTPS).
-5. Un compte admin est créé automatiquement au premier démarrage du backend à partir de `ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PASSWORD` (changez le mot de passe ensuite depuis le backoffice).
-6. Se connecter, puis déclencher un premier scan depuis `/admin`.
+Générer les deux secrets obligatoires :
+
+```bash
+openssl rand -hex 32   # -> JWT_SECRET_KEY   (32 caractères minimum)
+openssl rand -hex 24   # -> MEILI_MASTER_KEY (16 caractères minimum)
+openssl rand -hex 24   # -> POSTGRES_PASSWORD
+```
+
+> Le backend **refuse de démarrer** si ces secrets sont absents, trop courts,
+> ou laissés à une valeur d'exemple. C'est volontaire : l'ancienne version
+> démarrait silencieusement avec un secret public, connu de quiconque lit le
+> dépôt.
+
+`.env` ne doit jamais être commité.
+
+**2. Vérifier le montage NAS**
+
+`NAS_MOUNT_PATH` doit pointer vers un répertoire déjà monté en NFS sur l'hôte.
+
+**3. Démarrer**
+
+```bash
+docker compose up -d
+docker compose logs -f app-backend
+```
+
+En cas de secret invalide, le conteneur redémarre en boucle et le log indique
+précisément la variable en cause.
+
+**4. Configurer le reverse proxy**
+
+Dans NPM, créer un *Proxy Host* :
+
+- *Details* : `Forward Hostname/IP` = IP de l'hôte Docker, `Forward Port` =
+  `${FRONTEND_PORT}` (ex. `3001`). Pas de *Custom Location* à ajouter, `/api`
+  est relayé en interne par le frontend.
+- *SSL* : activer Let's Encrypt et *Force SSL* — le cookie de session est
+  `Secure`, l'application doit être servie en HTTPS.
+
+**5. Créer le compte administrateur**
+
+Renseigner `ADMIN_BOOTSTRAP_EMAIL` et `ADMIN_BOOTSTRAP_PASSWORD` (12 caractères
+minimum) puis démarrer : le compte est créé **uniquement si aucun admin
+n'existe encore**. Une fois le compte en place, videz les deux variables — la
+valeur n'est plus lue, et un mot de passe en clair dans `.env` qui recréerait
+un admin après une restauration ratée est une porte d'entrée inutile.
+
+**6. Premier scan**
+
+Se connecter, puis déclencher un scan depuis `/admin`.
 
 ## Configuration
 
-Toutes les variables sont documentées dans [`.env.example`](./.env.example). Les principales :
+Toutes les variables sont définies dans `.env`. Voir
+[`.env.example`](./.env.example) pour le fichier commenté complet.
 
-| Variable | Description |
+**Secrets — obligatoires, contrôlés au démarrage**
+
+| Variable | Contrainte |
 | --- | --- |
-| `NAS_MOUNT_PATH` | Chemin hôte du partage NAS monté en NFS (lecture seule). |
-| `FRONTEND_PORT` | Seul port à forwarder depuis le reverse proxy. |
-| `BACKEND_CORS_ORIGINS` | Domaine public exact (schéma inclus) sur lequel l'app est exposée. |
-| `JWT_SECRET_KEY` | Secret de signature des sessions — à générer aléatoirement. |
-| `MEILI_MASTER_KEY` | Clé maître Meilisearch — à générer aléatoirement. |
-| `ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PASSWORD` | Compte admin créé au premier démarrage. |
-| `GEMINI_API_KEY` / `GEMINI_MODEL` | Optionnel — active l'extraction automatique des sommaires. Le modèle est aussi modifiable depuis l'admin sans redéploiement. |
+| `JWT_SECRET_KEY` | 32 caractères minimum. Valeurs d'exemple rejetées. Le modifier invalide toutes les sessions en cours. |
+| `MEILI_MASTER_KEY` | 16 caractères minimum. Valeurs d'exemple rejetées. |
+| `POSTGRES_PASSWORD` | À générer aléatoirement. |
+
+**Compte d'amorçage — facultatif**
+
+| Variable | Rôle |
+| --- | --- |
+| `ADMIN_BOOTSTRAP_EMAIL` | Laisser vide si un admin existe déjà. |
+| `ADMIN_BOOTSTRAP_PASSWORD` | 12 caractères minimum si renseigné. Les deux variables fonctionnent en paire. |
+
+**Réseau**
+
+| Variable | Rôle |
+| --- | --- |
+| `FRONTEND_PORT` | Port publié sur l'hôte — le seul que le reverse proxy doit atteindre. |
+| `BACKEND_CORS_ORIGINS` | Origines tierces autorisées, séparées par des virgules. Vide = aucune, ce qui est le cas normal puisque le frontend relaie `/api/*` sur sa propre origine. |
+
+> `BACKEND_PORT` n'est plus utilisée : le backend n'est plus publié sur l'hôte.
+
+**Déploiement**
+
+| Variable | Rôle |
+| --- | --- |
+| `IMAGE_TAG` | Tag des images applicatives déployées. `latest` redéploie un contenu différent à chaque merge, sans retour arrière possible : préférer un tag de version (`v0.19.1`) en production. |
+
+**Stockage et sauvegarde**
+
+| Variable | Rôle |
+| --- | --- |
+| `NAS_MOUNT_PATH` | Chemin **hôte** du montage NFS, monté en lecture seule dans les conteneurs. |
+| `BACKUP_DIR` | Répertoire hôte des dumps PostgreSQL. |
+| `BACKUP_RETENTION_DAYS` | Rétention avant purge automatique (défaut : 14). |
+| `BACKUP_INTERVAL_SECONDS` | Intervalle entre deux sauvegardes (défaut : 86400). |
+
+**Extraction de sommaire — facultative**
+
+| Variable | Rôle |
+| --- | --- |
+| `GEMINI_API_KEY` | Sans clé, l'extraction des sommaires est ignorée ; OCR et recherche fonctionnent normalement. |
+| `GEMINI_MODEL` | Modèle utilisé, également réglable depuis l'admin. |
+
+## Sécurité
+
+Le modèle de menace est celui d'une application auto-hébergée, exposée derrière
+un reverse proxy, avec un petit nombre de comptes de confiance.
+
+- **Secrets** : aucune valeur de repli. L'application refuse de démarrer plutôt
+  que de tourner avec un secret connu.
+- **Mots de passe** : hachés en Argon2. 12 caractères minimum à la création et
+  à la réinitialisation. La règle n'est volontairement **pas** appliquée à la
+  connexion, pour ne pas divulguer la politique ni bloquer un compte ancien.
+- **Sessions** : JWT en cookie `httpOnly`, `Secure`, `SameSite=Lax`. Le jeton
+  porte une empreinte du hash du mot de passe, de sorte qu'un changement de mot
+  de passe invalide les sessions existantes.
+- **Surface réseau** : seul le frontend est publié. Le backend, PostgreSQL,
+  Redis et Meilisearch restent sur le réseau Docker interne.
+- **Cloisonnement** : le conteneur frontend ne reçoit que les quatre variables
+  dont il a besoin, et non l'intégralité des secrets backend.
+- **CORS** : aucune origine tierce autorisée par défaut. Pas de repli sur le
+  joker, incompatible avec l'envoi du cookie de session.
+- **Anti-force-brute** : limitation de débit sur `/login`, adossée à Redis pour
+  survivre aux redémarrages et être partagée entre workers.
+- **En-têtes HTTP** : `X-Content-Type-Options`, `X-Frame-Options`,
+  `Referrer-Policy` et `Permissions-Policy` posés par le frontend.
+
+**Limites connues**
+
+- Le backend est lancé avec `--forwarded-allow-ips="*"` : un client déjà
+  présent sur le réseau Docker interne peut forger un `X-Forwarded-For` et
+  réinitialiser son compteur anti-force-brute. Restreindre cette valeur à
+  l'adresse du conteneur frontend ferme complètement le point.
+- Les conteneurs tournent en `root`.
+- Pas de politique de sécurité du contenu (CSP) : elle doit être calibrée avec
+  le viewer `pdf.js`, qui utilise des workers et des URL `blob:`.
+
+## Sauvegarde et restauration
+
+La base PostgreSQL est la **seule donnée non reconstructible** de la stack :
+elle concentre le texte OCR intégral, les sommaires extraits via l'API Gemini,
+les tags, collections et comptes. Les PDF du NAS, eux, peuvent être re-scannés.
+
+Le service `db-backup` produit un dump compressé à intervalle régulier, avec
+rotation. Les fichiers sont écrits sous `${BACKUP_DIR}` au format
+`<base>_<horodatage>.sql.gz`.
+
+```bash
+# Sauvegardes disponibles
+ls -lh ./backups
+
+# Déclencher une sauvegarde immédiate
+docker compose restart db-backup
+
+# Journal du service
+docker compose logs -f db-backup
+```
+
+**Restauration**
+
+```bash
+# 1. Arrêter les services qui écrivent
+docker compose stop app-backend worker
+
+# 2. Restaurer dans une base de test d'abord
+gunzip -c ./backups/magazines_20260909T030000Z.sql.gz \
+  | docker compose exec -T postgres psql -U "$POSTGRES_USER" -d postgres
+
+# 3. Redémarrer
+docker compose start app-backend worker
+```
+
+> Placez `BACKUP_DIR` sur un autre support que le volume Docker de PostgreSQL :
+> une sauvegarde sur le même disque ne protège pas d'une panne matérielle.
+> **Testez une restauration périodiquement** — une sauvegarde jamais restaurée
+> n'est pas une sauvegarde.
 
 ## Utilisation
 
-- **Scanner le NAS** : depuis `/admin`, bouton « Scan ». Les nouveaux PDF stables sont détectés, dédupliqués par hash, puis OCRisés et indexés en tâche de fond ; un PDF déplacé vers un autre répertoire est retrouvé par son contenu et son chemin/sa collection corrigés automatiquement. La progression s'affiche en temps réel sur le tableau de bord.
-- **Organiser en tags** : depuis `/admin/settings`, créez vos tags (ex. « Bricolage ») et rattachez-y une ou plusieurs collections détectées automatiquement (ex. « Que Choisir », « 60 Millions de consommateurs ») en cliquant dessus.
-- **Rechercher** : `/search` — recherche plein texte avec filtres par titre, année, numéro et tags (cliquez un ou plusieurs tags pour limiter la recherche aux collections qui leur sont associées) ; un résultat par magazine, classé par nombre d'occurrences puis par fraîcheur.
-- **Parcourir** : `/library` et `/articles` (sommaires) présentent d'abord les collections, puis le détail des numéros (paginé, taille de page réglable) ou des thématiques de la collection choisie.
+1. **Scan** — depuis `/admin`, déclencher un scan du NAS. Les nouveaux PDF sont
+   détectés, dédupliqués et mis en file. Le scan ne relit que les fichiers
+   réellement nouveaux ou modifiés.
+2. **Suivi** — le tableau de bord affiche l'avancement page par page. Les
+   compteurs par statut sont cliquables et filtrent la liste.
+3. **Recherche** — la recherche plein texte porte sur tout le texte extrait ;
+   les occurrences sont surlignées dans le viewer.
+4. **Organisation** — créer des tags dans les réglages et les rattacher aux
+   collections.
 
 ## Développement local
 
+Les services d'infrastructure via Docker, les applications en local :
+
 ```bash
+# Infrastructure seule
+docker compose up -d postgres redis meilisearch
+
 # Backend
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+alembic upgrade head
 uvicorn app.main:app --reload
 
 # Frontend
@@ -120,24 +349,77 @@ npm install
 npm run dev
 ```
 
-Un `docker-compose.yml` complet est le moyen recommandé de lancer l'ensemble des services (Postgres, Redis, Meilisearch inclus) même en développement.
+Un `.env` valide reste nécessaire : les contrôles sur les secrets s'appliquent
+aussi en développement.
 
-## CI/CD
+**Migrations**
 
-- Chaque push sur `main` construit et publie les images `backend`/`frontend` sur GHCR (`ghcr.io/<user>/<repo>-backend:latest`, `...-frontend:latest`) — pas de workflow de pull request bloquant, publication directe.
-- `release-please` propose périodiquement une pull request de release regroupant les commits [Conventional Commits](https://www.conventionalcommits.org/) depuis la dernière version ; la fusionner crée un tag semver, met à jour `CHANGELOG.md`, et republie les images taguées avec ce numéro de version (en plus de `:latest`).
-- `gitleaks` tourne en pre-commit et en CI pour éviter toute fuite de secret.
+```bash
+cd backend
+alembic revision --autogenerate -m "description"
+alembic upgrade head
+```
+
+Les migrations sont appliquées automatiquement au démarrage du conteneur
+`app-backend`, par `entrypoint.sh`. Seul le service API les exécute, jamais le
+worker, pour éviter toute course entre les deux.
+
+**Note sur le worker** — RQ forke un process par job. Avant d'entrer dans la
+boucle, `worker/run.py` appelle `engine.dispose(close=False)` : la connexion
+utilisée au démarrage n'est pas fermée, mais détachée du pool, de sorte qu'un
+process forké n'hérite pas d'une session PostgreSQL déjà en cours d'utilisation
+(source d'erreurs `DuplicatePreparedStatement`). Les statements préparés côté
+serveur sont par ailleurs désactivés (`prepare_threshold=None`).
+
+## Qualité et CI/CD
+
+**Hooks pre-commit**
+
+```bash
+pip install pre-commit && pre-commit install
+```
+
+- `gitleaks` — détection de secrets.
+- `ruff` — erreurs réelles côté backend (syntaxe, noms non définis).
+- Contrôles de format : YAML, JSON, TOML, fins de fichier, espaces en fin de
+  ligne, conflits de merge non résolus, fichiers volumineux.
+
+**Intégration continue** — sur chaque push et pull request :
+
+| Job | Rôle |
+| --- | --- |
+| `gitleaks` | Scan de secrets sur tout l'historique. |
+| `typecheck-frontend` | `tsc --noEmit`. |
+| `lint-backend` | `ruff check` sur un jeu de règles restreint aux erreurs réelles. |
+| `build-backend` / `build-frontend` | Build des images, sans publication. |
+
+> Le jeu de règles `ruff` est volontairement restreint : le code n'ayant jamais
+> été passé à un linter, activer tout `ruff` d'un coup rendrait la CI rouge sur
+> du style. À élargir progressivement.
+
+**Publication** — chaque push sur `main` construit et publie les images sur
+GHCR (`ghcr.io/<user>/<repo>-backend`, `...-frontend`), taguées `:latest` et,
+lors d'une release, avec le numéro de version.
+
+**Il n'existe aucun test automatisé.** C'est la principale faiblesse du projet :
+une régression sur la décision OCR ou le parsing de sommaire ne lève aucune
+exception, elle dégrade silencieusement la bibliothèque indexée.
 
 ## Versioning et changelog
 
-- La version courante est suivie dans [`.release-please-manifest.json`](./.release-please-manifest.json).
-- **L'historique complet des changements par version est dans [`CHANGELOG.md`](./CHANGELOG.md)**, généré et mis à jour automatiquement par `release-please` à chaque release fusionnée.
-- La version affichée dans l'interface (sidebar, sous le logo) correspond à la dernière release réellement publiée, pas au dernier commit poussé sur `main` — les changements les plus récents peuvent donc être en avance sur ce numéro tant que la PR de release correspondante n'a pas été fusionnée.
+- Les messages de commit suivent la convention
+  [Conventional Commits](https://www.conventionalcommits.org/).
+- `release-please` propose périodiquement une pull request de release ; la
+  fusionner crée un tag semver, met à jour
+  [`CHANGELOG.md`](./CHANGELOG.md) et republie les images taguées.
+- La version affichée dans l'interface correspond à la dernière release
+  publiée, pas au dernier commit poussé sur `main`.
 
 ## Hors scope V1
 
-Segmentation en articles par OCR structurel (remplacée par l'extraction Gemini du sommaire), auto-inscription/mot de passe oublié par email, watcher automatique du NAS (le scan reste déclenché manuellement), rôles avancés, écriture sur le NAS. Voir la section 6 du cahier des charges.
+Lecture hors-ligne, application mobile native, annotations et favoris,
+partage public de numéros, OCR de langues autres que le français et l'anglais.
 
 ## Licence
 
-MIT — voir [`LICENSE`](./LICENSE).
+[MIT](./LICENSE).
