@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.2](https://github.com/djkix/magazine-search/compare/v0.20.1...v0.20.2) (2026-09-09)
+
+
+### Bug Fixes
+
+* JWT hardening, timing-safe login, LIKE escaping, close API docs ([8c45d09](https://github.com/djkix/magazine-search/commit/8c45d09f0533524a9bf7de7c7ff5f36b91e888af))
+
 ## [0.20.1](https://github.com/djkix/magazine-search/compare/v0.20.0...v0.20.1) (2026-09-09)
 
 
