@@ -11,7 +11,13 @@ _client: meilisearch.Client | None = None
 def get_client() -> meilisearch.Client:
     global _client
     if _client is None:
-        _client = meilisearch.Client(settings.meili_host, settings.meili_master_key)
+        # Sans timeout explicite, un Meilisearch injoignable ou saturé
+        # immobilise l'appelant — c'est-à-dire l'unique worker d'ingestion.
+        _client = meilisearch.Client(
+            settings.meili_host,
+            settings.meili_master_key,
+            timeout=settings.meili_timeout_seconds,
+        )
     return _client
 
 
