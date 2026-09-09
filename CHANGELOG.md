@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.4](https://github.com/djkix/magazine-search/compare/v0.20.3...v0.20.4) (2026-09-09)
+
+
+### Bug Fixes
+
+* don't let progress-cleanup failures swallow the original error or leak connections ([eb91660](https://github.com/djkix/magazine-search/commit/eb91660c305a15a3d148dda7ef92e8908e3c57c0))
+
 ## [0.20.3](https://github.com/djkix/magazine-search/compare/v0.20.2...v0.20.3) (2026-09-09)
 
 
