@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     redis_host: str = "localhost"
     redis_port: int = 6379
 
+    # Borne des appels HTTP vers Meilisearch. Sans elle, une indexation part
+    # sur le timeout par défaut de la librairie (très long, voire aucun) et
+    # peut immobiliser l'unique worker.
+    meili_timeout_seconds: int = 15
+
     meili_host: str = "http://localhost:7700"
     # Sans valeur de repli : l'application refuse de démarrer si la variable
     # d'environnement est absente, plutôt que de tourner sans protection.
