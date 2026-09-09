@@ -231,6 +231,14 @@ Toutes les variables sont définies dans `.env`. Voir
 | --- | --- |
 | `IMAGE_TAG` | Tag des images applicatives déployées. `latest` redéploie un contenu différent à chaque merge, sans retour arrière possible : préférer un tag de version (`v0.19.1`) en production. |
 
+**Infrastructure interne**
+
+| Variable | Rôle |
+| --- | --- |
+| `REDIS_HOST` / `REDIS_PORT` | Adresse de Redis (file RQ, compteurs de quota, limitation de débit). Valeurs par défaut adaptées au `docker-compose.yml`. |
+| `MEILI_HOST` | URL interne de Meilisearch. |
+| `JWT_EXPIRE_MINUTES` | Durée de validité d'une session, en minutes (défaut : 1440, soit 24 h). |
+
 **Délais d'attente**
 
 | Variable | Rôle |
@@ -423,6 +431,7 @@ pip install pre-commit && pre-commit install
 | `gitleaks` | Scan de secrets sur tout l'historique. |
 | `typecheck-frontend` | `tsc --noEmit`. |
 | `lint-backend` | `ruff check` sur un jeu de règles restreint aux erreurs réelles. |
+| `test-backend` | `pytest` sur la suite backend. |
 | `build-backend` / `build-frontend` | Build des images, sans publication. |
 
 > Le jeu de règles `ruff` est volontairement restreint : le code n'ayant jamais
@@ -433,9 +442,31 @@ pip install pre-commit && pre-commit install
 GHCR (`ghcr.io/<user>/<repo>-backend`, `...-frontend`), taguées `:latest` et,
 lors d'une release, avec le numéro de version.
 
-**Il n'existe aucun test automatisé.** C'est la principale faiblesse du projet :
-une régression sur la décision OCR ou le parsing de sommaire ne lève aucune
-exception, elle dégrade silencieusement la bibliothèque indexée.
+**Tests**
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest
+```
+
+La suite actuelle est du **calcul pur** : ni PostgreSQL, ni Redis, ni
+Meilisearch, ni fichier PDF ne sont nécessaires. Les secrets attendus par
+`Settings` sont posés par `tests/conftest.py`.
+
+Elle couvre pour l'instant trois zones :
+
+| Fichier | Couvre |
+| --- | --- |
+| `test_issue_parser.py` | Extraction du numéro, de la date et du libellé de mois depuis le nom de fichier. |
+| `test_schemas.py` | Politique de mot de passe, bornes des pages d'article, cardinalité des tags. |
+| `test_security.py` | Aller-retour des jetons, claims obligatoires, algorithme figé, invalidation au changement de mot de passe. |
+
+**Ce qui n'est pas couvert**, et reste la principale faiblesse du projet : la
+décision OCR (`all_pages_have_native_text`, `_native_text_is_garbled`) et
+l'extraction de sommaire. Une régression y dégrade silencieusement la
+bibliothèque indexée, sans lever d'exception. Les tester demande des PDF
+témoins ; c'est la prochaine étape logique.
 
 ## Versioning et changelog
 
