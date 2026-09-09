@@ -254,7 +254,7 @@ export default function AdminDashboardPage() {
     setDedupeMessage(null);
     setError(null);
     try {
-      const result = await api.post<{ deleted: number }>("/admin/articles/deduplicate");
+      const result = await api.post<{ deleted: number }>("/admin/articles/deduplicate?dry_run=false");
       setDedupeMessage(
         result.deleted > 0 ? `${result.deleted} article(s) en double supprimé(s).` : "Aucun doublon trouvé."
       );

@@ -1,5 +1,5 @@
 import logging
-import traceback
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -17,6 +17,20 @@ from app.services.theme_batch import assign_themes_batch
 from app.worker.ocr import detect_language, ensure_text_layer, extract_pages, get_page_count, render_cover_thumbnail
 
 logger = logging.getLogger("worker.tasks")
+
+
+def message_erreur_affichable(exc: BaseException, longueur_max: int = 300) -> str:
+    """Message court, sans trace ni chemin absolu, destiné au stockage en base.
+
+    `error_message` est exposé par l'API à tout utilisateur authentifié : y
+    écrire la trace Python complète y publiait l'arborescence du serveur et la
+    structure interne du code. La trace intégrale reste disponible dans les
+    logs applicatifs, réservés à l'administration.
+    """
+    texte = f"{type(exc).__name__}: {exc}"
+    # Ne conserve que le nom de fichier des chemins absolus rencontrés.
+    texte = re.sub(r"/(?:[^/\s]+/)+", "", texte)
+    return texte[:longueur_max]
 settings = get_settings()
 
 # Keeps the batch's combined prompt a reasonable size while still cutting
@@ -72,7 +86,7 @@ def extract_and_store_articles(db, magazine: Magazine) -> None:
         magazine = db.get(Magazine, magazine.id)
         if magazine is not None:
             magazine.toc_status = OcrStatus.failed
-            magazine.toc_error_message = str(exc)
+            magazine.toc_error_message = message_erreur_affichable(exc)
             db.commit()
         logger.exception("Sommaire extraction failed for magazine %s", magazine.id)
 
@@ -208,7 +222,11 @@ def handle_process_magazine_failure(job, connection, type, value, traceback) -> 
         magazine = db.get(Magazine, magazine_id)
         if magazine is not None and magazine.scan_status == ScanStatus.processing:
             magazine.scan_status = ScanStatus.failed
-            magazine.error_message = f"{type.__name__ if type else 'Erreur'}: {value}"[:2000]
+            # Même assainissement que message_erreur_affichable : ici RQ nous
+            # passe le type et la valeur séparément, pas l'exception elle-même.
+            magazine.error_message = re.sub(
+                r"/(?:[^/\s]+/)+", "", f"{type.__name__ if type else 'Erreur'}: {value}"
+            )[:300]
             db.commit()
             logger.error("Magazine %s marked failed after job failure/timeout: %s", magazine_id, value)
     except Exception:  # noqa: BLE001 - this IS the failure handler, must never itself raise into RQ
@@ -290,8 +308,9 @@ def process_magazine(magazine_id: int) -> None:
         magazine = db.get(Magazine, magazine_id)
         if magazine is not None:
             magazine.scan_status = ScanStatus.failed
-            magazine.error_message = f"{exc}\n{traceback.format_exc()[-2000:]}"
+            magazine.error_message = message_erreur_affichable(exc)
             db.commit()
+        # La trace complète va dans les logs, pas dans la réponse API.
         logger.exception("Failed to process magazine %s", magazine_id)
         raise
     finally:
