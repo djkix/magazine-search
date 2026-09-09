@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.20.3](https://github.com/djkix/magazine-search/compare/v0.20.2...v0.20.3) (2026-09-09)
+
+
+### Bug Fixes
+
+* bound admin lists, dry-run dedup, ocrmypdf timeout, sanitized errors ([9074fa0](https://github.com/djkix/magazine-search/commit/9074fa0a0f74a5955a78b4184a39a9612545bbd7))
+* bound Meilisearch client with an explicit HTTP timeout ([c7e61ff](https://github.com/djkix/magazine-search/commit/c7e61ff0f55cd8c7f6046baa63ec2777ad1a94db))
+* ocr_timeout_seconds setting, atomic Redis incr+expire for Gemini quota ([be8cddd](https://github.com/djkix/magazine-search/commit/be8cdddcf5bd351fe787502e3bceb8485f651d95))
+
 ## [0.20.2](https://github.com/djkix/magazine-search/compare/v0.20.1...v0.20.2) (2026-09-09)
 
 
