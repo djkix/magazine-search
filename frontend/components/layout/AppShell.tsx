@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, redirectToLogin } from "@/lib/api";
 import type { User } from "@/lib/types";
 import Sidebar from "./Sidebar";
 import BottomNav from "./BottomNav";
@@ -20,7 +20,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       .catch((err) => {
         setUser(null);
         if (err instanceof ApiError && err.status === 401) {
-          window.location.href = "/login";
+          redirectToLogin();
         }
       });
   }, []);

@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, redirectToLogin } from "@/lib/api";
 import type { SearchResponse } from "@/lib/types";
 import PageContainer from "@/components/layout/PageContainer";
 import SearchBar, { type SearchFilters } from "@/components/search/SearchBar";
@@ -42,7 +42,7 @@ function SearchResultsContent() {
       .then(setResults)
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) {
-          window.location.href = "/login";
+          redirectToLogin();
           return;
         }
         setError(err instanceof ApiError ? err.message : "Erreur de recherche");

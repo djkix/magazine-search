@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, redirectToLogin } from "@/lib/api";
 import type { LibraryOverview, Magazine, MagazineFacets } from "@/lib/types";
 import PageContainer from "@/components/layout/PageContainer";
 import MagazineCard from "@/components/library/MagazineCard";
@@ -74,7 +74,7 @@ export default function CollectionLibraryPage() {
       setHasMore(data.length === PAGE_SIZE);
       setPage(targetPage);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) window.location.href = "/login";
+      if (err instanceof ApiError && err.status === 401) redirectToLogin();
     } finally {
       setLoading(false);
     }

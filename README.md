@@ -254,7 +254,10 @@ un reverse proxy, avec un petit nombre de comptes de confiance.
   connexion, pour ne pas divulguer la politique ni bloquer un compte ancien.
 - **Sessions** : JWT en cookie `httpOnly`, `Secure`, `SameSite=Lax`. Le jeton
   porte une empreinte du hash du mot de passe, de sorte qu'un changement de mot
-  de passe invalide les sessions existantes.
+  de passe invalide les sessions existantes. Un cookie devenu invalide (session
+  expirée, ou `JWT_SECRET_KEY` changé) est effacé côté client dès le premier
+  appel API en échec, pour ne jamais laisser un cookie périmé faire boucler
+  l'application sur l'écran de connexion.
 - **Surface réseau** : seul le frontend est publié. Le backend, PostgreSQL,
   Redis et Meilisearch restent sur le réseau Docker interne.
 - **Cloisonnement** : le conteneur frontend ne reçoit que les quatre variables

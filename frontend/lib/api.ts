@@ -50,4 +50,19 @@ export function fileUrl(path: string): string {
   return `${API_URL}${path}`;
 }
 
+// The middleware only checks that the session cookie is present, not that
+// it's still valid (expired, or signed with a rotated JWT_SECRET_KEY) -
+// redirecting to /login on a 401 without clearing that cookie leaves it in
+// place for the next request, which the middleware waves through straight
+// into another 401: an infinite login-page bounce. /logout doesn't require
+// a valid session itself, just clears the cookie server-side.
+export function redirectToLogin(): void {
+  api
+    .post("/logout")
+    .catch(() => {})
+    .finally(() => {
+      window.location.href = "/login";
+    });
+}
+
 export { API_URL };
