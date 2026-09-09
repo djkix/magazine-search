@@ -1,0 +1,23 @@
+"""Configuration commune aux tests.
+
+IMPORTANT : les variables d'environnement doivent être posées AVANT tout
+import de `app.config`. La classe Settings refuse désormais de se construire
+sans `JWT_SECRET_KEY` (32 caractères minimum) ni `MEILI_MASTER_KEY` (16
+minimum), et rejette les valeurs d'exemple connues. Sans ce bloc, la simple
+collecte des tests échouerait au premier import.
+
+Les valeurs ci-dessous sont des secrets de test, jamais utilisés ailleurs.
+"""
+
+import os
+
+os.environ.setdefault("JWT_SECRET_KEY", "cle-de-test-uniquement-32-caracteres-minimum-0123456789")
+os.environ.setdefault("MEILI_MASTER_KEY", "cle-meili-de-test-0123456789")
+os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://test:test@localhost:5432/test")
+os.environ.setdefault("ADMIN_BOOTSTRAP_EMAIL", "")
+os.environ.setdefault("ADMIN_BOOTSTRAP_PASSWORD", "")
+
+# `Settings` lit aussi un fichier .env s'il existe. En CI il n'y en a pas ; en
+# local, les valeurs ci-dessus sont posées via setdefault, donc un .env réel
+# resterait prioritaire. Les tests ci-dessous ne dépendent d'aucune valeur
+# précise en dehors des secrets, ce qui les rend insensibles à ce détail.

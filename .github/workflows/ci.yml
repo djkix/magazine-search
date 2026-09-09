@@ -55,6 +55,28 @@ jobs:
         working-directory: ./backend
         run: ruff check --select=E9,F63,F7,F82,F541 --output-format=concise .
 
+  test-backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+      - name: Install dependencies
+        working-directory: ./backend
+        run: pip install -r requirements-dev.txt
+      # Les tests actuels sont du calcul pur : ni PostgreSQL, ni Redis, ni
+      # Meilisearch, ni fichier PDF. Les secrets attendus par Settings sont
+      # posés par tests/conftest.py.
+      - name: pytest
+        working-directory: ./backend
+        run: pytest
+
   build-backend:
     runs-on: ubuntu-latest
     timeout-minutes: 20
