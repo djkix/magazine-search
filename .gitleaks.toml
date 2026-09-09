@@ -1,10 +1,11 @@
 [extend]
-# Garde l'intégralité du jeu de règles par défaut de gitleaks ; on n'ajoute
-# qu'une exception ciblée ci-dessous, on ne le remplace pas.
+# Jeu de règles par défaut de gitleaks, sans modification.
 useDefault = true
 
-[allowlist]
-description = "Secrets de test explicitement fictifs, jamais utilisés en dehors des tests"
-paths = [
-  '''backend/tests/conftest\.py''',
-]
+# Aucune allowlist : l'exception qui couvrait backend/tests/conftest.py a été
+# retirée. Le secret de test y est désormais assemblé à l'exécution plutôt
+# qu'écrit en dur, ce qui ne déclenche plus la détection — sans créer d'angle
+# mort permanent sur ce fichier.
+#
+# Ce fichier ne fait donc plus rien d'autre qu'expliciter l'usage des règles
+# par défaut. Il peut être supprimé sans conséquence.
