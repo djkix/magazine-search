@@ -1,0 +1,23 @@
+# Le Dockerfile fait « COPY . . » APRÈS avoir copié node_modules depuis
+# l'étape deps : sans ce fichier, un node_modules local écrase celui qui
+# vient d'être installé proprement par « npm ci », et le build devient
+# dépendant de la machine du développeur.
+
+# Dépendances et artefacts de build
+node_modules/
+.next/
+out/
+build/
+
+# Secrets et configuration locale
+.env
+.env.*
+!.env.example
+
+# Outillage et divers
+.git/
+.gitignore
+.DS_Store
+*.log
+npm-debug.log*
+coverage/

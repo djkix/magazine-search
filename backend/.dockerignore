@@ -1,0 +1,28 @@
+# Le Dockerfile fait « COPY . . » : sans ce fichier, tout le contenu du
+# répertoire backend/ entre dans l'image, y compris un éventuel .env local.
+
+# Secrets et configuration locale
+.env
+.env.*
+!.env.example
+
+# Caches Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Environnements virtuels
+.venv/
+venv/
+env/
+
+# Outillage et divers
+.git/
+.gitignore
+.DS_Store
+*.log
