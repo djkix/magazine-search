@@ -22,13 +22,20 @@ app = FastAPI(title="Magazine Search API")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins or ["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Pas de repli sur ["*"] : combiné à allow_credentials=True, Starlette
+# renvoie l'origine du demandeur quelle qu'elle soit, ce qui laisse n'importe
+# quel site appeler l'API avec le cookie de session de l'utilisateur. Si
+# BACKEND_CORS_ORIGINS n'est pas renseigné, aucune origine tierce n'est
+# autorisée — ce qui est le fonctionnement normal ici, puisque le frontend
+# relaie /api/* sur sa propre origine et n'a donc pas besoin de CORS.
+if settings.cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
