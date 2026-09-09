@@ -233,7 +233,13 @@ def handle_process_magazine_failure(job, connection, type, value, traceback) -> 
         db.rollback()
         logger.exception("Failed to mark magazine %s failed after job failure/timeout", magazine_id)
     finally:
-        clear_magazine_progress(magazine_id)
+        # Le nettoyage Redis ne doit ni masquer l'exception d'origine ni
+        # empêcher la fermeture de la session : un Redis injoignable ici
+        # laissait fuir une connexion PostgreSQL à chaque job.
+        try:
+            clear_magazine_progress(magazine_id)
+        except Exception:  # noqa: BLE001 - nettoyage best-effort
+            logger.warning("Nettoyage de la progression impossible pour %s", magazine_id, exc_info=True)
         db.close()
 
 
@@ -314,7 +320,13 @@ def process_magazine(magazine_id: int) -> None:
         logger.exception("Failed to process magazine %s", magazine_id)
         raise
     finally:
-        clear_magazine_progress(magazine_id)
+        # Le nettoyage Redis ne doit ni masquer l'exception d'origine ni
+        # empêcher la fermeture de la session : un Redis injoignable ici
+        # laissait fuir une connexion PostgreSQL à chaque job.
+        try:
+            clear_magazine_progress(magazine_id)
+        except Exception:  # noqa: BLE001 - nettoyage best-effort
+            logger.warning("Nettoyage de la progression impossible pour %s", magazine_id, exc_info=True)
         db.close()
 
 
