@@ -85,6 +85,10 @@ class Settings(BaseSettings):
             return v
         return _rejeter_secret_faible(v, "ADMIN_BOOTSTRAP_PASSWORD", 12)
 
+    # Borne du sous-processus ocrmypdf. Tenue sous le job_timeout RQ (30 min)
+    # pour que l'échec soit signalé sur le numéro plutôt que par la mort du job.
+    ocr_timeout_seconds: int = 1500
+
     nas_mount_path: str = "/mnt/nas"
     covers_dir: str = "/data/covers"
     processed_dir: str = "/data/processed"
