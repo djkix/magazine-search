@@ -89,6 +89,32 @@ def get_page_count(pdf_path: Path) -> int:
         doc.close()
 
 
+# ocrmypdf noie sa sortie d'erreur sous des avertissements Tesseract répétés
+# une fois par page — « lots of diacritics - possibly poor OCR », « Image too
+# small to scale » — qui n'expliquent rien. Garder la fin brute de stderr
+# revenait donc à conserver le bruit et à jeter la ligne utile.
+#
+# Relevé réel : la cause était « Output file: The generated PDF is INVALID »,
+# introuvable dans le message stocké, lequel commençait par « tics - possibly
+# poor OCR » — une tranche prise au milieu d'un mot, au milieu du bruit.
+_BRUIT_TESSERACT_RE = re.compile(r"^\s*\d+\s*\[tesseract\]", re.IGNORECASE)
+MAX_LIGNES_ERREUR_OCR = 5
+
+
+def resumer_erreur_ocrmypdf(stderr: str | None, max_lignes: int = MAX_LIGNES_ERREUR_OCR) -> str:
+    """Extrait de la sortie d'erreur d'ocrmypdf les lignes qui expliquent l'échec.
+
+    Écarte les avertissements par page, puis conserve les dernières lignes
+    restantes : ocrmypdf termine par la cause réelle. Si tout a été filtré —
+    sortie composée uniquement d'avertissements — on retombe sur les lignes
+    brutes plutôt que de ne rien remonter.
+    """
+    lignes = [ligne.strip() for ligne in (stderr or "").splitlines() if ligne.strip()]
+    utiles = [ligne for ligne in lignes if not _BRUIT_TESSERACT_RE.match(ligne)]
+    retenues = (utiles or lignes)[-max_lignes:]
+    return " | ".join(retenues) or "(aucune sortie d'erreur)"
+
+
 def ensure_text_layer(source_path: Path, output_path: Path) -> None:
     """Write a copy of source_path to output_path with a text layer on every page.
 
@@ -144,7 +170,7 @@ def ensure_text_layer(source_path: Path, output_path: Path) -> None:
         ) from exc
 
     if result.returncode != 0:
-        raise RuntimeError(f"ocrmypdf failed (code {result.returncode}): {(result.stderr or '')[-2000:]}")
+        raise RuntimeError(f"ocrmypdf failed (code {result.returncode}): {resumer_erreur_ocrmypdf(result.stderr)}")
 
 
 def _strip_nul(text: str) -> str:
