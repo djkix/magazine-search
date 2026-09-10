@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.2](https://github.com/djkix/magazine-search/compare/v0.22.1...v0.22.2) (2026-09-10)
+
+
+### Bug Fixes
+
+* **themes:** ramener THEME_BATCH_SIZE à 20 d'après la mesure réelle ([c6fb13b](https://github.com/djkix/magazine-search/commit/c6fb13bc8a6b2e775d14801ad87b56db9d9ec209))
+
 ## [0.22.1](https://github.com/djkix/magazine-search/compare/v0.22.0...v0.22.1) (2026-09-10)
 
 
