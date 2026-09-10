@@ -198,6 +198,9 @@ class ArticleOut(BaseModel):
 class ArticleWithMagazine(ArticleOut):
     magazine_title: str
     magazine_issue_number: str | None = None
+    magazine_issue_month: str | None = None
+    magazine_publication_date: datetime | None = None
+    magazine_collection_name: str | None = None
 
 
 class ArticleCreate(BaseModel):

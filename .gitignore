@@ -37,3 +37,6 @@ redis-data/
 # Logs
 *.log
 .ge_spark/
+
+# Build artifacts
+*.tsbuildinfo

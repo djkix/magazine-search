@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Article, Magazine
+from app.models import Article, Collection, Magazine
 from app.schemas import ArticleWithMagazine
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
@@ -34,7 +34,18 @@ def list_articles(
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
-    query = db.query(Article, Magazine.title, Magazine.issue_number).join(Magazine, Magazine.id == Article.magazine_id)
+    query = (
+        db.query(
+            Article,
+            Magazine.title,
+            Magazine.issue_number,
+            Magazine.issue_month_label,
+            Magazine.publication_date,
+            Collection.name,
+        )
+        .join(Magazine, Magazine.id == Article.magazine_id)
+        .outerjoin(Collection, Collection.id == Magazine.collection_id)
+    )
     if q:
         query = query.filter(Article.title.ilike(f"%{echapper_like(q)}%", escape="\\"))
     if unassigned:
@@ -56,6 +67,16 @@ def list_articles(
             end_page=article.end_page,
             magazine_title=magazine_title,
             magazine_issue_number=magazine_issue_number,
+            magazine_issue_month=magazine_issue_month,
+            magazine_publication_date=magazine_publication_date,
+            magazine_collection_name=magazine_collection_name,
         )
-        for article, magazine_title, magazine_issue_number in rows
+        for (
+            article,
+            magazine_title,
+            magazine_issue_number,
+            magazine_issue_month,
+            magazine_publication_date,
+            magazine_collection_name,
+        ) in rows
     ]

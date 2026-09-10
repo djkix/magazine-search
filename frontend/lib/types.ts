@@ -57,6 +57,9 @@ export interface Article {
 export interface ArticleWithMagazine extends Article {
   magazine_title: string;
   magazine_issue_number: string | null;
+  magazine_issue_month: string | null;
+  magazine_publication_date: string | null;
+  magazine_collection_name: string | null;
 }
 
 export interface MagazineTheme {
