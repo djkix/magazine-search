@@ -58,7 +58,9 @@ Spécification complète : [`cahier-des-charges-v2.md`](./cahier-des-charges-v2.
 - Viewer PDF (`pdf.js`) avec surlignage des occurrences et recherche dans le
   document.
 - Bibliothèque et sommaires en deux niveaux : collections, puis numéros —
-  normaux et Hors-Séries toujours présentés en blocs distincts.
+  normaux et Hors-Séries toujours présentés en blocs distincts. Chaque numéro
+  est identifié par « Nom du magazine - numéro - Mois année » (ex. « 01net -
+  998 - Juin 2023 »), plutôt que par le nom de fichier brut.
 
 **Administration**
 

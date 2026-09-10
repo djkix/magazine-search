@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
+import { formatMagazineHeading } from "@/lib/formatDate";
 import type { Article, ArticleWithMagazine, LibraryOverview, Magazine, MagazineFacets, MagazineTheme } from "@/lib/types";
 import { useUser } from "@/components/layout/UserContext";
 import PageContainer from "@/components/layout/PageContainer";
@@ -211,7 +212,17 @@ export default function CollectionArticlesPage() {
   }, [magazines, articlesByMagazine]);
 
   const searchGroups = useMemo(() => {
-    const byMagazine = new Map<number, { title: string; issueNumber: string | null; articles: ArticleWithMagazine[] }>();
+    const byMagazine = new Map<
+      number,
+      {
+        title: string;
+        issueNumber: string | null;
+        issueMonth: string | null;
+        publicationDate: string | null;
+        collectionName: string | null;
+        articles: ArticleWithMagazine[];
+      }
+    >();
     for (const article of searchResults ?? []) {
       const existing = byMagazine.get(article.magazine_id);
       if (existing) {
@@ -220,6 +231,9 @@ export default function CollectionArticlesPage() {
         byMagazine.set(article.magazine_id, {
           title: article.magazine_title,
           issueNumber: article.magazine_issue_number,
+          issueMonth: article.magazine_issue_month,
+          publicationDate: article.magazine_publication_date,
+          collectionName: article.magazine_collection_name,
           articles: [article],
         });
       }
@@ -313,8 +327,12 @@ export default function CollectionArticlesPage() {
                         href={`/viewer/${magazine.id}/1`}
                         className="text-sm font-semibold text-foreground hover:text-primary-light"
                       >
-                        {magazine.title}
-                        {magazine.issue_number ? ` — ${magazine.issue_number}` : ""}
+                        {formatMagazineHeading(
+                          magazine.collection_name ?? magazine.title,
+                          magazine.issue_number,
+                          magazine.issue_month,
+                          magazine.publication_date
+                        )}
                       </Link>
                     </div>
                     <ul className="divide-y divide-outline-variant">
@@ -375,8 +393,12 @@ export default function CollectionArticlesPage() {
               <div key={magazineId} className="overflow-hidden rounded-xl border border-outline-variant">
                 <div className="bg-surface-hover px-4 py-3">
                   <Link href={`/viewer/${magazineId}/1`} className="text-sm font-semibold text-foreground hover:text-primary-light">
-                    {group.title}
-                    {group.issueNumber ? ` — ${group.issueNumber}` : ""}
+                    {formatMagazineHeading(
+                      group.collectionName ?? group.title,
+                      group.issueNumber,
+                      group.issueMonth,
+                      group.publicationDate
+                    )}
                   </Link>
                 </div>
                 <ul className="divide-y divide-outline-variant">
@@ -486,8 +508,12 @@ export default function CollectionArticlesPage() {
             <div key={magazine.id} className="overflow-hidden rounded-xl border border-outline-variant">
               <div className="bg-surface-hover px-4 py-3">
                 <Link href={`/viewer/${magazine.id}/1`} className="text-sm font-semibold text-foreground hover:text-primary-light">
-                  {magazine.title}
-                  {magazine.issue_number ? ` — ${magazine.issue_number}` : ""}
+                  {formatMagazineHeading(
+                    magazine.collection_name ?? magazine.title,
+                    magazine.issue_number,
+                    magazine.issue_month,
+                    magazine.publication_date
+                  )}
                 </Link>
               </div>
               <ul className="divide-y divide-outline-variant">
