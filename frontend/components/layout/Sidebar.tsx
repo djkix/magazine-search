@@ -8,6 +8,7 @@ import type { User } from "@/lib/types";
 const NAV_ITEMS = [
   { href: "/library", label: "Bibliothèque", icon: "collections_bookmark" },
   { href: "/articles", label: "Sommaires", icon: "toc" },
+  { href: "/themes", label: "Thématiques", icon: "label" },
   { href: "/", label: "Recherche", icon: "search" },
 ];
 
