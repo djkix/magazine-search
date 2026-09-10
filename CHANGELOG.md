@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.0](https://github.com/djkix/magazine-search/compare/v0.20.5...v0.21.0) (2026-09-10)
+
+
+### Features
+
+* afficher "magazine - numéro - Mois année" au lieu du nom de fichier brut ([fc22843](https://github.com/djkix/magazine-search/commit/fc22843800dae0bae79b56adff7228ad3c5d5be5))
+
 ## [0.20.5](https://github.com/djkix/magazine-search/compare/v0.20.4...v0.20.5) (2026-09-10)
 
 
