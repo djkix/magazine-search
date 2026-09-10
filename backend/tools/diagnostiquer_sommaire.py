@@ -29,7 +29,7 @@ import argparse
 import sys
 
 from app.database import SessionLocal
-from app.models import Collection, Magazine, OcrStatus, Page
+from app.models import Article, Collection, Magazine, OcrStatus, Page, ScanStatus
 from app.services.sommaire_ocr import (
     MAX_HEADING_SEARCH_PAGE,
     _find_boilerplate_templates,
@@ -48,21 +48,29 @@ def titre(texte):
     print("=" * LARGEUR)
 
 
+def _sans_sommaire(db):
+    """Numéros traités n'ayant produit AUCUN article.
+
+    C'est le critère du tableau de bord, et le seul pertinent : un
+    `toc_status` à « done » ne garantit pas qu'un article ait été extrait.
+    L'immense majorité des cas problématiques sont justement marqués comme
+    réussis tout en étant vides — filtrer sur le statut les manquerait tous.
+    """
+    return db.query(Magazine).filter(
+        Magazine.scan_status == ScanStatus.done,
+        ~Magazine.id.in_(db.query(Article.magazine_id).distinct()),
+    )
+
+
 def lister_collections(db):
     """Classement des collections par nombre de numéros sans sommaire."""
     titre("Collections, triées par nombre de numéros sans sommaire")
 
+    base = _sans_sommaire(db)
     lignes = []
     for collection in db.query(Collection).order_by(Collection.name).all():
         total = db.query(Magazine).filter(Magazine.collection_id == collection.id).count()
-        sans = (
-            db.query(Magazine)
-            .filter(
-                Magazine.collection_id == collection.id,
-                Magazine.toc_status != OcrStatus.done,
-            )
-            .count()
-        )
+        sans = base.filter(Magazine.collection_id == collection.id).count()
         if sans:
             lignes.append((sans, total, collection.name))
 
@@ -75,6 +83,23 @@ def lister_collections(db):
     print("-" * LARGEUR)
     for sans, total, nom in lignes:
         print(f"{sans:>14} {total:>7}  {nom}")
+
+    print()
+    print(f"TOTAL sans article : {base.count()}")
+
+    # Répartition par statut : c'est elle qui révèle l'échec silencieux.
+    # Un numéro marqué « done » sans le moindre article signifie que
+    # l'extraction s'est déclarée réussie tout en ne produisant rien —
+    # indiscernable, côté interface, d'un magazine réellement dépourvu de
+    # sommaire.
+    print()
+    print("Répartition par statut d'extraction :")
+    for statut in OcrStatus:
+        n = base.filter(Magazine.toc_status == statut).count()
+        if n:
+            marque = "  <-- échec silencieux" if statut == OcrStatus.done else ""
+            print(f"  {statut.value:<12} {n}{marque}")
+
     print()
     print("Le gain est en haut de liste : même titre, même maquette, un seul")
     print("correctif débloque toute la colonne.")
@@ -82,12 +107,9 @@ def lister_collections(db):
 
 def diagnostiquer(db, nom_collection, nombre, afficher_texte):
     magazines = (
-        db.query(Magazine)
+        _sans_sommaire(db)
         .join(Collection, Collection.id == Magazine.collection_id)
-        .filter(
-            Collection.name.ilike(f"%{nom_collection}%"),
-            Magazine.toc_status != OcrStatus.done,
-        )
+        .filter(Collection.name.ilike(f"%{nom_collection}%"))
         .order_by(Magazine.id)
         .limit(nombre)
         .all()
