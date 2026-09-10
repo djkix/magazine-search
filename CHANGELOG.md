@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.10](https://github.com/djkix/magazine-search/compare/v0.22.9...v0.22.10) (2026-09-10)
+
+
+### Bug Fixes
+
+* **ocr:** retenter en --force-ocr sur un flux image corrompu ([348c5bc](https://github.com/djkix/magazine-search/commit/348c5bcc2f18f61097dcaca0c444b67ac18c250f))
+
 ## [0.22.9](https://github.com/djkix/magazine-search/compare/v0.22.8...v0.22.9) (2026-09-10)
 
 
