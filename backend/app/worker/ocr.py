@@ -1,3 +1,4 @@
+import logging
 import re
 import shutil
 import subprocess
@@ -9,6 +10,7 @@ from langdetect import DetectorFactory, LangDetectException, detect_langs
 from app.config import get_settings
 
 settings = get_settings()
+logger = logging.getLogger("worker.ocr")
 
 DetectorFactory.seed = 0  # deterministic langdetect results
 
@@ -115,31 +117,13 @@ def resumer_erreur_ocrmypdf(stderr: str | None, max_lignes: int = MAX_LIGNES_ERR
     return " | ".join(retenues) or "(aucune sortie d'erreur)"
 
 
-def ensure_text_layer(source_path: Path, output_path: Path) -> None:
-    """Write a copy of source_path to output_path with a text layer on every page.
-
-    Pages that already carry a native text layer are left untouched; only pages
-    without one are sent through OCR (ocrmypdf's --skip-text does this per page).
-
-    A document whose native text is garbled (see _native_text_is_garbled)
-    needs a different flag even where text is technically present:
-    --skip-text would leave those pages untouched too, since ocrmypdf also
-    considers them "already have text" - --force-ocr instead rasterizes and
-    re-OCRs every page, discarding the bad text. Only checked once per
-    document at first processing, so the extra pass's cost is a one-time
-    thing, not a recurring one.
-    """
-    has_native_text = all_pages_have_native_text(source_path)
-    garbled = _native_text_is_garbled(source_path)
-    if has_native_text and not garbled:
-        shutil.copyfile(source_path, output_path)
-        return
-
+def _lancer_ocrmypdf(source_path: Path, output_path: Path, mode: str) -> subprocess.CompletedProcess:
+    """Un passage d'ocrmypdf. `mode` vaut « --skip-text » ou « --force-ocr »."""
     try:
-        result = subprocess.run(
+        return subprocess.run(
             [
                 "ocrmypdf",
-                "--force-ocr" if garbled else "--skip-text",
+                mode,
                 "--language",
                 "fra+eng",
                 "--output-type",
@@ -169,8 +153,62 @@ def ensure_text_layer(source_path: Path, output_path: Path) -> None:
             f"(document trop volumineux ou corrompu)"
         ) from exc
 
+
+def ensure_text_layer(source_path: Path, output_path: Path) -> None:
+    """Write a copy of source_path to output_path with a text layer on every page.
+
+    Pages that already carry a native text layer are left untouched; only pages
+    without one are sent through OCR (ocrmypdf's --skip-text does this per page).
+
+    A document whose native text is garbled (see _native_text_is_garbled)
+    needs a different flag even where text is technically present:
+    --skip-text would leave those pages untouched too, since ocrmypdf also
+    considers them "already have text" - --force-ocr instead rasterizes and
+    re-OCRs every page, discarding the bad text. Only checked once per
+    document at first processing, so the extra pass's cost is a one-time
+    thing, not a recurring one.
+    """
+    has_native_text = all_pages_have_native_text(source_path)
+    garbled = _native_text_is_garbled(source_path)
+    if has_native_text and not garbled:
+        shutil.copyfile(source_path, output_path)
+        return
+
+    mode = "--force-ocr" if garbled else "--skip-text"
+    result = _lancer_ocrmypdf(source_path, output_path, mode)
+    if result.returncode == 0:
+        return
+
+    erreur = resumer_erreur_ocrmypdf(result.stderr)
+
+    # Déjà en --force-ocr : rien de plus à tenter.
+    if mode == "--force-ocr":
+        raise RuntimeError(f"ocrmypdf failed (code {result.returncode}): {erreur}")
+
+    # Seconde chance en --force-ocr. Par défaut (--skip-text), ocrmypdf
+    # RECOPIE les images d'origine dans le fichier produit : une image JPEG
+    # corrompue dans la source contamine donc la sortie, et qpdf refuse le
+    # résultat. Cas réel : « Pl_DCT::decompress: JPEG data is corrupt » suivi
+    # de « Output file: The generated PDF is INVALID ».
+    #
+    # --force-ocr rastérise chaque page avant de réencoder : l'image n'est
+    # plus recopiée mais régénérée depuis son rendu, ce qui peut contourner
+    # le flux abîmé. Sans garantie — si le décodage échoue aussi au rendu,
+    # la seconde passe échouera pareillement — mais l'essai ne coûte qu'une
+    # passe supplémentaire, et uniquement sur un document déjà en échec.
+    logger.warning(
+        "ocrmypdf a échoué en %s pour %s (%s) — nouvelle tentative en --force-ocr",
+        mode,
+        source_path.name,
+        erreur,
+    )
+    result = _lancer_ocrmypdf(source_path, output_path, "--force-ocr")
     if result.returncode != 0:
-        raise RuntimeError(f"ocrmypdf failed (code {result.returncode}): {resumer_erreur_ocrmypdf(result.stderr)}")
+        raise RuntimeError(
+            f"ocrmypdf failed (code {result.returncode}) y compris en --force-ocr : "
+            f"{resumer_erreur_ocrmypdf(result.stderr)}"
+        )
+    logger.info("Document récupéré par la reprise en --force-ocr : %s", source_path.name)
 
 
 def _strip_nul(text: str) -> str:
