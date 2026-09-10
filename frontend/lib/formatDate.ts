@@ -6,15 +6,21 @@ export function formatYearMonth(isoDate: string | null): string | null {
 }
 
 // "Nom du magazine - numéro - Mois année", ex. "01net - 998 - Juin 2023".
-// `name` doit déjà être le nom propre du magazine (nom de collection), pas
-// le nom de fichier brut ("01net 998 - 06-2023"), qui répéterait le numéro.
+// `collectionName` est le nom propre du magazine ; `rawTitle` est le nom de
+// fichier brut ("01net 998 - 06-2023"), utilisé tel quel en repli quand la
+// collection est inconnue - sans repli, name serait le nom de fichier brut ET
+// se ferait quand même accoler numéro/date, qui y figurent déjà (doublon,
+// ex. "01net 998 - 06-2023 - 998 - Juin 2023").
 export function formatMagazineHeading(
-  name: string,
+  collectionName: string | null,
+  rawTitle: string,
   issueNumber: string | null,
   monthLabel: string | null,
   publicationDate: string | null
 ): string {
-  const parts = [name];
+  if (!collectionName) return rawTitle;
+
+  const parts = [collectionName];
   if (issueNumber) parts.push(issueNumber);
 
   const year = publicationDate ? new Date(publicationDate).getFullYear() : null;

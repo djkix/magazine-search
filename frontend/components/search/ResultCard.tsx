@@ -16,7 +16,8 @@ export default function ResultCard({
 }) {
   const rgb = occurrenceColorRgb(hit.occurrence_count, maxOccurrence);
   const heading = formatMagazineHeading(
-    hit.collection_name ?? hit.magazine_title,
+    hit.collection_name,
+    hit.magazine_title,
     hit.issue_number,
     hit.issue_month,
     hit.publication_date
