@@ -328,7 +328,8 @@ export default function CollectionArticlesPage() {
                         className="text-sm font-semibold text-foreground hover:text-primary-light"
                       >
                         {formatMagazineHeading(
-                          magazine.collection_name ?? magazine.title,
+                          magazine.collection_name,
+                          magazine.title,
                           magazine.issue_number,
                           magazine.issue_month,
                           magazine.publication_date
@@ -394,7 +395,8 @@ export default function CollectionArticlesPage() {
                 <div className="bg-surface-hover px-4 py-3">
                   <Link href={`/viewer/${magazineId}/1`} className="text-sm font-semibold text-foreground hover:text-primary-light">
                     {formatMagazineHeading(
-                      group.collectionName ?? group.title,
+                      group.collectionName,
+                      group.title,
                       group.issueNumber,
                       group.issueMonth,
                       group.publicationDate
@@ -509,7 +511,8 @@ export default function CollectionArticlesPage() {
               <div className="bg-surface-hover px-4 py-3">
                 <Link href={`/viewer/${magazine.id}/1`} className="text-sm font-semibold text-foreground hover:text-primary-light">
                   {formatMagazineHeading(
-                    magazine.collection_name ?? magazine.title,
+                    magazine.collection_name,
+                    magazine.title,
                     magazine.issue_number,
                     magazine.issue_month,
                     magazine.publication_date
