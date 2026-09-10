@@ -374,6 +374,18 @@ docker compose start app-backend worker
 4. **Organisation** — créer des tags dans les réglages et les rattacher aux
    collections.
 
+> **Numéros sans sommaire** — deux actions distinctes, au coût très
+> différent, d'où deux boutons séparés plutôt qu'une option :
+>
+> - **Réextraire les sommaires** (`POST /api/admin/magazines/reprocess-no-sommaire`)
+>   rejoue le parsing à partir du texte OCR déjà en base. Quelques minutes
+>   pour toute la bibliothèque, sans OCR ni appel Gemini. C'est l'action
+>   attendue après une amélioration du parseur, et `scan_status` reste
+>   inchangé.
+> - **Relancer l'OCR complet** (`POST /api/admin/magazines/reocr-no-sommaire`)
+>   refait le traitement de zéro, environ une minute par numéro. Utile
+>   uniquement si la logique de décision OCR elle-même a changé.
+
 > **Régénération des thèmes** — `POST /api/admin/themes/regenerate-all` est
 > **non destructif et reprenable** : chaque numéro conserve ses thèmes actuels
 > jusqu'à ce qu'un lot les remplace effectivement. Si le quota Gemini s'épuise
