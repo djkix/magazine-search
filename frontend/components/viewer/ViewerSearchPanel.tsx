@@ -21,11 +21,16 @@ export default function ViewerSearchPanel({
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Which hit the reader actually clicked. Highlighting on the current page
+  // alone would let the marker wander off as soon as they scroll away from it,
+  // losing track of where they were in the result list.
+  const [pageIdSelectionne, setPageIdSelectionne] = useState<number | null>(null);
 
   async function runSearch(term: string, autoSelectCurrent = false) {
     if (!term.trim()) return;
     setLoading(true);
     setError(null);
+    setPageIdSelectionne(null);
     try {
       const data = await api.get<SearchResponse>(
         `/search?q=${encodeURIComponent(term.trim())}&magazine_id=${magazineId}&limit=50`
@@ -76,13 +81,21 @@ export default function ViewerSearchPanel({
 
       <div className="flex-1 space-y-2 overflow-y-auto">
         {hits?.length === 0 && <p className="text-sm text-foreground-muted">Aucun résultat.</p>}
-        {hits?.map((hit) => (
+        {hits?.map((hit) => {
+          // Before any click, the hit matching the page on screen is marked, so
+          // opening the panel already shows where you are.
+          const actif =
+            pageIdSelectionne !== null ? hit.page_id === pageIdSelectionne : hit.page_number === currentPage;
+          return (
           <button
             key={hit.page_id}
-            onClick={() => onSelectHit(hit)}
+            onClick={() => {
+              setPageIdSelectionne(hit.page_id);
+              onSelectHit(hit);
+            }}
             className={`block w-full rounded-xl border p-3 text-left text-sm transition ${
-              hit.page_number === currentPage
-                ? "border-primary bg-primary/5"
+              actif
+                ? "border-primary bg-primary/10 ring-1 ring-primary/40"
                 : "border-outline-variant bg-surface/50 hover:border-primary"
             }`}
           >
@@ -92,7 +105,8 @@ export default function ViewerSearchPanel({
               dangerouslySetInnerHTML={{ __html: sanitizeHighlightedSnippet(hit.snippet) }}
             />
           </button>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
