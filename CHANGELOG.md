@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.23.0](https://github.com/djkix/magazine-search/compare/v0.22.10...v0.23.0) (2026-09-10)
+
+
+### Features
+
+* **admin:** afficher l'avancement de la thematisation ([5bf4e29](https://github.com/djkix/magazine-search/commit/5bf4e292e51d74be53b63298e5ef5de09ba8be5b))
+* **themes:** page thematiques triee par occurrences ([d11ae27](https://github.com/djkix/magazine-search/commit/d11ae27b8691b986c5e36734164ae9848bd4ce96))
+
+
+### Bug Fixes
+
+* **themes:** surligner le bon terme dans les titres d'articles ([a5319e2](https://github.com/djkix/magazine-search/commit/a5319e2c81ad249c5c4a34a4e6e8b8196305ba92))
+
 ## [0.22.10](https://github.com/djkix/magazine-search/compare/v0.22.9...v0.22.10) (2026-09-10)
 
 
