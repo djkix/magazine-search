@@ -1,9 +1,14 @@
 import json
 import logging
 import logging.handlers
+import os
 from pathlib import Path
 
-LOG_DIR = Path("/data/logs")
+# Chemin surchargeable par l'environnement. La valeur par défaut reste celle
+# du conteneur, mais un chemin en dur empêchait de lancer le backend hors
+# Docker (aucun /data sur une machine de développement) et faisait échouer
+# l'import de app.main en CI, où ce répertoire n'est pas créable.
+LOG_DIR = Path(os.getenv("LOG_DIR", "/data/logs"))
 
 # Each component (backend, worker) writes to its own file so two separate
 # processes never fight over rotating the same file. ~12MB x 2 files

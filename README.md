@@ -238,6 +238,7 @@ Toutes les variables sont définies dans `.env`. Voir
 | `REDIS_HOST` / `REDIS_PORT` | Adresse de Redis (file RQ, compteurs de quota, limitation de débit). Valeurs par défaut adaptées au `docker-compose.yml`. |
 | `MEILI_HOST` | URL interne de Meilisearch. |
 | `JWT_EXPIRE_MINUTES` | Durée de validité d'une session, en minutes (défaut : 1440, soit 24 h). |
+| `LOG_DIR` | Répertoire des logs applicatifs (défaut : `/data/logs`). À surcharger pour lancer le backend hors Docker, où ce chemin n'existe pas. |
 
 **Délais d'attente**
 
@@ -286,10 +287,17 @@ un reverse proxy, avec un petit nombre de comptes de confiance.
   périmé faire boucler l'application sur l'écran de connexion.
 - **Surface d'API** : `/api/docs`, `/api/redoc` et `/api/openapi.json` sont
   fermés par défaut (`ENABLE_API_DOCS`).
-- **Messages d'erreur** : les erreurs de traitement stockées en base et
-  affichées dans le backoffice sont courtes et débarrassées des chemins
-  absolus. La trace Python complète n'est écrite que dans les logs
-  applicatifs, jamais renvoyée par l'API.
+- **Messages d'erreur** : les erreurs de traitement stockées en base sont
+  courtes et débarrassées des chemins absolus. La trace Python complète n'est
+  écrite que dans les logs applicatifs, jamais renvoyée par l'API. Attention,
+  ces messages sont visibles par **tout compte authentifié**, pas seulement
+  par les administrateurs.
+  L'assainissement ne s'applique qu'à l'écriture : les lignes antérieures au
+  correctif conservent leur contenu d'origine.
+  [`ops/nettoyer_messages_erreur.sql`](./ops/nettoyer_messages_erreur.sql)
+  nettoie l'historique — à exécuter **avant d'ouvrir des comptes
+  utilisateurs**. Le script inspecte d'abord, et n'écrit qu'après avoir
+  remplacé son `ROLLBACK` final par `COMMIT`.
 - **Surface réseau** : seul le frontend est publié. Le backend, PostgreSQL,
   Redis et Meilisearch restent sur le réseau Docker interne.
 - **Cloisonnement** : le conteneur frontend ne reçoit que les quatre variables
@@ -461,6 +469,7 @@ Elle couvre pour l'instant trois zones :
 | `test_issue_parser.py` | Extraction du numéro, de la date et du libellé de mois depuis le nom de fichier. |
 | `test_schemas.py` | Politique de mot de passe, bornes des pages d'article, cardinalité des tags. |
 | `test_security.py` | Aller-retour des jetons, claims obligatoires, algorithme figé, invalidation au changement de mot de passe. |
+| `test_authorization.py` | Frontière admin / utilisateur standard : aucune route `/api/admin` accessible à un compte non administrateur, ni à un visiteur non authentifié. Le contrôle parcourt les routes réellement déclarées, donc toute nouvelle route d'administration est couverte automatiquement. |
 
 **Ce qui n'est pas couvert**, et reste la principale faiblesse du projet : la
 décision OCR (`all_pages_have_native_text`, `_native_text_is_garbled`) et
