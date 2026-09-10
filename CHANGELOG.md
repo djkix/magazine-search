@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.23.1](https://github.com/djkix/magazine-search/compare/v0.23.0...v0.23.1) (2026-09-10)
+
+
+### Bug Fixes
+
+* **lecteur:** conserver les resultats de recherche apres un clic ([b209494](https://github.com/djkix/magazine-search/commit/b209494881a8c05b1398a46ed5425442bee2b9e9))
+* **lecteur:** ramener la fleche de retour vers la collection du numero ([bab7d30](https://github.com/djkix/magazine-search/commit/bab7d30bf0a60aa0113a0b73f3e1d608d22aec2f))
+
 ## [0.23.0](https://github.com/djkix/magazine-search/compare/v0.22.10...v0.23.0) (2026-09-10)
 
 
