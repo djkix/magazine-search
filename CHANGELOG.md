@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.3](https://github.com/djkix/magazine-search/compare/v0.22.2...v0.22.3) (2026-09-10)
+
+
+### Bug Fixes
+
+* **sommaire:** consigner pourquoi aucune entrée n'a été extraite ([f573f6b](https://github.com/djkix/magazine-search/commit/f573f6b88351580f5e873022e1d846104f498fd8))
+
 ## [0.22.2](https://github.com/djkix/magazine-search/compare/v0.22.1...v0.22.2) (2026-09-10)
 
 
