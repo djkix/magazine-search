@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.7](https://github.com/djkix/magazine-search/compare/v0.22.6...v0.22.7) (2026-09-10)
+
+
+### Bug Fixes
+
+* **admin:** separer reextraction du sommaire et OCR complet ([1b3006e](https://github.com/djkix/magazine-search/commit/1b3006ee19a50791515705118ba1fee376b43d9f))
+
 ## [0.22.6](https://github.com/djkix/magazine-search/compare/v0.22.5...v0.22.6) (2026-09-10)
 
 
