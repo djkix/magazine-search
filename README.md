@@ -97,7 +97,9 @@ Affinez avec les filtres : collection, année, thématique. Un clic sur un
 résultat ouvre le numéro à la page concernée, occurrences surlignées.
 
 Dans la visionneuse, la recherche dans le document permet de circuler entre les
-occurrences du numéro ouvert.
+occurrences du numéro ouvert : la liste des résultats reste affichée après un
+clic, le résultat consulté restant repérable dedans. La flèche de retour ramène
+à la collection du numéro plutôt qu'au sommet de la bibliothèque.
 
 ### Parcourir la bibliothèque
 
