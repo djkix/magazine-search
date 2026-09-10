@@ -379,7 +379,7 @@ docker compose start app-backend worker
 > jusqu'à ce qu'un lot les remplace effectivement. Si le quota Gemini s'épuise
 > en cours de série, l'opération s'arrête proprement et un nouveau clic
 > reprend là où elle s'était interrompue, sans repartir de zéro. La série
-> avance par lots de 30 numéros, un appel Gemini par lot.
+> avance par lots de 20 numéros, un appel Gemini par lot.
 
 > **Déduplication des articles** — `POST /api/admin/articles/deduplicate`
 > fonctionne en simulation par défaut : il renvoie `would_delete` sans rien
