@@ -167,18 +167,58 @@ def retry_failed(db: Session = Depends(get_db)):
     return RetryFailedResponse(retried=len(failed))
 
 
-@router.post("/magazines/reprocess-no-sommaire")
-def reprocess_magazines_without_sommaire(db: Session = Depends(get_db)):
-    """Force a full re-run for every processed magazine that has no
-    sommaire at all - e.g. after an OCR/sommaire-extraction improvement,
-    to sweep the whole existing library instead of relaunching magazines
-    one by one from the filtered dashboard view."""
-    magazine_ids_with_sommaire = db.query(Article.magazine_id).distinct()
-    magazines = (
+def _magazines_sans_sommaire(db: Session) -> list[Magazine]:
+    """Numéros traités dont aucun article n'a pu être extrait."""
+    return (
         db.query(Magazine)
-        .filter(Magazine.scan_status == ScanStatus.done, ~Magazine.id.in_(magazine_ids_with_sommaire))
+        .filter(
+            Magazine.scan_status == ScanStatus.done,
+            ~Magazine.id.in_(db.query(Article.magazine_id).distinct()),
+        )
         .all()
     )
+
+
+@router.post("/magazines/reprocess-no-sommaire")
+def reextract_sommaires(db: Session = Depends(get_db)):
+    """Rejoue UNIQUEMENT l'extraction du sommaire, à partir du texte déjà
+    en base. Ni OCR, ni appel Gemini : quelques minutes pour toute la
+    bibliothèque, contre plusieurs heures pour un retraitement complet.
+
+    C'est l'action attendue dans l'immense majorité des cas — après une
+    amélioration du parseur, pour rattraper les numéros existants. Le texte
+    OCR, lui, ne change pas : le refaire produirait exactement le même
+    résultat pour un coût sans commune mesure.
+
+    `scan_status` n'est volontairement PAS modifié : ces numéros restent
+    « terminés », seule leur table d'articles est reconstruite. Les faire
+    repasser en « en attente » brouillait le tableau de bord et laissait
+    croire à une régression de l'OCR.
+
+    Pour réellement refaire l'OCR, voir /magazines/reocr-no-sommaire.
+    """
+    magazines = _magazines_sans_sommaire(db)
+    for magazine in magazines:
+        ingestion_queue.enqueue(retry_toc, magazine.id, job_timeout="10m")
+    logger.info("Réextraction des sommaires demandée pour %d numéro(s)", len(magazines))
+    return {"reprocessed": len(magazines), "mode": "sommaire"}
+
+
+@router.post("/magazines/reocr-no-sommaire")
+def reocr_magazines_without_sommaire(db: Session = Depends(get_db)):
+    """Relance le traitement COMPLET — OCR compris — des numéros sans
+    sommaire. Opération longue : de l'ordre d'une minute par numéro.
+
+    Utile dans un seul cas : la logique de décision OCR a changé (détection
+    du texte natif, du texte illisible…) et il faut réellement reproduire
+    le texte source. Si seul le parseur du sommaire a évolué,
+    /magazines/reprocess-no-sommaire suffit et coûte cent fois moins.
+
+    Endpoint distinct, et non un paramètre du précédent : la différence de
+    coût est telle qu'elle mérite un appel explicite plutôt qu'un drapeau
+    qu'on oublie de renseigner.
+    """
+    magazines = _magazines_sans_sommaire(db)
     for magazine in magazines:
         magazine.scan_status = ScanStatus.queued
         magazine.error_message = None
@@ -188,7 +228,8 @@ def reprocess_magazines_without_sommaire(db: Session = Depends(get_db)):
         ingestion_queue.enqueue(
             process_magazine, magazine.id, job_timeout="30m", on_failure=handle_process_magazine_failure
         )
-    return {"reprocessed": len(magazines)}
+    logger.warning("OCR complet relancé pour %d numéro(s) sans sommaire", len(magazines))
+    return {"reprocessed": len(magazines), "mode": "ocr"}
 
 
 @router.post("/magazines/{magazine_id}/reprocess")

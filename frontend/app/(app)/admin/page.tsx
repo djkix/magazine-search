@@ -41,6 +41,7 @@ export default function AdminDashboardPage() {
   const [loadingMoreFiltered, setLoadingMoreFiltered] = useState(false);
   const [noSommaireCount, setNoSommaireCount] = useState<number | null>(null);
   const [reprocessingAllNoSommaire, setReprocessingAllNoSommaire] = useState(false);
+  const [reocrAllNoSommaireRunning, setReocrAllNoSommaire] = useState(false);
   const [progressById, setProgressById] = useState<Record<number, { current: number; total: number }>>({});
   const [deduplicatingArticles, setDeduplicatingArticles] = useState(false);
   const [dedupeMessage, setDedupeMessage] = useState<string | null>(null);
@@ -232,6 +233,9 @@ export default function AdminDashboardPage() {
     }
   }
 
+  // Rejoue uniquement l'extraction du sommaire, a partir du texte OCR deja
+  // en base : quelques minutes pour toute la bibliotheque. C'est l'action
+  // attendue apres une amelioration du parseur.
   async function reprocessAllNoSommaire() {
     setReprocessingAllNoSommaire(true);
     setError(null);
@@ -246,6 +250,33 @@ export default function AdminDashboardPage() {
       setError(err instanceof ApiError ? err.message : "Erreur lors de la relance");
     } finally {
       setReprocessingAllNoSommaire(false);
+    }
+  }
+
+  // Relance le traitement COMPLET, OCR compris : environ une minute par
+  // numero. Confirmation explicite, la difference de cout avec l'action
+  // ci-dessus se compte en heures.
+  async function reocrAllNoSommaire() {
+    if (
+      !window.confirm(
+        `Relancer l'OCR complet de ${noSommaireCount} magazine(s) ?\n\n` +
+          "Comptez environ une minute par numero, soit plusieurs heures.\n" +
+          "N'est utile que si la logique OCR elle-meme a change : pour une " +
+          "simple amelioration du parseur de sommaire, utilisez « Reextraire " +
+          "les sommaires », qui prend quelques minutes."
+      )
+    ) {
+      return;
+    }
+    setReocrAllNoSommaire(true);
+    setError(null);
+    try {
+      await api.post<{ reprocessed: number }>("/admin/magazines/reocr-no-sommaire");
+      loadStats();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erreur lors de la relance");
+    } finally {
+      setReocrAllNoSommaire(false);
     }
   }
 
@@ -391,12 +422,39 @@ export default function AdminDashboardPage() {
       </div>
 
       {!!noSommaireCount && (
-        <Button onClick={reprocessAllNoSommaire} disabled={reprocessingAllNoSommaire} variant="secondary" className="w-fit">
-          <Icon name="replay" className={reprocessingAllNoSommaire ? "animate-spin" : ""} />
-          {reprocessingAllNoSommaire
-            ? "Relance en cours..."
-            : `Relancer les ${noSommaireCount} magazine(s) sans sommaire`}
-        </Button>
+        <div className="flex flex-col gap-2">
+          <Button
+            onClick={reprocessAllNoSommaire}
+            disabled={reprocessingAllNoSommaire || reocrAllNoSommaireRunning}
+            variant="secondary"
+            className="w-fit"
+          >
+            <Icon name="replay" className={reprocessingAllNoSommaire ? "animate-spin" : ""} />
+            {reprocessingAllNoSommaire
+              ? "Réextraction en cours..."
+              : `Réextraire les sommaires de ${noSommaireCount} magazine(s)`}
+          </Button>
+          <p className="text-xs text-foreground-muted">
+            Relit le sommaire à partir du texte déjà extrait : quelques minutes, sans OCR ni
+            appel Gemini. C&apos;est l&apos;action à utiliser après une amélioration du parseur.
+          </p>
+
+          <Button
+            onClick={reocrAllNoSommaire}
+            disabled={reprocessingAllNoSommaire || reocrAllNoSommaireRunning}
+            variant="secondary"
+            className="w-fit"
+          >
+            <Icon name="replay" className={reocrAllNoSommaireRunning ? "animate-spin" : ""} />
+            {reocrAllNoSommaireRunning
+              ? "Relance OCR en cours..."
+              : `Relancer l'OCR complet (long)`}
+          </Button>
+          <p className="text-xs text-foreground-muted">
+            Refait l&apos;OCR de zéro : environ une minute par numéro, soit plusieurs heures.
+            Utile uniquement si la logique OCR elle-même a changé.
+          </p>
+        </div>
       )}
 
       {!!stats?.failed && (
