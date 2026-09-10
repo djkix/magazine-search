@@ -46,11 +46,19 @@ settings = get_settings()
 #     tronquée fait échouer TOUT le lot, le JSON devenant illisible ;
 #   - et un lot plus gros, c'est une reprise plus grossière après incident.
 #
-# 30 place la réponse autour du millier de jetons, très en deçà des limites de
-# sortie, tout en divisant le nombre d'appels par près de quatre. Au-delà, la
-# qualité se dégrade avant la limite technique : le modèle commence à bâcler
-# ou à omettre les dernières entrées d'une longue liste structurée.
-THEME_BATCH_SIZE = 30
+# Valeur calée sur une MESURE, pas sur une estimation : relevé AI Studio du
+# 8 septembre 2026 — ~31 000 jetons de sortie pour ~20 requêtes en lots de 8,
+# soit environ 190 jetons de sortie par numéro (le modèle est nettement plus
+# bavard que la seule structure JSON ne le laisse supposer).
+#
+# À 20 par lot : ~3 900 jetons de sortie, soit la moitié d'une limite de 8K.
+# À 30, on montait à ~5 800, trop près du plafond pour un mode de défaillance
+# aussi brutal : une réponse tronquée rend le JSON illisible et fait perdre
+# TOUT le lot, pas seulement les derniers numéros.
+#
+# 20 conserve l'essentiel du gain — 2,5 fois moins d'appels qu'avec 8 — tout
+# en gardant une marge réelle. À réévaluer si la mesure change.
+THEME_BATCH_SIZE = 20
 # Nombre de tentatives consécutives sur échec transitoire avant d'abandonner
 # la série. Borné pour qu'une panne durable (Gemini injoignable, clé révoquée)
 # ne fasse pas boucler la file indéfiniment.
