@@ -480,10 +480,10 @@ Meilisearch, ni fichier PDF ne sont nécessaires. Les secrets attendus par
 | `test_authorization.py` | Frontière admin / utilisateur standard : aucune route `/api/admin` accessible à un compte non administrateur, ni à un visiteur non authentifié. Le contrôle parcourt les routes réellement déclarées, donc toute nouvelle route d'administration est couverte automatiquement. |
 | `test_ocr_decision.py` | Décision OCR : présence d'une couche de texte, et détection du texte natif illisible (police au mapping corrompu). Les PDF témoins sont fabriqués à l'exécution avec PyMuPDF, aucun binaire n'est commité. |
 | `test_detection_sommaire.py` | Repérage de la page de sommaire, y compris le repli tolérant (intitulé de rubrique en minuscules, lettre abîmée par l'OCR) gardé par un seuil de numéros de page isolés. |
+| `test_parsing_sommaire.py` | Extraction des entrées une fois la page repérée, sur un corpus OCR réel (« Système D ») qui a révélé un défaut de mise en page non couvert jusque-là. |
 
-**Ce qui n'est pas couvert** : l'extraction des entrées d'un sommaire une
-fois sa page repérée, et les thèmes, qui dépendent de l'API Gemini, ainsi
-que les routers au-delà de leur frontière d'autorisation (aucun test
+**Ce qui n'est pas couvert** : les thèmes, qui dépendent de l'API Gemini,
+ainsi que les routers au-delà de leur frontière d'autorisation (aucun test
 n'exerce encore une requête avec une vraie base). Une régression y passerait
 inaperçue tant qu'aucun utilisateur ne la rencontre.
 
