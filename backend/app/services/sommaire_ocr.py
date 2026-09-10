@@ -273,6 +273,30 @@ def _parse_entries(text: str, boilerplate: set[str]) -> list[dict]:
     return articles
 
 
+RAISON_AUCUNE_PAGE = "Aucune page de sommaire n'a été identifiée dans ce numéro."
+RAISON_PAGE_ILLISIBLE = "Sommaire détecté (page {pages}) mais aucune entrée n'a pu en être lue."
+
+
+def diagnostiquer_absence_de_sommaire(pages: list[Page]) -> str:
+    """Explique pourquoi `extract_articles_from_ocr` n'a rien renvoyé.
+
+    Sans cela, un numéro dont le sommaire n'a pas pu être lu est
+    indiscernable d'un numéro qui n'en comporte pas : les deux se retrouvent
+    en base avec un statut « terminé » et zéro article. Or les deux cas
+    appellent des actions opposées — corriger le parseur dans un cas, ne
+    rien faire dans l'autre.
+
+    Distingue donc les deux modes d'échec :
+      - aucune page de sommaire repérée  -> la détection est en cause ;
+      - page repérée mais vide d'entrées -> les motifs de mise en page le sont.
+    """
+    boilerplate = _find_boilerplate_templates(pages)
+    trouvees = sorted(_find_sommaire_pages(pages, boilerplate))
+    if not trouvees:
+        return RAISON_AUCUNE_PAGE
+    return RAISON_PAGE_ILLISIBLE.format(pages=", ".join(str(p) for p in trouvees))
+
+
 def extract_articles_from_ocr(pages: list[Page], pdf_path: Path | None = None) -> list[dict]:
     """Best-effort, purely local extraction of a magazine's sommaire
     (title + start page, and end page when the entry itself gives a range)

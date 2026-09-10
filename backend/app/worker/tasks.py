@@ -13,7 +13,7 @@ from app.services.gemini_quota import GeminiQuotaExceeded
 from app.services.issue_parser import extract_issue_number_from_cover_text, extract_year_from_cover_text
 from app.services.meili import ensure_index_configured, index_page, index_pages
 from app.services.progress import clear_magazine_progress, set_magazine_progress
-from app.services.sommaire_ocr import extract_articles_from_ocr
+from app.services.sommaire_ocr import diagnostiquer_absence_de_sommaire, extract_articles_from_ocr
 from app.services.theme_batch import assign_themes_batch
 from app.worker.ocr import detect_language, ensure_text_layer, extract_pages, get_page_count, render_cover_thumbnail
 
@@ -105,7 +105,15 @@ def extract_and_store_articles(db, magazine: Magazine) -> None:
                 )
             )
         magazine.toc_status = OcrStatus.done
-        magazine.toc_error_message = None
+        if entries:
+            magazine.toc_error_message = None
+        else:
+            # Le statut reste « done » : l'extraction s'est déroulée sans
+            # erreur, et certains numéros n'ont réellement pas de sommaire.
+            # Mais on consigne POURQUOI rien n'a été trouvé — sans cette
+            # trace, un sommaire illisible et un numéro qui n'en a pas sont
+            # indiscernables en base, ce qui rend le défaut invisible.
+            magazine.toc_error_message = diagnostiquer_absence_de_sommaire(pages)
         db.commit()
     except Exception as exc:  # noqa: BLE001 - non-fatal, reported on the magazine row
         db.rollback()
