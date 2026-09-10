@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.6](https://github.com/djkix/magazine-search/compare/v0.22.5...v0.22.6) (2026-09-10)
+
+
+### Bug Fixes
+
+* **sommaire:** accepter le separateur entre numero et titre ([3ec82b8](https://github.com/djkix/magazine-search/commit/3ec82b83a84892ed18eff2c0be9ec2f9dc8bc715))
+
 ## [0.22.5](https://github.com/djkix/magazine-search/compare/v0.22.4...v0.22.5) (2026-09-10)
 
 
