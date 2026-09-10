@@ -10,6 +10,12 @@ Les valeurs ci-dessous sont des secrets de test, jamais utilisés ailleurs.
 """
 
 import os
+import tempfile
+
+# Journalisation redirigée vers un répertoire temporaire. Sans cela,
+# `configure_logging` tenterait de créer /data/logs — impossible en CI comme
+# sur une machine de développement — et l'import de `app.main` échouerait.
+os.environ.setdefault("LOG_DIR", tempfile.mkdtemp(prefix="magazine-search-logs-"))
 
 # La valeur est ASSEMBLÉE à l'exécution plutôt qu'écrite en dur : un littéral
 # de 50 caractères ressemblant à une clé déclenche gitleaks, en pre-commit
