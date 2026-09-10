@@ -302,6 +302,8 @@ class SearchHit(BaseModel):
     words: list[WordBox] = []
     publication_date: str | None = None
     issue_number: str | None = None
+    issue_month: str | None = None
+    collection_name: str | None = None
 
 
 class SearchResponse(BaseModel):

@@ -130,6 +130,8 @@ export interface SearchHit {
   words: WordBox[];
   publication_date: string | null;
   issue_number: string | null;
+  issue_month: string | null;
+  collection_name: string | null;
 }
 
 export interface SearchResponse {
