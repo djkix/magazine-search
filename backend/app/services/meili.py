@@ -47,6 +47,8 @@ def _page_doc(page, magazine) -> dict:
         "magazine_id": magazine.id,
         "magazine_title": magazine.title,
         "issue_number": magazine.issue_number,
+        "issue_month": magazine.issue_month_label,
+        "collection_name": magazine.collection.name if magazine.collection else None,
         "year": magazine.publication_date.year if magazine.publication_date else None,
         "publication_date": magazine.publication_date.isoformat() if magazine.publication_date else None,
         "page_number": page.page_number,

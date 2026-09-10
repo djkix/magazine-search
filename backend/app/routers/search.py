@@ -51,6 +51,8 @@ def _build_hit(raw: dict, terms: set[str], db: Session, occurrence_count: int | 
         words=words,
         publication_date=raw.get("publication_date"),
         issue_number=raw.get("issue_number"),
+        issue_month=raw.get("issue_month"),
+        collection_name=raw.get("collection_name"),
     )
 
 
