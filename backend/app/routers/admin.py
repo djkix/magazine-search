@@ -326,12 +326,29 @@ def get_stats(db: Session = Depends(get_db)):
         out.article_count = article_count
         recent.append(out)
 
+    # Thématisation : même critère d'éligibilité que process_pending_theme_batch,
+    # sans quoi le « reste à faire » afficherait des numéros que la file ne
+    # prendra jamais — notamment ceux dépourvus de sommaire, que le modèle ne
+    # peut pas traiter faute de liste d'articles.
+    themed = db.query(Magazine).filter(Magazine.themed_at.isnot(None)).count()
+    pending_themes = (
+        db.query(Magazine)
+        .filter(
+            Magazine.scan_status == ScanStatus.done,
+            Magazine.toc_status == OcrStatus.done,
+            Magazine.themed_at.is_(None),
+        )
+        .count()
+    )
+
     return AdminStatsResponse(
         total=sum(counts.values()),
         done=count_of(ScanStatus.done),
         processing=count_of(ScanStatus.processing),
         failed=count_of(ScanStatus.failed),
         pending=count_of(ScanStatus.detected, ScanStatus.stable, ScanStatus.queued),
+        themed=themed,
+        pending_themes=pending_themes,
         recent=recent,
     )
 
