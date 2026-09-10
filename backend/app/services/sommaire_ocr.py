@@ -1,4 +1,5 @@
 import re
+from difflib import SequenceMatcher
 from pathlib import Path
 
 from app.models import Page
@@ -104,6 +105,63 @@ def _is_sommaire_heading(line: str) -> bool:
     return False
 
 
+_SEPARATEURS_RE = re.compile(r"[/|:•·»«\-–—]+")
+_JETON_ALPHA_RE = re.compile(r"[a-zà-öø-ÿ]{5,}")
+_RESSEMBLANCE_MIN = 0.85
+MIN_NOMBRES_POUR_SOMMAIRE = 3
+
+
+def _mot_de_titre_approchant(line: str) -> bool:
+    """Variante tolérante de `_is_sommaire_heading`, pour le repli guidé.
+
+    Deux réalités que la version stricte ne peut pas absorber, constatées sur
+    la bibliothèque réelle :
+
+    1. Le mot n'est pas en début de ligne. Computer Music intitule ses
+       rubriques « cm/contents », « cm/inbox » : le mot est présent mais
+       précédé d'un préfixe de marque. On découpe donc la ligne sur les
+       séparateurs et on teste chaque segment.
+
+    2. L'OCR abîme une lettre. Relevé tel quel : « cm/contenis », un « t »
+       lu « i ». Une comparaison exacte échoue là où l'œil ne s'y trompe
+       pas ; on accepte donc une ressemblance de 85 %, ce qui couvre une
+       substitution sur un mot de huit lettres sans ouvrir la porte à des
+       mots réellement différents.
+
+    Volontairement séparée de `_is_sommaire_heading`, qui reste la référence
+    stricte : cette version n'est employée qu'en repli, et uniquement sur une
+    page portant déjà plusieurs numéros isolés (voir MIN_NOMBRES_POUR_SOMMAIRE).
+    """
+    collapsed = re.sub(r"\s+", " ", _collapse_letter_spacing(line)).strip()
+    if not collapsed or len(collapsed) > MAX_HEADING_LENGTH:
+        return False
+    # `_is_sommaire_heading` exige une majuscule initiale pour écarter une
+    # occurrence en milieu de phrase ("...contents et cela va laisser...").
+    # Cette contrainte exclurait ici le cas réel visé : "cm/contenis" est
+    # entièrement en minuscules. On la restreint donc aux lignes SANS
+    # séparateur - un mot isolé tout en minuscules ("sommaire") reste de la
+    # prose, mais un segment "marque/mot" compact est un intitulé de rubrique
+    # même en minuscules.
+    if collapsed[0].islower() and not _SEPARATEURS_RE.search(collapsed):
+        return False
+    for segment in _SEPARATEURS_RE.split(collapsed.lower()):
+        for jeton in _JETON_ALPHA_RE.findall(segment):
+            for mot in _HEADING_WORDS:
+                if SequenceMatcher(None, jeton, mot).ratio() >= _RESSEMBLANCE_MIN:
+                    return True
+    return False
+
+
+def _compter_nombres_isoles(lines: list[str]) -> int:
+    """Nombre de lignes ne contenant qu'un numéro de page.
+
+    Sert de garde-fou au repli tolérant : une page de sommaire porte
+    forcément plusieurs renvois de pagination, là où une publicité ou un
+    ours n'en a aucun.
+    """
+    return sum(1 for ln in lines if _BARE_NUMBER_RE.match(ln))
+
+
 _DIGIT_RUN_RE = re.compile(r"\d+")
 MIN_BOILERPLATE_PAGES = 3
 
@@ -156,6 +214,24 @@ def _find_sommaire_pages(pages: list[Page], boilerplate: set[str]) -> set[int]:
 
     if heading_pages:
         return heading_pages | {n + 1 for n in heading_pages}
+
+    # Repli guidé : un titre approchant, sur une page qui porte déjà
+    # plusieurs numéros isolés. Rattrape les deux cas que la détection
+    # stricte laisse passer — mot précédé d'un préfixe de marque
+    # (« cm/contents ») et lettre abîmée par l'OCR (« cm/contenis ») —
+    # sans ouvrir la porte aux faux positifs : la double condition exclut
+    # les publicités et les pages d'ours, qui ne portent pas de pagination.
+    # Fenêtre restreinte aux premières pages : un sommaire s'y trouve
+    # toujours, contrairement au mot « index » qui peut réapparaître en fin
+    # de numéro.
+    for page in pages:
+        if page.page_number > MAX_SOMMAIRE_PAGE or not page.raw_text:
+            continue
+        lines = [ln.strip() for ln in page.raw_text.splitlines() if ln.strip()]
+        if not any(_mot_de_titre_approchant(ln) for ln in lines):
+            continue
+        if _compter_nombres_isoles(lines) >= MIN_NOMBRES_POUR_SOMMAIRE:
+            return {page.page_number, page.page_number + 1}
 
     # No heading found anywhere in the wider search window - fall back to
     # whichever page, among the tighter early-page window, has the most

@@ -472,8 +472,6 @@ La suite actuelle est du **calcul pur** : ni PostgreSQL, ni Redis, ni
 Meilisearch, ni fichier PDF ne sont nécessaires. Les secrets attendus par
 `Settings` sont posés par `tests/conftest.py`.
 
-Elle couvre pour l'instant trois zones :
-
 | Fichier | Couvre |
 | --- | --- |
 | `test_issue_parser.py` | Extraction du numéro, de la date et du libellé de mois depuis le nom de fichier. |
@@ -481,12 +479,13 @@ Elle couvre pour l'instant trois zones :
 | `test_security.py` | Aller-retour des jetons, claims obligatoires, algorithme figé, invalidation au changement de mot de passe. |
 | `test_authorization.py` | Frontière admin / utilisateur standard : aucune route `/api/admin` accessible à un compte non administrateur, ni à un visiteur non authentifié. Le contrôle parcourt les routes réellement déclarées, donc toute nouvelle route d'administration est couverte automatiquement. |
 | `test_ocr_decision.py` | Décision OCR : présence d'une couche de texte, et détection du texte natif illisible (police au mapping corrompu). Les PDF témoins sont fabriqués à l'exécution avec PyMuPDF, aucun binaire n'est commité. |
+| `test_detection_sommaire.py` | Repérage de la page de sommaire, y compris le repli tolérant (intitulé de rubrique en minuscules, lettre abîmée par l'OCR) gardé par un seuil de numéros de page isolés. |
 
-**Ce qui n'est pas couvert** : l'extraction de sommaire et les thèmes, qui
-dépendent de l'API Gemini, ainsi que les routers au-delà de leur frontière
-d'autorisation (aucun test n'exerce encore une requête avec une vraie base).
-Une régression y passerait inaperçue tant qu'aucun utilisateur ne la
-rencontre.
+**Ce qui n'est pas couvert** : l'extraction des entrées d'un sommaire une
+fois sa page repérée, et les thèmes, qui dépendent de l'API Gemini, ainsi
+que les routers au-delà de leur frontière d'autorisation (aucun test
+n'exerce encore une requête avec une vraie base). Une régression y passerait
+inaperçue tant qu'aucun utilisateur ne la rencontre.
 
 ## Versioning et changelog
 
