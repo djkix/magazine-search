@@ -3,7 +3,14 @@ name: CI
 on:
   push:
     branches: [main]
+  # Les PR ouvertes par release-please ne touchent que ces deux fichiers :
+  # les ignorer évite que CI se déclenche dessus, et donc le blocage
+  # "Action required" que GitHub impose à ce bot avant de lancer un
+  # workflow sur sa pull request.
   pull_request:
+    paths-ignore:
+      - "CHANGELOG.md"
+      - ".release-please-manifest.json"
 
 jobs:
   gitleaks:
