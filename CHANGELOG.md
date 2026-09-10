@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.22.0](https://github.com/djkix/magazine-search/compare/v0.21.0...v0.22.0) (2026-09-10)
+
+
+### Features
+
+* étendre "magazine - numéro - Mois année" aux résultats de recherche globale ([651aac6](https://github.com/djkix/magazine-search/commit/651aac661e38fd64c096d290b16903a995134fb4))
+
+
+### Bug Fixes
+
+* **themes:** ne plus détruire les thèmes avant régénération ([bda7190](https://github.com/djkix/magazine-search/commit/bda7190fc8a009fb61685d8058a24cb40963c40c))
+
 ## [0.21.0](https://github.com/djkix/magazine-search/compare/v0.20.5...v0.21.0) (2026-09-10)
 
 
