@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.5](https://github.com/djkix/magazine-search/compare/v0.20.4...v0.20.5) (2026-09-10)
+
+
+### Bug Fixes
+
+* résoudre le conflit de dépendances httpx et la panne CI de test_authorization ([9abe3c2](https://github.com/djkix/magazine-search/commit/9abe3c25660a07e6303d850fd1ef0959b2cc27af))
+
 ## [0.20.4](https://github.com/djkix/magazine-search/compare/v0.20.3...v0.20.4) (2026-09-09)
 
 
