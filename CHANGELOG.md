@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.4](https://github.com/djkix/magazine-search/compare/v0.22.3...v0.22.4) (2026-09-10)
+
+
+### Bug Fixes
+
+* ne plus dupliquer numéro/date quand le nom de collection est absent ([4b09d47](https://github.com/djkix/magazine-search/commit/4b09d471a51d705cff3eef3157756badf51d64f6))
+
 ## [0.22.3](https://github.com/djkix/magazine-search/compare/v0.22.2...v0.22.3) (2026-09-10)
 
 
