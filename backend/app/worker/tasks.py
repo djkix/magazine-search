@@ -9,6 +9,7 @@ from app.config import get_settings
 from app.database import SessionLocal
 from app.models import Article, Magazine, OcrStatus, Page, PageLanguage, ScanStatus, Theme, theme_magazines
 from app.queue import ingestion_queue
+from app.services.gemini_quota import GeminiQuotaExceeded
 from app.services.issue_parser import extract_issue_number_from_cover_text, extract_year_from_cover_text
 from app.services.meili import ensure_index_configured, index_page, index_pages
 from app.services.progress import clear_magazine_progress, set_magazine_progress
@@ -36,7 +37,24 @@ settings = get_settings()
 # Keeps the batch's combined prompt a reasonable size while still cutting
 # Gemini requests roughly by this factor compared to one request per
 # magazine - see process_pending_theme_batch.
-THEME_BATCH_SIZE = 8
+# Nombre de numéros regroupés dans un même appel Gemini.
+#
+# Compromis à trois termes :
+#   - plus le lot est grand, moins il faut d'appels (à 30, une bibliothèque de
+#     1500 numéros demande ~50 requêtes au lieu de ~190) ;
+#   - mais la réponse grossit d'autant : ~30 jetons par numéro, et une réponse
+#     tronquée fait échouer TOUT le lot, le JSON devenant illisible ;
+#   - et un lot plus gros, c'est une reprise plus grossière après incident.
+#
+# 30 place la réponse autour du millier de jetons, très en deçà des limites de
+# sortie, tout en divisant le nombre d'appels par près de quatre. Au-delà, la
+# qualité se dégrade avant la limite technique : le modèle commence à bâcler
+# ou à omettre les dernières entrées d'une longue liste structurée.
+THEME_BATCH_SIZE = 30
+# Nombre de tentatives consécutives sur échec transitoire avant d'abandonner
+# la série. Borné pour qu'une panne durable (Gemini injoignable, clé révoquée)
+# ne fasse pas boucler la file indéfiniment.
+MAX_THEME_BATCH_RETRIES = 3
 
 
 def extract_and_store_articles(db, magazine: Magazine) -> None:
@@ -91,7 +109,7 @@ def extract_and_store_articles(db, magazine: Magazine) -> None:
         logger.exception("Sommaire extraction failed for magazine %s", magazine.id)
 
 
-def process_pending_theme_batch() -> None:
+def process_pending_theme_batch(consecutive_failures: int = 0) -> None:
     """Clusters up to THEME_BATCH_SIZE already-sommaire'd magazines with no
     themes yet into shared themes, in a single Gemini request covering all
     of them (see assign_themes_batch) rather than one request per magazine -
@@ -136,8 +154,42 @@ def process_pending_theme_batch() -> None:
 
         try:
             results = assign_themes_batch(db, magazines_with_articles)
-        except Exception:  # noqa: BLE001 - best-effort: left without themes, picked up again next run
-            logger.exception("Batch theme assignment failed for magazines %s", magazine_ids)
+        except GeminiQuotaExceeded as exc:
+            # Quota journalier épuisé : réessayer immédiatement ne ferait que
+            # brûler la file sans jamais aboutir. On s'arrête proprement.
+            # Aucune donnée n'est perdue : les thèmes existants ont été
+            # conservés, et themed_at marque déjà ce qui a été traité — un
+            # nouveau clic sur « régénérer » reprend exactement où l'on s'est
+            # arrêté, sans repartir de zéro.
+            logger.warning(
+                "Quota Gemini épuisé, arrêt de la série de thèmes (%s). "
+                "Relancer la régénération une fois le quota renouvelé.",
+                exc,
+            )
+            return
+        except Exception:  # noqa: BLE001 - échec transitoire : on réessaie
+            if consecutive_failures + 1 >= MAX_THEME_BATCH_RETRIES:
+                logger.exception(
+                    "Attribution des thèmes en échec %d fois de suite pour %s, "
+                    "abandon de la série. Relancer manuellement.",
+                    consecutive_failures + 1,
+                    magazine_ids,
+                )
+                return
+            # Sans ce ré-enfilement, un incident ponctuel interrompait
+            # définitivement la série : le reste de la bibliothèque restait
+            # sans thèmes, sans que rien ne le signale.
+            logger.exception(
+                "Attribution des thèmes en échec pour %s, nouvelle tentative (%d/%d)",
+                magazine_ids,
+                consecutive_failures + 1,
+                MAX_THEME_BATCH_RETRIES,
+            )
+            ingestion_queue.enqueue(
+                process_pending_theme_batch,
+                consecutive_failures + 1,
+                job_timeout="15m",
+            )
             return
 
         for magazine, _articles in magazines_with_articles:
@@ -165,8 +217,9 @@ def process_pending_theme_batch() -> None:
         # THEME_BATCH_SIZE magazines at once, with nothing else left to
         # naturally re-trigger this job the way a fresh OCR completion
         # does - so it has to re-enqueue itself to keep draining the
-        # backlog 8 at a time (respecting the same quota/RPM throttling
-        # each time) instead of silently leaving the rest at 0 themes.
+        # backlog THEME_BATCH_SIZE at a time (respecting the same quota/RPM
+        # throttling each time) instead of silently leaving the rest at 0
+        # themes.
         still_pending = (
             db.query(Magazine.id)
             .filter(

@@ -568,10 +568,22 @@ def regenerate_all_themes(db: Session = Depends(get_db)):
     could exhaust the whole day's quota from a single click on any
     library past a couple of dozen magazines.
     """
+    # Seul themed_at est remis à zéro : les thèmes existants sont CONSERVÉS
+    # jusqu'à ce qu'un lot les remplace effectivement.
+    #
+    # Auparavant, `magazine.themes = []` vidait toute la bibliothèque d'un
+    # coup, avant le moindre appel à Gemini. Un dépassement de quota en cours
+    # de série — inévitable au-delà de quelques dizaines de numéros — laissait
+    # donc la bibliothèque amputée, sans reprise automatique, et recliquer
+    # re-purgeait ce qui venait d'être régénéré.
+    #
+    # Désormais l'opération est idempotente et sans perte : chaque numéro
+    # garde ses thèmes actuels jusqu'à son remplacement, et une chaîne
+    # interrompue se reprend simplement en recliquant — themed_at marquant
+    # déjà ce qui a été traité.
     magazines = db.query(Magazine).filter(Magazine.scan_status == ScanStatus.done).all()
     for magazine in magazines:
         magazine.themed_at = None
-        magazine.themes = []
     db.commit()
     ingestion_queue.enqueue(process_pending_theme_batch, job_timeout="15m")
     return {"enqueued": len(magazines)}

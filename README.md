@@ -19,6 +19,7 @@ Spécification complète : [`cahier-des-charges-v2.md`](./cahier-des-charges-v2.
 - [Développement local](#développement-local)
 - [Qualité et CI/CD](#qualité-et-cicd)
 - [Versioning et changelog](#versioning-et-changelog)
+- [Notes de mise à jour](#notes-de-mise-à-jour)
 - [Hors scope V1](#hors-scope-v1)
 - [Licence](#licence)
 
@@ -373,6 +374,13 @@ docker compose start app-backend worker
 4. **Organisation** — créer des tags dans les réglages et les rattacher aux
    collections.
 
+> **Régénération des thèmes** — `POST /api/admin/themes/regenerate-all` est
+> **non destructif et reprenable** : chaque numéro conserve ses thèmes actuels
+> jusqu'à ce qu'un lot les remplace effectivement. Si le quota Gemini s'épuise
+> en cours de série, l'opération s'arrête proprement et un nouveau clic
+> reprend là où elle s'était interrompue, sans repartir de zéro. La série
+> avance par lots de 30 numéros, un appel Gemini par lot.
+
 > **Déduplication des articles** — `POST /api/admin/articles/deduplicate`
 > fonctionne en simulation par défaut : il renvoie `would_delete` sans rien
 > supprimer. Passer `?dry_run=false` pour appliquer. Le critère de doublon
@@ -494,6 +502,17 @@ rencontre.
   chaque PR de release derrière une approbation manuelle (« Action
   required »), le bot `github-actions[bot]` n'étant jamais reconnu comme
   collaborateur habituel.
+
+## Notes de mise à jour
+
+- **Après le passage à la version qui introduit `issue_month`/nom de
+  collection dans les résultats de recherche globale** : ces deux champs
+  viennent de l'index Meilisearch, alimenté à l'indexation de chaque page.
+  Les pages déjà indexées avant cette mise à jour n'ont ni l'un ni l'autre
+  tant qu'un réindexage complet n'a pas été relancé — sans quoi les
+  résultats de recherche antérieurs à cette date affichent un en-tête
+  incomplet (juste le nom de fichier). Déclencher ce réindexage depuis
+  `Admin` → `Réglages` → réindexation manuelle du moteur de recherche.
 
 ## Hors scope V1
 
