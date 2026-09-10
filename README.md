@@ -111,6 +111,10 @@ et les Hors-Séries, chacune cliquable pour filtrer.
 La vue « Sommaires » d'une collection affiche les articles extraits de chaque
 numéro, avec le même système de filtres.
 
+La page « Thématiques » les liste toutes triées par nombre de numéros
+distincts qui les portent, toutes collections confondues ; cliquer sur l'une
+d'elles affiche les numéros concernés.
+
 ### Organiser avec des tags
 
 Une **collection** est créée automatiquement, vous n'avez rien à faire.
@@ -164,7 +168,9 @@ qu'un lot les remplace. Si le quota s'épuise en cours de route, l'opération
 s'arrête proprement et un nouveau clic reprend là où elle s'était interrompue.
 
 Les réglages affichent le modèle utilisé, les plafonds, et la consommation du
-jour.
+jour. Le tableau de bord affiche deux compteurs : numéros déjà thématisés, et
+« reste à faire » — ce dernier n'inclut que les numéros réellement éligibles
+(sommaire extrait, pas encore passés par Gemini).
 
 ### Consulter les journaux
 
