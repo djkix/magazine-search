@@ -64,7 +64,12 @@ ROUTES_ADMIN = _routes_admin()
 @pytest.fixture
 def client():
     app.dependency_overrides[get_db] = _sans_base
-    yield TestClient(app)
+    # raise_server_exceptions=False : le test admin ci-dessous neutralise la
+    # base, donc l'endpoint appelé peut échouer ensuite (AttributeError sur
+    # `db.get`) une fois l'autorisation franchie. Seule l'autorisation nous
+    # intéresse ici ; sans ce réglage, TestClient relance l'exception au lieu
+    # de la traduire en réponse 500, et le test échoue pour la mauvaise raison.
+    yield TestClient(app, raise_server_exceptions=False)
     app.dependency_overrides.clear()
 
 
