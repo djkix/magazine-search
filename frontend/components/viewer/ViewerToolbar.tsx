@@ -13,6 +13,7 @@ export default function ViewerToolbar({
   onPrev,
   onNext,
   downloadHref,
+  backHref,
 }: {
   title: string;
   pageNumber: number;
@@ -23,12 +24,16 @@ export default function ViewerToolbar({
   onPrev: () => void;
   onNext: () => void;
   downloadHref: string;
+  /** Where the back arrow leads - the magazine's own collection, so the
+   * reader lands back among its sibling issues rather than at the top of
+   * the library. Falls back to the library for an unfiled magazine. */
+  backHref: string;
 }) {
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-outline-variant bg-surface/80 px-4 backdrop-blur-md">
       <div className="flex min-w-0 items-center gap-3">
         <Link
-          href="/library"
+          href={backHref}
           className="rounded-lg p-1.5 text-foreground-muted transition hover:bg-surface-hover hover:text-foreground"
         >
           <Icon name="arrow_back" />
