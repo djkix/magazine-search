@@ -208,6 +208,42 @@ def _count_entry_matches(lines: list[str]) -> int:
     return sum(1 for ln in lines if _TRAILING_RE.match(ln) or _LEADING_INLINE_RE.match(ln) or _BARE_NUMBER_RE.match(ln))
 
 
+MIN_ENTREES_PAGE_SUIVANTE = 3
+
+
+def _etendre_a_la_page_suivante(
+    numeros: set[int], pages: list[Page], boilerplate: set[str]
+) -> set[int]:
+    """Étend la sélection à la page d'en face, mais seulement si elle
+    ressemble elle aussi à un sommaire.
+
+    Un sommaire déborde souvent sur la page suivante, d'où cette extension.
+    Mais l'ajouter systématiquement faisait entrer de la prose dans le
+    parsing. Cas réel, What Hi Fi n°263 : « SOMMAIRE » apparaît en pages 4
+    ET 5, la page 6 — le premier article — était donc analysée, et la ligne
+    « 200 W RMS, une réponse de 25 Hz à 30 kHz… » y devenait une entrée de
+    sommaire pointant vers une page 200 inexistante.
+
+    Le seuil porte sur les lignes de forme « entrée » : une page de sommaire
+    en compte plusieurs, une page de texte courant au plus une ou deux par
+    accident.
+    """
+    par_numero = {p.page_number: p for p in pages}
+    resultat = set(numeros)
+    for n in numeros:
+        suivante = par_numero.get(n + 1)
+        if suivante is None or not suivante.raw_text:
+            continue
+        lignes = [
+            ln.strip()
+            for ln in suivante.raw_text.splitlines()
+            if ln.strip() and not _is_boilerplate(ln.strip(), boilerplate)
+        ]
+        if _count_entry_matches(lignes) >= MIN_ENTREES_PAGE_SUIVANTE:
+            resultat.add(n + 1)
+    return resultat
+
+
 def _find_sommaire_pages(pages: list[Page], boilerplate: set[str]) -> set[int]:
     """Identifies which page(s) actually carry the sommaire, instead of
     scanning every early page - a magazine's cover, imprint or ad pages can
@@ -221,7 +257,7 @@ def _find_sommaire_pages(pages: list[Page], boilerplate: set[str]) -> set[int]:
             heading_pages.add(page.page_number)
 
     if heading_pages:
-        return heading_pages | {n + 1 for n in heading_pages}
+        return _etendre_a_la_page_suivante(heading_pages, pages, boilerplate)
 
     # Repli guidé : un titre approchant, sur une page qui porte déjà
     # plusieurs numéros isolés. Rattrape les deux cas que la détection
@@ -239,7 +275,7 @@ def _find_sommaire_pages(pages: list[Page], boilerplate: set[str]) -> set[int]:
         if not any(_mot_de_titre_approchant(ln) for ln in lines):
             continue
         if _compter_nombres_isoles(lines) >= MIN_NOMBRES_POUR_SOMMAIRE:
-            return {page.page_number, page.page_number + 1}
+            return _etendre_a_la_page_suivante({page.page_number}, pages, boilerplate)
 
     # No heading found anywhere in the wider search window - fall back to
     # whichever page, among the tighter early-page window, has the most
@@ -254,7 +290,7 @@ def _find_sommaire_pages(pages: list[Page], boilerplate: set[str]) -> set[int]:
     if not match_counts or max(match_counts.values()) < 4:
         return set()
     best_page = max(match_counts, key=match_counts.get)
-    return {best_page, best_page + 1}
+    return _etendre_a_la_page_suivante({best_page}, pages, boilerplate)
 
 
 def _parse_entries(text: str, boilerplate: set[str]) -> list[dict]:
@@ -409,7 +445,26 @@ def extract_articles_from_ocr(pages: list[Page], pdf_path: Path | None = None) -
     for page in candidate_pages:
         linear_articles.extend(_parse_entries(page.raw_text, boilerplate))
 
-    best = linear_articles
+    dernier_numero = max((p.page_number for p in pages), default=0)
+
+    def plausibles(entrees: list[dict]) -> list[dict]:
+        """Écarte les entrées pointant au-delà du document.
+
+        Un numéro de page supérieur au nombre de pages est forcément une
+        fausse détection : le motif « nombre + majuscule » attrape aussi des
+        références de produit ou des caractéristiques techniques. Cas réels
+        relevés sur What Hi Fi n°263 — « 500 DR : un combo légendaire », fin
+        de « Naim NAC 552/NAP 500 DR », et « 200 W RMS, une réponse de
+        25 Hz… » — qui produisaient deux entrées absurdes là où le sommaire
+        en comptait cinq de valides.
+
+        Le filtrage s'applique AVANT la comparaison entre stratégies, sans
+        quoi une lecture erronée pourrait l'emporter grâce à ses fausses
+        entrées.
+        """
+        return [e for e in entrees if 0 < e["start_page"] <= dernier_numero]
+
+    best = plausibles(linear_articles)
     if pdf_path:
         for strategy in ("columns", "rows"):
             strategy_articles: list[dict] = []
@@ -417,6 +472,7 @@ def extract_articles_from_ocr(pages: list[Page], pdf_path: Path | None = None) -
                 alt_text = extract_page_text_alternate(pdf_path, page_number, strategy)
                 if alt_text:
                     strategy_articles.extend(_parse_entries(alt_text, boilerplate))
+            strategy_articles = plausibles(strategy_articles)
             if len(strategy_articles) > len(best):
                 best = strategy_articles
 
