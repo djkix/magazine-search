@@ -9,6 +9,7 @@ import type { Article, ArticleWithMagazine, LibraryOverview, Magazine, MagazineF
 import { useUser } from "@/components/layout/UserContext";
 import PageContainer from "@/components/layout/PageContainer";
 import Icon from "@/components/ui/Icon";
+import TexteSurligne from "@/components/ui/TexteSurligne";
 
 const PAGE_SIZE_OPTIONS = ["10", "20", "50", "all"] as const;
 type PageSizeOption = (typeof PAGE_SIZE_OPTIONS)[number];
@@ -343,7 +344,9 @@ export default function CollectionArticlesPage() {
                             href={`/viewer/${magazine.id}/${article.start_page}`}
                             className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-surface/60 hover:text-primary-light"
                           >
-                            <span className="min-w-0 truncate">{article.title}</span>
+                            <span className="min-w-0 truncate">
+                              <TexteSurligne texte={article.title} terme={selectedTheme?.name} />
+                            </span>
                             <span className="shrink-0 font-mono text-xs text-foreground-muted">
                               p.{article.start_page}
                               {article.end_page && article.end_page !== article.start_page ? `–${article.end_page}` : ""}
@@ -410,7 +413,9 @@ export default function CollectionArticlesPage() {
                         href={`/viewer/${article.magazine_id}/${article.start_page}`}
                         className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-surface/60 hover:text-primary-light"
                       >
-                        <span className="min-w-0 truncate">{article.title}</span>
+                        <span className="min-w-0 truncate">
+                          <TexteSurligne texte={article.title} terme={q} />
+                        </span>
                         <span className="shrink-0 font-mono text-xs text-foreground-muted">p.{article.start_page}</span>
                       </Link>
                     </li>
