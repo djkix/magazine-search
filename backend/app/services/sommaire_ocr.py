@@ -31,7 +31,15 @@ _TRAILING_RE = re.compile(
 )
 # 2. "NN Title" - a bold page number leads the title on the same line, e.g.
 #    "18 Contrôle médical", common in a magazine's "highlights" style sommaire.
-_LEADING_INLINE_RE = re.compile(r"^(?P<page>\d{1,3})\s+(?P<title>[A-ZÀ-Ý].{1,})$")
+# Le numéro peut être séparé du titre par un simple espace ("42 Le titre")
+# ou par un séparateur typographique. Système D compose tout son sommaire
+# ainsi — "100 /  La rénovation d'une toiture" — et la barre oblique suffisait
+# à faire échouer la ligne entière : la page était bien détectée, les titres
+# et numéros parfaitement lisibles, mais aucune entrée n'en était tirée.
+# L'alternance impose une vraie séparation : "100La rénovation" reste rejeté.
+_LEADING_INLINE_RE = re.compile(
+    r"^(?P<page>\d{1,3})(?:\s+|\s*[/|·–—-]\s*)(?P<title>[A-ZÀ-Ý].{1,})$"
+)
 # ...a page number sometimes sits alone on its own line - its own colored
 # badge in the layout - either BEFORE the title (leading style: title
 # follows on the next line(s)) or AFTER it (a trailing-style title whose
