@@ -488,6 +488,11 @@ témoins ; c'est la prochaine étape logique.
   [`CHANGELOG.md`](./CHANGELOG.md) et republie les images taguées.
 - La version affichée dans l'interface correspond à la dernière release
   publiée, pas au dernier commit poussé sur `main`.
+- Le CI (`pull_request`) ignore les changements portant uniquement sur
+  `CHANGELOG.md`/`.release-please-manifest.json` : sans ça, GitHub bloquait
+  chaque PR de release derrière une approbation manuelle (« Action
+  required »), le bot `github-actions[bot]` n'étant jamais reconnu comme
+  collaborateur habituel.
 
 ## Hors scope V1
 
