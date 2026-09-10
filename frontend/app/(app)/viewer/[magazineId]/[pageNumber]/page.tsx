@@ -71,16 +71,16 @@ function ViewerContent() {
     router.push(`/viewer/${magazineId}/${target}${queryString}`);
   }
 
-  const handleSelectHit = useCallback(
-    (hit: SearchHit) => {
-      setHighlightWords(hit.words);
-      if (hit.page_number !== displayPage) {
-        router.push(`/viewer/${magazineId}/${hit.page_number}${queryString}`);
-      }
-      setMobilePanel(null);
-    },
-    [magazineId, displayPage, router, queryString]
-  );
+  // Jumping to a hit moves PdfViewer through state instead of router.push:
+  // pushing changes the [pageNumber] segment, which remounts the side panels
+  // and wiped the very result list the user had just clicked in. The URL keeps
+  // the page the reader was opened on; the toolbar arrows still update it.
+  const handleSelectHit = useCallback((hit: SearchHit) => {
+    setHighlightWords(hit.words);
+    setPageNumber(hit.page_number);
+    setDisplayPage(hit.page_number);
+    setMobilePanel(null);
+  }, []);
 
   if (error) return <div className="p-8 text-sm text-red-400">{error}</div>;
   if (!magazine) return <div className="p-8 text-sm text-foreground-muted">Chargement...</div>;
@@ -99,6 +99,7 @@ function ViewerContent() {
         onPrev={() => goToPage(displayPage - 1)}
         onNext={() => goToPage(displayPage + 1)}
         downloadHref={fileUrl(`/magazines/${magazineId}/download`)}
+        backHref={magazine.collection_id ? `/library/collection/${magazine.collection_id}` : "/library"}
       />
 
       <div className="grid flex-1 overflow-hidden lg:grid-cols-[300px_1fr_300px]">
