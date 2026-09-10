@@ -472,12 +472,13 @@ Elle couvre pour l'instant trois zones :
 | `test_schemas.py` | Politique de mot de passe, bornes des pages d'article, cardinalité des tags. |
 | `test_security.py` | Aller-retour des jetons, claims obligatoires, algorithme figé, invalidation au changement de mot de passe. |
 | `test_authorization.py` | Frontière admin / utilisateur standard : aucune route `/api/admin` accessible à un compte non administrateur, ni à un visiteur non authentifié. Le contrôle parcourt les routes réellement déclarées, donc toute nouvelle route d'administration est couverte automatiquement. |
+| `test_ocr_decision.py` | Décision OCR : présence d'une couche de texte, et détection du texte natif illisible (police au mapping corrompu). Les PDF témoins sont fabriqués à l'exécution avec PyMuPDF, aucun binaire n'est commité. |
 
-**Ce qui n'est pas couvert**, et reste la principale faiblesse du projet : la
-décision OCR (`all_pages_have_native_text`, `_native_text_is_garbled`) et
-l'extraction de sommaire. Une régression y dégrade silencieusement la
-bibliothèque indexée, sans lever d'exception. Les tester demande des PDF
-témoins ; c'est la prochaine étape logique.
+**Ce qui n'est pas couvert** : l'extraction de sommaire et les thèmes, qui
+dépendent de l'API Gemini, ainsi que les routers au-delà de leur frontière
+d'autorisation (aucun test n'exerce encore une requête avec une vraie base).
+Une régression y passerait inaperçue tant qu'aucun utilisateur ne la
+rencontre.
 
 ## Versioning et changelog
 
