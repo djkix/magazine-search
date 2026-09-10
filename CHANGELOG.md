@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.5](https://github.com/djkix/magazine-search/compare/v0.22.4...v0.22.5) (2026-09-10)
+
+
+### Bug Fixes
+
+* **sommaire:** reconnaître un intitulé de rubrique tout en minuscules ([1c9f7f9](https://github.com/djkix/magazine-search/commit/1c9f7f964c07dfe2d2c4b148e62b0331fc8ba744))
+
 ## [0.22.4](https://github.com/djkix/magazine-search/compare/v0.22.3...v0.22.4) (2026-09-10)
 
 
