@@ -419,6 +419,15 @@ export default function AdminDashboardPage() {
           active={statusFilter === "no_sommaire"}
           onClick={() => toggleStatusFilter("no_sommaire")}
         />
+        {/* Thematisation Gemini. Pas de onClick : il n'existe pas de filtre
+            correspondant dans la liste des magazines. */}
+        <StatCard icon="label" label="Thématisés" value={stats?.themed} />
+        <StatCard
+          icon="pending"
+          label="Thématiques à faire"
+          value={stats?.pending_themes}
+          accent="text-orange-400"
+        />
       </div>
 
       {!!noSommaireCount && (

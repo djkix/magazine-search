@@ -176,5 +176,11 @@ export interface AdminStats {
   processing: number;
   failed: number;
   pending: number;
+  /** Numeros deja passes par la thematisation Gemini. */
+  themed: number;
+  /** Numeros eligibles restants : sommaire extrait, pas encore thematises.
+   *  Un numero sans sommaire n'y figure pas — le modele a besoin de la
+   *  liste des articles pour travailler. */
+  pending_themes: number;
   recent: Magazine[];
 }
