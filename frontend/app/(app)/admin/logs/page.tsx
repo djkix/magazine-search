@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import type { LogEntry, LogLevel } from "@/lib/types";
+import { formatLogTimestamp } from "@/lib/formatDate";
 import Button from "@/components/ui/Button";
 import Icon from "@/components/ui/Icon";
 
@@ -88,7 +89,7 @@ export default function AdminLogsPage() {
             {logs.map((entry, i) => (
               <tr key={i} className="bg-surface/40 align-top">
                 <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-foreground-muted">
-                  {entry.timestamp}
+                  {formatLogTimestamp(entry.timestamp)}
                 </td>
                 <td className="px-4 py-3">
                   <span

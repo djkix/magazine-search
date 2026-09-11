@@ -1,8 +1,32 @@
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
 from app.logging_config import BACKUP_COUNT, LOG_DIR
+
+# Antériorité à toute entrée réelle : sert de clé aux lignes dont
+# l'horodatage est absent ou illisible, qui atterrissent ainsi en fin de
+# liste au lieu de s'intercaler n'importe où.
+_DATE_PLANCHER = datetime.min.replace(tzinfo=timezone.utc)
+
+
+def _instant(entry: dict) -> datetime:
+    """Clé de tri chronologique d'une entrée de journal.
+
+    Les horodatages portent désormais leur décalage (« +02:00 »), mais les
+    fichiers écrits avant ce changement n'en ont pas : ils étaient en UTC, on
+    les y rattache explicitement. Sans cela, comparer une date naïve à une
+    date située lèverait une TypeError, et un tri lexicographique
+    intervertirait les deux formats à chaque changement d'heure.
+    """
+    try:
+        horodatage = datetime.fromisoformat(entry.get("timestamp", ""))
+    except (TypeError, ValueError):
+        return _DATE_PLANCHER
+    if horodatage.tzinfo is None:
+        return horodatage.replace(tzinfo=timezone.utc)
+    return horodatage
 
 COMPONENTS = ["backend", "worker"]
 
@@ -42,5 +66,5 @@ def read_logs(level: str | None = None, component: str | None = None, limit: int
         level = level.upper()
         entries = [e for e in entries if e.get("level") == level]
 
-    entries.sort(key=lambda e: e.get("timestamp", ""), reverse=True)
+    entries.sort(key=_instant, reverse=True)
     return entries[:limit]

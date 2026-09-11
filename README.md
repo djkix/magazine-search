@@ -206,6 +206,7 @@ Générer une valeur : `openssl rand -hex 32`.
 | `IMAGE_TAG` | Version déployée. Préférer un tag précis à `latest` en production. |
 | `GEMINI_API_KEY` | Sans clé, les thématiques sont ignorées ; recherche et OCR fonctionnent normalement. |
 | `OCR_TIMEOUT_SECONDS` | Délai maximum d'`ocrmypdf` (défaut : 1500). |
+| `LOG_TIMEZONE` | Fuseau des horodatages des journaux (défaut : `Europe/Paris`). Sans lui, un conteneur Docker journalise en UTC. |
 | `PRE_MIGRATION_DUMP_DIR` | Où atterrit la sauvegarde prise avant une migration (défaut : `/data/pre-migration`). |
 | `PRE_MIGRATION_DUMP_KEEP` | Nombre de sauvegardes pré-migration conservées (défaut : 3). |
 | `SKIP_PRE_MIGRATION_DUMP` | À `1`, migre sans sauvegarde préalable. À n'utiliser qu'en connaissance de cause. |
