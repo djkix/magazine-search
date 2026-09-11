@@ -17,9 +17,9 @@ thématique se traite séparément.
 
 Usage, depuis l'hôte :
 
-    docker compose exec app-backend python tools/exporter_thematiques.py --lister
-    docker compose exec app-backend python tools/exporter_thematiques.py -t "Santé" --stdout
-    docker compose exec app-backend python tools/exporter_thematiques.py --tout -o /data/exports
+    docker exec magazine-search-app-backend-1 python tools/exporter_thematiques.py --lister
+    docker exec magazine-search-app-backend-1 python tools/exporter_thematiques.py -t "Santé" --stdout
+    docker exec magazine-search-app-backend-1 python tools/exporter_thematiques.py --tout -o /data/exports
 
 --lister affiche le volume de chaque thématique sans rien exporter : c'est par
 là qu'il faut commencer, pour repérer celles dont le corpus est trop gros pour

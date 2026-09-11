@@ -25,9 +25,9 @@ Format attendu (ce que doit produire le modèle) :
 
 Usage, depuis l'hôte :
 
-    docker compose exec app-backend python tools/importer_sous_thematiques.py -f /data/exports/sante.json
-    docker compose exec app-backend python tools/importer_sous_thematiques.py -f ... --appliquer
-    docker compose exec app-backend python tools/importer_sous_thematiques.py --recalculer-tout --appliquer
+    docker exec magazine-search-app-backend-1 python tools/importer_sous_thematiques.py -f /data/exports/sante.json
+    docker exec magazine-search-app-backend-1 python tools/importer_sous_thematiques.py -f ... --appliquer
+    docker exec magazine-search-app-backend-1 python tools/importer_sous_thematiques.py --recalculer-tout --appliquer
 
 --recalculer-tout rejoue le rattachement de toutes les sous-thématiques déjà
 en base, sans fichier ni modèle : c'est ce qu'il faut lancer après l'arrivée

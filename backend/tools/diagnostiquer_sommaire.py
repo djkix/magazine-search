@@ -16,9 +16,9 @@ qu'elle a été trouvée mais qu'aucune ENTRÉE n'a pu en être tirée ?
 
 Usage, depuis l'hôte :
 
-    docker compose exec app-backend python tools/diagnostiquer_sommaire.py --collections
-    docker compose exec app-backend python tools/diagnostiquer_sommaire.py -c "Que Choisir"
-    docker compose exec app-backend python tools/diagnostiquer_sommaire.py -c "Que Choisir" -n 2 --texte
+    docker exec magazine-search-app-backend-1 python tools/diagnostiquer_sommaire.py --collections
+    docker exec magazine-search-app-backend-1 python tools/diagnostiquer_sommaire.py -c "Que Choisir"
+    docker exec magazine-search-app-backend-1 python tools/diagnostiquer_sommaire.py -c "Que Choisir" -n 2 --texte
 
 L'option --texte affiche le texte OCR brut des premières pages : c'est LUI
 qu'il faut me transmettre, pas une capture d'écran. Le parseur ne voit pas la

@@ -51,8 +51,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /opt/venv /opt/venv
+# PYTHONPATH : Python place le repertoire DU SCRIPT dans sys.path, pas le
+# repertoire courant. « python tools/xxx.py » ne trouvait donc pas le paquet
+# app, et tout script de tools/ echouait sur ModuleNotFoundError — y compris
+# diagnostiquer_sommaire.py, dont l'usage documente n'a jamais pu fonctionner.
+# Pose ici plutot qu'en tete de chaque script, pour valoir aussi pour les
+# outils a venir.
 ENV PATH="/opt/venv/bin:$PATH" \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app
 
 WORKDIR /app
 COPY . .
