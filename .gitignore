@@ -3,6 +3,12 @@
 .env.*
 !.env.example
 
+# Reglages locaux des assistants de code (propres a chaque machine)
+.claude/settings.local.json
+
+# Temporaires de heredoc laisses par un shell interrompu
+sh-thd-*
+
 # Python
 __pycache__/
 *.py[cod]
