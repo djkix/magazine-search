@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.0](https://github.com/djkix/magazine-search/compare/v0.24.2...v0.25.0) (2026-09-11)
+
+
+### Features
+
+* **sous-thematiques:** socle de donnees et chaine export/import ([e296137](https://github.com/djkix/magazine-search/commit/e296137aaded7b022a09eb7572d59bf12ca3aa9f))
+
 ## [0.24.2](https://github.com/djkix/magazine-search/compare/v0.24.1...v0.24.2) (2026-09-11)
 
 
