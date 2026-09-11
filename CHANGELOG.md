@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.24.0](https://github.com/djkix/magazine-search/compare/v0.23.3...v0.24.0) (2026-09-11)
+
+
+### Features
+
+* **deploiement:** sauvegarder avant migration et sortir de la boucle d'echec ([165cd07](https://github.com/djkix/magazine-search/commit/165cd0778e8ec1ea31242f00a205f1724aa43f94))
+
+
+### Bug Fixes
+
+* **docker:** détecter le nom de code Debian au lieu de le figer en dur ([54bc1d8](https://github.com/djkix/magazine-search/commit/54bc1d879ede0e47c11a6936ab1e54cc5530bc95))
+
 ## [0.23.3](https://github.com/djkix/magazine-search/compare/v0.23.2...v0.23.3) (2026-09-11)
 
 
