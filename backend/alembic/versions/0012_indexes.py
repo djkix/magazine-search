@@ -44,7 +44,9 @@ def upgrade() -> None:
     # --- magazines : filtres du tableau de bord et de la bibliothèque ---
     # scan_status est relu toutes les 5 secondes par le tableau de bord.
     op.create_index("ix_magazines_scan_status", "magazines", ["scan_status"])
-    op.create_index("ix_magazines_collection_id", "magazines", ["collection_id"])
+    # Pas d'index sur collection_id ici : 0005_collections le cree deja sous
+    # le meme nom. Le recreer faisait echouer toute la migration, et le
+    # supprimer au downgrade aurait detruit l'index d'une revision anterieure.
     op.create_index("ix_magazines_publication_date", "magazines", ["publication_date"])
     # toc_status et themed_at pilotent la file de thématisation et le
     # décompte des numéros sans sommaire.
@@ -71,7 +73,6 @@ def downgrade() -> None:
     op.drop_index("ix_magazines_themed_at", table_name="magazines")
     op.drop_index("ix_magazines_toc_status", table_name="magazines")
     op.drop_index("ix_magazines_publication_date", table_name="magazines")
-    op.drop_index("ix_magazines_collection_id", table_name="magazines")
     op.drop_index("ix_magazines_scan_status", table_name="magazines")
     op.drop_index("ix_articles_magazine_id_start_page", table_name="articles")
     op.drop_index("ix_pages_magazine_id_page_number", table_name="pages")
