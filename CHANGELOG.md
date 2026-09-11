@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.1](https://github.com/djkix/magazine-search/compare/v0.25.0...v0.25.1) (2026-09-11)
+
+
+### Bug Fixes
+
+* **outils:** rendre le paquet app importable depuis tools/ ([a0aaa63](https://github.com/djkix/magazine-search/commit/a0aaa63dfaab94593fd30bcc9878987ee22410f6))
+
 ## [0.25.0](https://github.com/djkix/magazine-search/compare/v0.24.2...v0.25.0) (2026-09-11)
 
 
