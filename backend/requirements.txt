@@ -19,3 +19,7 @@ passlib[argon2]==1.7.4
 argon2-cffi==23.1.0
 slowapi==0.1.9
 python-multipart==0.0.9
+# Base de fuseaux IANA pour zoneinfo. Les images python:*-slim ne l'embarquent
+# pas : sans ce paquet, ZoneInfo("Europe/Paris") echoue et les journaux
+# retombent silencieusement en UTC.
+tzdata==2024.2

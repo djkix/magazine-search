@@ -1,3 +1,27 @@
+// Horodatage d'une entrée de journal, ex. "11/09/2026 11:29:40".
+//
+// Le backend écrit désormais en ISO 8601 avec décalage ("...+02:00"), donc la
+// conversion vers l'heure du lecteur est exacte. Les lignes écrites avant ce
+// changement n'ont pas de décalage : JavaScript les interprète alors comme de
+// l'heure locale alors qu'elles étaient en UTC, et elles s'affichent avec
+// deux heures de retard. Cela ne concerne que les journaux déjà sur disque,
+// remplacés à la première rotation.
+//
+// La chaîne brute est rendue telle quelle si elle est illisible : mieux vaut
+// un horodatage inhabituel qu'un "Invalid Date" qui efface l'information.
+export function formatLogTimestamp(timestamp: string): string {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return timestamp;
+  return date.toLocaleString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
 export function formatYearMonth(isoDate: string | null): string | null {
   if (!isoDate) return null;
   const date = new Date(isoDate);
