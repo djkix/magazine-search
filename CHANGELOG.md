@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.24.2](https://github.com/djkix/magazine-search/compare/v0.24.1...v0.24.2) (2026-09-11)
+
+
+### Bug Fixes
+
+* **gemini:** borner aussi le nombre total de tentatives ([c5b6e77](https://github.com/djkix/magazine-search/commit/c5b6e77eb5eac03175114b0f95dd63c4a6fd8495))
+* **gemini:** borner les appels a l'API ([38f0b76](https://github.com/djkix/magazine-search/commit/38f0b76af715c43ceb705dc312b476ae214cc846))
+
 ## [0.24.1](https://github.com/djkix/magazine-search/compare/v0.24.0...v0.24.1) (2026-09-11)
 
 
