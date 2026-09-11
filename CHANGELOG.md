@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.3](https://github.com/djkix/magazine-search/compare/v0.23.2...v0.23.3) (2026-09-11)
+
+
+### Bug Fixes
+
+* **ocr:** réparer la structure du PDF via qpdf en dernier recours ([0df3610](https://github.com/djkix/magazine-search/commit/0df3610187d155c0a1a4dfbd224afbcb0d7ec861))
+
 ## [0.23.2](https://github.com/djkix/magazine-search/compare/v0.23.1...v0.23.2) (2026-09-11)
 
 
