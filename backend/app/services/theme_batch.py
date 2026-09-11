@@ -14,6 +14,18 @@ logger = logging.getLogger("app.theme_batch")
 
 MAX_THEMES_PER_MAGAZINE = 3
 
+# Nombre total de tentatives d'un appel Gemini, reprises comprises.
+#
+# Le SDK en fait 5 par defaut, avec attente progressive. Or le timeout
+# s'applique A CHAQUE TENTATIVE, pas au total : 5 x 120 s plus les attentes
+# approchent les 10 minutes, contre un job_timeout RQ de 15 minutes. Borner le
+# seul timeout ne bornait donc pas la duree reelle.
+#
+# A 3 tentatives : 3 x 120 s + (1 + 2) s d'attente ~ 6 minutes, marge
+# confortable sous le job_timeout. Toute modification de
+# gemini_timeout_seconds doit refaire ce calcul.
+MAX_TENTATIVES_GEMINI = 3
+
 BATCH_SCHEMA = {
     "type": "array",
     "items": {
@@ -88,7 +100,10 @@ def assign_themes_batch(db: Session, magazines_with_articles: list[tuple[Magazin
     # la version installee) — d'ou la conversion depuis le reglage en secondes.
     client = genai.Client(
         api_key=settings.gemini_api_key,
-        http_options=types.HttpOptions(timeout=settings.gemini_timeout_seconds * 1000),
+        http_options=types.HttpOptions(
+            timeout=settings.gemini_timeout_seconds * 1000,
+            retry_options=types.HttpRetryOptions(attempts=MAX_TENTATIVES_GEMINI),
+        ),
     )
     try:
         response = client.models.generate_content(
