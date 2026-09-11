@@ -82,7 +82,14 @@ def assign_themes_batch(db: Session, magazines_with_articles: list[tuple[Magazin
     model = get_gemini_model(db)
     consume_gemini_quota(db, model)  # one unit for the whole batch, however many magazines it covers
 
-    client = genai.Client(api_key=settings.gemini_api_key)
+    # http_options : sans borne, une connexion suspendue immobilise l'unique
+    # worker jusqu'au job_timeout RQ de 15 min, et recommence a chaque essai.
+    # Le SDK attend des MILLISECONDES (types.HttpOptions.timeout, verifie sur
+    # la version installee) — d'ou la conversion depuis le reglage en secondes.
+    client = genai.Client(
+        api_key=settings.gemini_api_key,
+        http_options=types.HttpOptions(timeout=settings.gemini_timeout_seconds * 1000),
+    )
     try:
         response = client.models.generate_content(
             model=model,
