@@ -219,6 +219,55 @@ class Theme(Base):
         "Magazine", secondary=theme_magazines, back_populates="themes"
     )
 
+    subthemes: Mapped[list["Subtheme"]] = relationship(
+        "Subtheme", back_populates="theme", cascade="all, delete-orphan"
+    )
+
+
+# Rattachement d'un numéro à une sous-thématique, avec le nombre d'articles
+# qui l'ont déclenché. Table explicite plutôt que relationship simple : la
+# colonne `occurrences` est une donnée métier — c'est le premier critère de
+# tri de la liste affichée — et non un détail de liaison.
+subtheme_magazines = Table(
+    "subtheme_magazines",
+    Base.metadata,
+    Column("subtheme_id", ForeignKey("subthemes.id", ondelete="CASCADE"), primary_key=True),
+    Column("magazine_id", ForeignKey("magazines.id", ondelete="CASCADE"), primary_key=True),
+    Column("occurrences", Integer, nullable=False),
+)
+
+
+class Subtheme(Base):
+    """Regroupement à l'intérieur d'une thématique (« Crème solaire » sous
+    « Santé »), servant de niveau intermédiaire dans la navigation.
+
+    Les noms sont produits hors ligne : la bibliothèque est exportée par
+    tools/exporter_thematiques.py, soumise à un modèle de langage sans
+    contrainte de quota, puis réinjectée par tools/importer_sous_thematiques.py.
+    Le quota Gemini de l'application (20 requêtes par jour) ne permettrait pas
+    de les calculer ici, et encore moins de les recalculer.
+
+    Le modèle ne fait que NOMMER les regroupements et fournir leurs mots-clés.
+    Le rattachement aux numéros, lui, est calculé localement en confrontant ces
+    mots-clés aux titres d'articles : le décompte reste ainsi vérifiable,
+    explicable, et rejouable gratuitement quand la bibliothèque s'enrichit.
+    """
+
+    __tablename__ = "subthemes"
+    __table_args__ = (UniqueConstraint("theme_id", "name", name="uq_subtheme_theme_name"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    theme_id: Mapped[int] = mapped_column(
+        ForeignKey("themes.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Les mots-clés qui définissent le regroupement, conservés pour pouvoir
+    # rejouer le rattachement sans repasser par un modèle.
+    keywords: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    theme: Mapped["Theme"] = relationship("Theme", back_populates="subthemes")
+
 
 class Setting(Base):
     """Generic key/value store for admin-editable settings that should take
