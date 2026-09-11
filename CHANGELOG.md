@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.2](https://github.com/djkix/magazine-search/compare/v0.23.1...v0.23.2) (2026-09-11)
+
+
+### Bug Fixes
+
+* **db:** ne pas recreer un index deja pose par 0005 ([cb664b2](https://github.com/djkix/magazine-search/commit/cb664b22291dd3f07d94647e394957cadf78df01))
+
 ## [0.23.1](https://github.com/djkix/magazine-search/compare/v0.23.0...v0.23.1) (2026-09-10)
 
 
