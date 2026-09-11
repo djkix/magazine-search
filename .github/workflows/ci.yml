@@ -84,6 +84,74 @@ jobs:
         working-directory: ./backend
         run: pytest
 
+  migrations:
+    # Rejoue toute la chaîne Alembic sur une base vierge, la déroule, puis la
+    # rejoue. Les tests unitaires n'ouvrent aucune base : une migration fautive
+    # passait donc la CI sans encombre.
+    #
+    # Cas réel, 11/09/2026 : la migration 0012 recréait « ix_magazines_collection_id »,
+    # déjà posé par 0005. En production, alembic échouait au démarrage, le
+    # conteneur sortait en erreur et Docker le relançait — boucle infinie,
+    # application indisponible deux heures. Ce job l'aurait signalé en quelques
+    # secondes, avant tout déploiement.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        # Même version qu'en production : une différence de version peut
+        # accepter ici ce que le serveur refusera là-bas.
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: magazines
+          POSTGRES_PASSWORD: magazines
+          POSTGRES_DB: magazines
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U magazines"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://magazines:magazines@localhost:5432/magazines
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install dependencies
+        working-directory: ./backend
+        run: pip install -r requirements.txt
+
+      # Les secrets exigés par Settings sont générés à la volée : un littéral
+      # ressemblant à une clé déclencherait gitleaks, en pre-commit comme en CI.
+      - name: Prepare environment
+        run: |
+          echo "JWT_SECRET_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          echo "MEILI_MASTER_KEY=$(openssl rand -hex 16)" >> "$GITHUB_ENV"
+          echo "LOG_DIR=$(mktemp -d)" >> "$GITHUB_ENV"
+
+      - name: Upgrade to head on an empty database
+        working-directory: ./backend
+        run: alembic upgrade head
+
+      # Déroule toute la chaîne. Un downgrade() qui supprime un objet
+      # appartenant à une révision antérieure échoue ici : la révision
+      # propriétaire tente ensuite de le supprimer à son tour et ne le trouve
+      # plus. C'est exactement le second défaut de 0012, resté invisible
+      # jusqu'à ce qu'on le cherche à la main.
+      - name: Downgrade back to base
+        working-directory: ./backend
+        run: alembic downgrade base
+
+      # La chaîne doit être rejouable : sans cela, un downgrade incomplet
+      # laisse une base impossible à remonter.
+      - name: Upgrade to head again
+        working-directory: ./backend
+        run: alembic upgrade head
+
   build-backend:
     runs-on: ubuntu-latest
     timeout-minutes: 20
