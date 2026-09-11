@@ -100,20 +100,51 @@ def get_page_count(pdf_path: Path) -> int:
 # introuvable dans le message stocké, lequel commençait par « tics - possibly
 # poor OCR » — une tranche prise au milieu d'un mot, au milieu du bruit.
 _BRUIT_TESSERACT_RE = re.compile(r"^\s*\d+\s*\[tesseract\]", re.IGNORECASE)
+
+# Ghostscript fait suivre son erreur d'un vidage de ses piles internes. Ces
+# lignes n'apprennent rien et, sur « Systeme D 870 », occupaient a elles
+# seules les cinq lignes conservees : le message stocke se reduisait a
+# « Dictionary stack: | --dict:754/1123(ro)(G)-- | ... ».
+_BRUIT_GHOSTSCRIPT_RE = re.compile(
+    r"^(?:Operand stack:|Execution stack:|Dictionary stack:|Current allocation mode|--\w+[:.]|%\S)",
+    re.IGNORECASE,
+)
+
+# Lignes qui nomment la panne, ou qu'elles se trouvent dans la sortie. Sans
+# elles, « 1 Error: /syntaxerror in --runpdf-- » — la seule ligne utile d'un
+# echec Ghostscript — se perd en tete de sortie.
+_LIGNE_CAUSE_RE = re.compile(r"(?:error|erreur|exception|unrecoverable|syntaxerror)", re.IGNORECASE)
+
 MAX_LIGNES_ERREUR_OCR = 5
 
 
 def resumer_erreur_ocrmypdf(stderr: str | None, max_lignes: int = MAX_LIGNES_ERREUR_OCR) -> str:
     """Extrait de la sortie d'erreur d'ocrmypdf les lignes qui expliquent l'échec.
 
-    Écarte les avertissements par page, puis conserve les dernières lignes
-    restantes : ocrmypdf termine par la cause réelle. Si tout a été filtré —
-    sortie composée uniquement d'avertissements — on retombe sur les lignes
-    brutes plutôt que de ne rien remonter.
+    Écarte d'abord les avertissements par page et les piles Ghostscript, puis
+    remonte en tête les lignes qui nomment la panne, où qu'elles soient : selon
+    l'outil qui échoue, la cause est en fin de sortie (ocrmypdf) ou tout au
+    début (Ghostscript, qui la fait suivre de son vidage de piles). Les
+    dernières lignes complètent tant qu'il reste de la place.
+
+    Si tout a été filtré — sortie composée uniquement d'avertissements — on
+    retombe sur les lignes brutes plutôt que de ne rien remonter.
     """
     lignes = [ligne.strip() for ligne in (stderr or "").splitlines() if ligne.strip()]
-    utiles = [ligne for ligne in lignes if not _BRUIT_TESSERACT_RE.match(ligne)]
-    retenues = (utiles or lignes)[-max_lignes:]
+    utiles = [
+        ligne
+        for ligne in lignes
+        if not _BRUIT_TESSERACT_RE.match(ligne) and not _BRUIT_GHOSTSCRIPT_RE.match(ligne)
+    ]
+    base = utiles or lignes
+
+    retenues = [ligne for ligne in base if _LIGNE_CAUSE_RE.search(ligne)][:max_lignes]
+    for ligne in base[-max_lignes:]:
+        if len(retenues) >= max_lignes:
+            break
+        if ligne not in retenues:
+            retenues.append(ligne)
+
     return " | ".join(retenues) or "(aucune sortie d'erreur)"
 
 
@@ -154,6 +185,96 @@ def _lancer_ocrmypdf(source_path: Path, output_path: Path, mode: str) -> subproc
         ) from exc
 
 
+# qpdf rend 0 sans avertissement, 3 avec, 2 en cas d'erreur reelle. Traiter 3
+# comme un echec ferait rejeter toutes les reparations reussies : reconstruire
+# une table de references croisees produit precisement un avertissement.
+QPDF_CODES_SUCCES = (0, 3)
+
+
+def _reparer_avec_qpdf(source_path: Path, destination: Path) -> bool:
+    """Réécrit le PDF via qpdf, qui sait reconstruire une table de références
+    croisées cassée. Rend True si le fichier réparé est exploitable.
+
+    La table de références croisées est l'index interne qui donne la position
+    de chaque objet dans le fichier. Quand elle est absente ou fausse,
+    Ghostscript refuse le document dès l'ouverture (« Error: /syntaxerror in
+    --runpdf-- ») : ni --skip-text ni --force-ocr n'y changent quoi que ce
+    soit, puisque les deux passent par le même moteur. qpdf, lui, retrouve les
+    objets en balayant le fichier et réécrit un index correct.
+
+    La source n'est jamais modifiée : la copie réparée est écrite ailleurs.
+
+    Cas réel : « Systeme D - 870 - 07-2018.pdf », dont l'index annonçait un
+    objet à l'octet 92770382 sans rien y trouver.
+    """
+    try:
+        resultat = subprocess.run(
+            ["qpdf", str(source_path), str(destination)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+            timeout=settings.ocr_timeout_seconds,
+        )
+    except subprocess.TimeoutExpired:
+        logger.warning("qpdf n'a pas terminé dans le délai imparti pour %s", source_path.name)
+        return False
+    except FileNotFoundError:
+        logger.warning("qpdf est absent de l'image : réparation impossible pour %s", source_path.name)
+        return False
+
+    if resultat.returncode not in QPDF_CODES_SUCCES:
+        logger.warning(
+            "qpdf n'a pas pu réparer %s (code %s) : %s",
+            source_path.name,
+            resultat.returncode,
+            resumer_erreur_ocrmypdf(resultat.stderr),
+        )
+        return False
+
+    return destination.exists() and destination.stat().st_size > 0
+
+
+def _reprendre_apres_reparation(
+    source_path: Path, output_path: Path, code_echec: int, erreur: str
+) -> None:
+    """Dernier recours : réparer la structure du PDF, puis relancer l'OCR.
+
+    Changer de mode ne sert à rien quand c'est l'index des objets qui est
+    cassé : --skip-text et --force-ocr partagent le moteur qui refuse le
+    fichier, et échouent avec le même message. Seule une réécriture préalable
+    du document débloque la situation.
+
+    Lève si la réparation est impossible ou si l'OCR échoue encore, en
+    conservant dans le message l'erreur d'origine plutôt que celle, moins
+    parlante, de la tentative de secours.
+    """
+    logger.warning(
+        "ocrmypdf a échoué en --force-ocr pour %s (%s) — tentative de réparation qpdf",
+        source_path.name,
+        erreur,
+    )
+
+    repare = output_path.with_name(f"{output_path.stem}.qpdf-repare.pdf")
+    try:
+        if not _reparer_avec_qpdf(source_path, repare):
+            raise RuntimeError(
+                f"ocrmypdf failed (code {code_echec}) y compris en --force-ocr : {erreur}"
+            )
+
+        resultat = _lancer_ocrmypdf(repare, output_path, "--force-ocr")
+        if resultat.returncode != 0:
+            raise RuntimeError(
+                f"ocrmypdf failed (code {resultat.returncode}) y compris après réparation qpdf : "
+                f"{resumer_erreur_ocrmypdf(resultat.stderr)}"
+            )
+        logger.info("Document récupéré par la réparation qpdf : %s", source_path.name)
+    finally:
+        # La copie réparée peut peser autant que la source : on ne la laisse
+        # pas s'accumuler dans le dossier des documents traités.
+        repare.unlink(missing_ok=True)
+
+
 def ensure_text_layer(source_path: Path, output_path: Path) -> None:
     """Write a copy of source_path to output_path with a text layer on every page.
 
@@ -181,9 +302,12 @@ def ensure_text_layer(source_path: Path, output_path: Path) -> None:
 
     erreur = resumer_erreur_ocrmypdf(result.stderr)
 
-    # Déjà en --force-ocr : rien de plus à tenter.
+    # Déjà en --force-ocr : changer de mode n'apporterait rien, mais la
+    # réparation de structure reste à tenter — un index d'objets cassé fait
+    # échouer ce mode-là aussi.
     if mode == "--force-ocr":
-        raise RuntimeError(f"ocrmypdf failed (code {result.returncode}): {erreur}")
+        _reprendre_apres_reparation(source_path, output_path, result.returncode, erreur)
+        return
 
     # Seconde chance en --force-ocr. Par défaut (--skip-text), ocrmypdf
     # RECOPIE les images d'origine dans le fichier produit : une image JPEG
@@ -203,12 +327,13 @@ def ensure_text_layer(source_path: Path, output_path: Path) -> None:
         erreur,
     )
     result = _lancer_ocrmypdf(source_path, output_path, "--force-ocr")
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"ocrmypdf failed (code {result.returncode}) y compris en --force-ocr : "
-            f"{resumer_erreur_ocrmypdf(result.stderr)}"
-        )
-    logger.info("Document récupéré par la reprise en --force-ocr : %s", source_path.name)
+    if result.returncode == 0:
+        logger.info("Document récupéré par la reprise en --force-ocr : %s", source_path.name)
+        return
+
+    _reprendre_apres_reparation(
+        source_path, output_path, result.returncode, resumer_erreur_ocrmypdf(result.stderr)
+    )
 
 
 def _strip_nul(text: str) -> str:

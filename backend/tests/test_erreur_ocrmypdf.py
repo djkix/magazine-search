@@ -67,3 +67,41 @@ def test_sortie_vide():
 
 def test_sortie_courte_conservee_telle_quelle():
     assert resumer_erreur_ocrmypdf("Input file is encrypted") == "Input file is encrypted"
+
+
+# Sortie reelle d'un echec Ghostscript, observee sur « Systeme D 870 » : la
+# table de references croisees du PDF est cassee, Ghostscript refuse le fichier
+# des l'ouverture. Sa cause est en TETE de sortie, suivie d'un vidage de piles
+# qui, seul, remplissait les cinq lignes conservees.
+STDERR_GHOSTSCRIPT = """   **** Warning: considering '0000000000 XXXXX n' as a free entry.
+1 Error: /syntaxerror in --runpdf--
+Operand stack:
+   --dict:754/1123(ro)(G)--   --dict:0/20(G)--
+Execution stack:
+   %interp_exit .runexec2 --nostringval-- --nostringval--
+Dictionary stack:
+   --dict:754/1123(ro)(G)--   --dict:0/20(G)--   --dict:86/200(L)--   --dict:6/10(L)--
+Current allocation mode is local
+GPL Ghostscript 10.05.1: Unrecoverable error, exit code 1
+SubprocessOutputError: Ghostscript rasterizing failed
+"""
+
+
+def test_la_cause_ghostscript_en_tete_est_conservee():
+    """La cause d'un echec Ghostscript ouvre la sortie au lieu de la clore.
+
+    Ne garder que les dernieres lignes remontait « Dictionary stack: |
+    --dict:754/1123(ro)(G)-- | ... », strictement identique d'un numero a
+    l'autre et sans aucune valeur diagnostique.
+    """
+    resume = resumer_erreur_ocrmypdf(STDERR_GHOSTSCRIPT)
+
+    assert "syntaxerror" in resume
+
+
+def test_les_piles_ghostscript_sont_ecartees():
+    resume = resumer_erreur_ocrmypdf(STDERR_GHOSTSCRIPT)
+
+    assert "Dictionary stack" not in resume
+    assert "--dict:" not in resume
+    assert len(resume.split(" | ")) <= MAX_LIGNES_ERREUR_OCR
