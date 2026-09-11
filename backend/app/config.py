@@ -102,6 +102,17 @@ class Settings(BaseSettings):
 
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.5-flash"
+    # Borne des appels a l'API Gemini. C'etait le dernier appel reseau sans
+    # limite du systeme : une connexion suspendue immobilisait l'unique worker
+    # jusqu'au job_timeout RQ de 15 minutes, et recommencait a chaque essai.
+    #
+    # Exprime en secondes ici, converti en millisecondes a l'appel : le SDK
+    # attend des millisecondes, unite trop facile a confondre dans un .env.
+    #
+    # 120 s est large — un lot de 20 numeros produit environ 190 jetons de
+    # sortie chacun, soit quelques secondes en regime normal. Au-dela, la
+    # connexion est suspendue, pas lente.
+    gemini_timeout_seconds: int = 120
 
     @property
     def cors_origins(self) -> list[str]:
