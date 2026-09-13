@@ -164,6 +164,28 @@ Les thématiques sont attribuées automatiquement après l'extraction d'un
 sommaire. Un numéro sans sommaire n'est pas concerné : le modèle a besoin de la
 liste des articles pour travailler.
 
+**Deux sources, complémentaires.** Un tag posé sur une collection est une donnée
+que vous avez choisie : « Système D » porte « Bricolage », et cela vaut pour ses
+199 numéros, sans exception et sans consommer de quota. Gemini, lui, infère
+numéro par numéro — plus fin, mais plus incertain.
+
+Les deux se cumulent. Mais le vocabulaire des tags mélange des **sujets**
+(« Bricolage », « Santé ») et des **formats éditoriaux** (« Test », « Tutoriel »,
+« Guide achat »), et propager les seconds donnerait une navigation par sujet où
+« Test » écraserait tout. Dans les réglages, chaque tag porte donc une bascule
+*sujet* / *format* : seuls les sujets sont propagés. Tout est en *format* par
+défaut — rien ne se propage tant que vous n'avez pas choisi.
+
+Le bouton *Simuler* affiche ce qui serait rattaché avant d'écrire quoi que ce
+soit. La propagation ne marque pas les numéros comme traités : ils restent dans
+la file de thématisation, et Gemini viendra compléter sans jamais effacer le
+thème hérité du tag.
+
+L'ordre de passage de la file est **aléatoire**, et non par ordre de scan : une
+collection indexée tardivement se retrouvait sinon derrière toute la
+bibliothèque — 1 043 numéros d'attente ont été mesurés pour « Système D », soit
+près de trois jours de quota.
+
 La régénération complète, depuis les réglages, est **non destructive et
 reprenable** : chaque numéro conserve ses thématiques actuelles jusqu'à ce
 qu'un lot les remplace. Si le quota s'épuise en cours de route, l'opération

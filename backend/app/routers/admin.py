@@ -45,6 +45,7 @@ from app.services.export_thematiques import (
     nom_de_fichier,
 )
 from app.services.import_sous_thematiques import ImportInvalide, importer, recalculer_tout
+from app.services.themes_des_tags import propager
 from app.services.logs import read_logs
 from app.services.progress import get_magazine_progress
 from app.services.gemini_quota import (
@@ -510,7 +511,7 @@ def list_tags(
 def create_tag(payload: TagCreate, db: Session = Depends(get_db)):
     if db.query(Tag).filter(Tag.name == payload.name).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Tag already exists")
-    tag = Tag(name=payload.name)
+    tag = Tag(name=payload.name, is_subject=payload.is_subject)
     db.add(tag)
     db.commit()
     db.refresh(tag)
@@ -523,6 +524,10 @@ def update_tag(tag_id: int, payload: TagUpdate, db: Session = Depends(get_db)):
     if not tag:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tag not found")
     tag.name = payload.name
+    # None signifie « ne pas toucher » : les appels existants n'envoient que
+    # le nom et ne doivent pas remettre la nature du tag à faux au passage.
+    if payload.is_subject is not None:
+        tag.is_subject = payload.is_subject
     db.commit()
     db.refresh(tag)
     return tag
@@ -742,6 +747,23 @@ def recompute_subthemes(
     regroupements déjà définis.
     """
     return recalculer_tout(db, appliquer)
+
+
+@router.post("/tags/propagate")
+def propagate_subject_tags(
+    appliquer: bool = Query(False, description="Écrire réellement ; simulation sinon"),
+    db: Session = Depends(get_db),
+):
+    """Attache aux numéros les thématiques héritées des tags de sujet.
+
+    SIMULATION PAR DÉFAUT. Gratuit et instantané : aucun appel à un modèle,
+    le tag de collection est une donnée déjà curée par l'administrateur.
+
+    `themed_at` n'est pas renseigné : les numéros restent dans la file de
+    thématisation, et le modèle viendra affiner. Le tag fournit le socle, le
+    modèle l'enrichit.
+    """
+    return propager(db, appliquer)
 
 
 @router.post("/themes/regenerate-all")

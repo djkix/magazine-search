@@ -15,6 +15,7 @@ from app.services.meili import ensure_index_configured, index_page, index_pages
 from app.services.progress import clear_magazine_progress, set_magazine_progress
 from app.services.sommaire_ocr import diagnostiquer_absence_de_sommaire, extract_articles_from_ocr
 from app.services.theme_batch import assign_themes_batch
+from app.services.themes_des_tags import fusionner_themes
 from app.worker.ocr import detect_language, ensure_text_layer, extract_pages, get_page_count, render_cover_thumbnail
 
 logger = logging.getLogger("worker.tasks")
@@ -155,7 +156,16 @@ def process_pending_theme_batch(consecutive_failures: int = 0) -> None:
                 Magazine.toc_status == OcrStatus.done,
                 Magazine.themed_at.is_(None),
             )
-            .order_by(Magazine.id)
+            # Tirage aléatoire, et non par identifiant croissant. L'ordre
+            # d'insertion au scan n'est pas une priorité : il condamnait les
+            # collections scannées tard à passer en dernier. « Système D »
+            # comptait 1 043 numéros devant lui, soit près de trois jours de
+            # quota, pour 197 numéros pourtant tous dotés d'un sommaire.
+            #
+            # Le tirage répartit la progression sur toute la bibliothèque.
+            # Aucun risque de famine : themed_at exclut définitivement ce qui
+            # a été traité, un numéro ne peut donc pas être tiré indéfiniment.
+            .order_by(func.random())
             .limit(THEME_BATCH_SIZE)
             .all()
         )
@@ -226,7 +236,11 @@ def process_pending_theme_batch(consecutive_failures: int = 0) -> None:
                 if theme.id not in seen_ids:
                     seen_ids.add(theme.id)
                     themes.append(theme)
-            magazine.themes = themes
+            # Fusion, et non affectation : une affectation directe effacerait
+            # les thèmes hérités des tags de sujet de la collection. Un numéro
+            # de « Système D » aurait perdu « Bricolage » au premier passage
+            # du modèle, sans que rien ne le signale.
+            magazine.themes = fusionner_themes(db, magazine, themes)
             db.commit()
 
         # A bulk "regenerate all" sweep resets themed_at for far more than

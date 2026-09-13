@@ -20,6 +20,13 @@ export default function AdminSettingsPage() {
   const [editingTagId, setEditingTagId] = useState<number | null>(null);
   const [editingTagName, setEditingTagName] = useState("");
   const [tagError, setTagError] = useState<string | null>(null);
+  const [propagating, setPropagating] = useState(false);
+  const [propagateReport, setPropagateReport] = useState<{
+    applique: boolean;
+    tags_sujets: number;
+    total_ajoutes: number;
+    details: { tag: string; numeros_concernes: number; rattachements_ajoutes: number }[];
+  } | null>(null);
   const [reindexing, setReindexing] = useState(false);
   const [reindexMessage, setReindexMessage] = useState<string | null>(null);
   const [backfilling, setBackfilling] = useState(false);
@@ -81,6 +88,39 @@ export default function AdminSettingsPage() {
       loadCollections();
     } catch (err) {
       setTagError(err instanceof ApiError ? err.message : "Erreur");
+    }
+  }
+
+  // Bascule sujet / format. Le nom est renvoyé tel quel : l'API exige le
+  // champ, et l'omettre effacerait le libellé.
+  async function toggleTagSubject(tag: Tag) {
+    setTagError(null);
+    try {
+      await api.patch(`/admin/tags/${tag.id}`, { name: tag.name, is_subject: !tag.is_subject });
+      loadTags();
+    } catch (err) {
+      setTagError(err instanceof ApiError ? err.message : "Erreur");
+    }
+  }
+
+  // Simulation d'abord, application ensuite : la propagation touche les
+  // thématiques de milliers de numéros, et le compte rendu doit être lu avant.
+  async function propagateTags(appliquer: boolean) {
+    setPropagating(true);
+    setTagError(null);
+    try {
+      const data = await api.post<{
+        applique: boolean;
+        tags_sujets: number;
+        total_ajoutes: number;
+        details: { tag: string; numeros_concernes: number; rattachements_ajoutes: number }[];
+      }>(`/admin/tags/propagate?appliquer=${appliquer}`);
+      setPropagateReport(data);
+    } catch (err) {
+      setPropagateReport(null);
+      setTagError(err instanceof ApiError ? err.message : "Erreur");
+    } finally {
+      setPropagating(false);
     }
   }
 
@@ -288,8 +328,26 @@ export default function AdminSettingsPage() {
                   className="min-w-0 flex-1 rounded-lg border border-outline-variant bg-background px-2 py-1 text-sm text-foreground"
                 />
               ) : (
-                <span className="text-sm text-foreground">{t.name}</span>
+                <span className="min-w-0 flex-1 truncate text-sm text-foreground">{t.name}</span>
               )}
+              {/* Toujours visible, contrairement aux actions : c'est un état,
+                  pas une commande — le masquer hors survol rendrait invisible
+                  ce qui se propage et ce qui ne se propage pas. */}
+              <button
+                onClick={() => toggleTagSubject(t)}
+                title={
+                  t.is_subject
+                    ? "Sujet : propagé en thématique sur les numéros de ses collections"
+                    : "Format éditorial : non propagé"
+                }
+                className={`shrink-0 rounded-full px-2 py-0.5 font-mono text-[10px] transition ${
+                  t.is_subject
+                    ? "bg-primary/20 text-primary-light"
+                    : "bg-surface-hover text-foreground-muted hover:text-foreground"
+                }`}
+              >
+                {t.is_subject ? "sujet" : "format"}
+              </button>
               <span className="hidden shrink-0 gap-2 group-hover:flex">
                 {editingTagId === t.id ? (
                   <button onClick={() => saveTag(t.id)} className="text-primary-light hover:underline">
@@ -325,6 +383,71 @@ export default function AdminSettingsPage() {
           <Button onClick={createTag} disabled={!newTag.trim()} variant="secondary">
             Ajouter
           </Button>
+        </div>
+
+        <div className="space-y-3 border-t border-outline-variant pt-4">
+          <div>
+            <p className="text-sm font-medium text-foreground">Propager les tags de sujet</p>
+            <p className="mt-1 text-xs text-foreground-muted">
+              Attache la thématique correspondante à tous les numéros des collections portant un tag
+              de sujet. Gratuit et instantané : aucun appel à Gemini. Les numéros restent dans la
+              file de thématisation, le modèle viendra affiner ensuite.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => propagateTags(false)} disabled={propagating} variant="secondary">
+              {propagating ? "Analyse..." : "Simuler"}
+            </Button>
+            {propagateReport && !propagateReport.applique && propagateReport.total_ajoutes > 0 && (
+              <Button onClick={() => propagateTags(true)} disabled={propagating}>
+                Appliquer
+              </Button>
+            )}
+          </div>
+
+          {propagateReport && (
+            <div className="space-y-2 rounded-lg border border-outline-variant bg-surface/40 p-3">
+              {propagateReport.tags_sujets === 0 ? (
+                <p className="text-sm text-foreground-muted">
+                  Aucun tag n&apos;est marqué comme sujet. Cliquez sur « format » à côté d&apos;un tag
+                  pour le basculer en « sujet ».
+                </p>
+              ) : (
+                <>
+                  <table className="w-full text-sm">
+                    <thead className="text-left font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
+                      <tr>
+                        <th className="py-1">Tag</th>
+                        <th className="py-1">Numéros</th>
+                        <th className="py-1">À rattacher</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {propagateReport.details.map((d) => (
+                        <tr key={d.tag}>
+                          <td className="py-1 text-foreground">{d.tag}</td>
+                          <td className="py-1 font-mono text-xs text-foreground-muted">
+                            {d.numeros_concernes}
+                          </td>
+                          <td className="py-1 font-mono text-xs text-foreground-muted">
+                            {d.rattachements_ajoutes}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="text-sm text-foreground-muted">
+                    {propagateReport.applique
+                      ? `${propagateReport.total_ajoutes} rattachement(s) effectué(s).`
+                      : propagateReport.total_ajoutes === 0
+                        ? "Tout est déjà à jour, rien à rattacher."
+                        : `${propagateReport.total_ajoutes} rattachement(s) seraient ajoutés. Rien n'est encore écrit.`}
+                  </p>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
