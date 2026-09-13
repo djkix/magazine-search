@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.0](https://github.com/djkix/magazine-search/compare/v0.25.1...v0.26.0) (2026-09-13)
+
+
+### Features
+
+* **admin:** deposer la reponse du modele depuis le tableau de bord ([4d22268](https://github.com/djkix/magazine-search/commit/4d222683761d946b23ce813b6b4811c0fd8cc45f))
+
 ## [0.25.1](https://github.com/djkix/magazine-search/compare/v0.25.0...v0.25.1) (2026-09-11)
 
 
