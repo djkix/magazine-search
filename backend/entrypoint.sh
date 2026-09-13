@@ -11,85 +11,24 @@ set -e
 # créée par la boucle, et n'est passé qu'après arrêt complet du conteneur.
 DELAI_AVANT_SORTIE="${MIGRATION_FAILURE_DELAY_SECONDS:-30}"
 
-# Sauvegarde prise juste avant une migration. Elle atterrit sur le volume
-# app_data, déjà monté : aucune modification du docker-compose n'est requise.
-# Ce n'est PAS la sauvegarde principale — celle-ci reste le service db-backup,
-# qui écrit sur un volume distinct — mais un filet tendu au seul moment où le
-# schéma change.
-REP_DUMP="${PRE_MIGRATION_DUMP_DIR:-/data/pre-migration}"
-DUMPS_CONSERVES="${PRE_MIGRATION_DUMP_KEEP:-3}"
-
-# Rend vrai quand la version appliquée en base diffère de celle attendue par
-# le code. Sans ce test, un simple redémarrage déclencherait un dump de neuf
-# minutes alors que rien ne change.
-migration_en_attente() {
-    appliquee="$(alembic current 2>/dev/null | awk 'NF {print $1; exit}')"
-    attendue="$(alembic heads 2>/dev/null | awk 'NF {print $1; exit}')"
-    [ "$appliquee" != "$attendue" ]
-}
-
-sauvegarder_avant_migration() {
-    # DATABASE_URL est une URL SQLAlchemy : pg_dump ignore le suffixe de
-    # pilote « +psycopg » et refuserait de l'analyser.
-    url_pg="$(printf '%s' "${DATABASE_URL:-}" | sed 's|+psycopg||')"
-    if [ -z "$url_pg" ]; then
-        echo "DATABASE_URL absente : sauvegarde impossible." >&2
-        return 1
-    fi
-
-    mkdir -p "$REP_DUMP"
-    fichier="${REP_DUMP}/avant-migration-$(date -u +%Y%m%dT%H%M%SZ).dump"
-
-    echo "Migration en attente (${appliquee:-base vide} -> ${attendue})." >&2
-    echo "Sauvegarde vers ${fichier} — cela peut prendre plusieurs minutes." >&2
-
-    # --format=custom : compresse, et restaurable sélectivement via pg_restore.
-    if ! pg_dump "$url_pg" --format=custom --file="$fichier"; then
-        # Un fichier tronqué serait pire qu'aucun fichier : il donnerait
-        # l'illusion d'une sauvegarde exploitable.
-        rm -f "$fichier"
-        return 1
-    fi
-
-    echo "Sauvegarde terminée ($(du -h "$fichier" | cut -f1))." >&2
-
-    # Les migrations sont rares : trois sauvegardes suffisent à couvrir un
-    # retour en arrière, et le volume ne se remplit pas indéfiniment.
-    ls -1t "${REP_DUMP}"/avant-migration-*.dump 2>/dev/null \
-        | tail -n +$((DUMPS_CONSERVES + 1)) \
-        | while read -r ancien; do
-            echo "Purge de la sauvegarde ${ancien}" >&2
-            rm -f "$ancien"
-        done
-
-    return 0
-}
+# Pas de sauvegarde prise ici avant la migration. Cette protection a existé,
+# du 11 au 13/09/2026, et causait plus de dégâts qu'elle n'en évitait :
+#
+#   - neuf minutes de dump bloquant à chaque déploiement touchant le schéma,
+#     donc autant d'indisponibilité ;
+#   - un redéploiement redémarre PostgreSQL, ce qui tuait le dump en cours —
+#     et l'échec annulait la migration, laissant le conteneur boucler
+#     indéfiniment sans jamais démarrer.
+#
+# Ce qui protège réellement, aujourd'hui :
+#   - le job CI « migrations », qui rejoue toute la chaîne Alembic (montée,
+#     descente, remontée) sur une base vierge avant tout déploiement ;
+#   - le service db-backup, qui produit un dump quotidien avec rotation.
 
 # Only the API service runs migrations, so a concurrent restart of
 # app-backend and worker (same image/entrypoint) can't race on Alembic.
 case "$1" in
   uvicorn)
-    if migration_en_attente; then
-      if [ "${SKIP_PRE_MIGRATION_DUMP:-0}" = "1" ]; then
-        echo "SKIP_PRE_MIGRATION_DUMP=1 : migration sans sauvegarde prealable." >&2
-      elif ! sauvegarder_avant_migration; then
-        echo "" >&2
-        echo "=== SAUVEGARDE PRE-MIGRATION IMPOSSIBLE ===" >&2
-        echo "" >&2
-        echo "La migration est ANNULEE : appliquer un changement de schema" >&2
-        echo "sans filet est precisement ce que ce garde-fou evite." >&2
-        echo "" >&2
-        echo "Causes frequentes : volume /data plein, base injoignable," >&2
-        echo "version de pg_dump inferieure a celle du serveur." >&2
-        echo "" >&2
-        echo "Pour passer outre en connaissance de cause :" >&2
-        echo "  SKIP_PRE_MIGRATION_DUMP=1" >&2
-        echo "" >&2
-        sleep "$DELAI_AVANT_SORTIE"
-        exit 1
-      fi
-    fi
-
     if ! alembic upgrade head; then
       echo "" >&2
       echo "=== ECHEC DE LA MIGRATION ALEMBIC ===" >&2
@@ -105,7 +44,8 @@ case "$1" in
       echo "Arretez le conteneur avant toute correction en base : tant qu'il" >&2
       echo "tourne, ses tentatives repetees monopolisent les verrous." >&2
       echo "" >&2
-      echo "Une sauvegarde a ete prise avant la tentative, dans ${REP_DUMP}." >&2
+      echo "La derniere sauvegarde quotidienne se trouve dans le volume du" >&2
+      echo "service db-backup." >&2
       echo "" >&2
       echo "Nouvelle tentative dans ${DELAI_AVANT_SORTIE}s." >&2
       echo "" >&2

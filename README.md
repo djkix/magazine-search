@@ -269,9 +269,6 @@ Générer une valeur : `openssl rand -hex 32`.
 | `OCR_TIMEOUT_SECONDS` | Délai maximum d'`ocrmypdf` (défaut : 1500). |
 | `GEMINI_TIMEOUT_SECONDS` | Délai maximum d'un appel à l'API Gemini (défaut : 120). Sans borne, une connexion suspendue immobilise le worker. |
 | `LOG_TIMEZONE` | Fuseau des horodatages des journaux (défaut : `Europe/Paris`). Sans lui, un conteneur Docker journalise en UTC. |
-| `PRE_MIGRATION_DUMP_DIR` | Où atterrit la sauvegarde prise avant une migration (défaut : `/data/pre-migration`). |
-| `PRE_MIGRATION_DUMP_KEEP` | Nombre de sauvegardes pré-migration conservées (défaut : 3). |
-| `SKIP_PRE_MIGRATION_DUMP` | À `1`, migre sans sauvegarde préalable. À n'utiliser qu'en connaissance de cause. |
 | `MIGRATION_FAILURE_DELAY_SECONDS` | Pause avant de sortir en erreur quand une migration échoue (défaut : 30), pour éviter une boucle de redémarrage trop serrée. |
 | `ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PASSWORD` | Compte créé au premier démarrage si aucun admin n'existe. À vider ensuite. |
 
@@ -305,30 +302,18 @@ docker compose start app-backend worker
 > **testez une restauration périodiquement** — une sauvegarde jamais restaurée
 > n'est pas une sauvegarde.
 
-**Sauvegarde automatique avant migration**
+**Avant une migration de schéma**
 
-Quand le backend démarre alors qu'une migration de schéma est en attente, il
-prend d'abord un dump, puis migre. Si ce dump échoue, la migration est annulée
-plutôt que tentée sans filet.
+Aucune sauvegarde n'est prise automatiquement au démarrage. Cette protection a
+existé du 11 au 13 septembre 2026, et coûtait plus qu'elle ne rapportait : neuf
+minutes d'indisponibilité à chaque déploiement touchant le schéma, et un dump
+que le redémarrage de PostgreSQL — inhérent au redéploiement — interrompait,
+ce qui annulait la migration et laissait le backend boucler sans démarrer.
 
-Un redémarrage ordinaire ne déclenche rien : la version appliquée en base est
-comparée à celle attendue par le code, et le dump n'a lieu qu'en cas d'écart.
-
-Ces fichiers sont au format `custom` et se restaurent avec `pg_restore`, non
-avec `psql` :
-
-```bash
-docker compose stop app-backend worker
-
-docker compose exec -T postgres pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
-  --clean --if-exists < /data/pre-migration/avant-migration-<horodatage>.dump
-
-docker compose start app-backend worker
-```
-
-> Ils atterrissent sur le volume `app_data`, pas sur `BACKUP_DIR`. C'est un
-> filet tendu le temps d'une migration, pas un substitut aux sauvegardes
-> quotidiennes.
+Ce qui protège réellement : le job CI `migrations`, qui rejoue toute la chaîne
+Alembic sur une base vierge avant tout déploiement, et le service `db-backup`
+ci-dessus. Pour une migration que vous jugez risquée, prenez un dump
+manuellement avant de déployer.
 
 ## Stack technique
 
