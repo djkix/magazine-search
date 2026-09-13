@@ -348,16 +348,16 @@ docker compose start app-backend worker
 
 | Version | Date | Changement |
 | --- | --- | --- |
-| 0.22.5 | 2026-09-10 | Sommaire : reconnaître un intitulé de rubrique tout en minuscules |
-| 0.22.4 | 2026-09-10 | Ne plus dupliquer numéro et date quand le nom de collection est absent |
-| 0.22.3 | 2026-09-10 | Sommaire : consigner pourquoi aucune entrée n'a été extraite |
-| 0.22.1 – 0.22.2 | 2026-09-10 | Thématiques : lots ramenés à 20 numéros d'après la mesure réelle |
-| 0.22.0 | 2026-09-10 | Thématiques : ne plus détruire les thèmes avant régénération |
-| 0.22.0 | 2026-09-10 | Étendre « magazine - numéro - Mois année » aux résultats de recherche |
-| 0.21.0 | 2026-09-10 | Afficher « magazine - numéro - Mois année » au lieu du nom de fichier |
-| 0.20.5 | 2026-09-10 | Résoudre le conflit de dépendances `httpx` et la panne CI associée |
-| 0.20.4 | 2026-09-09 | Ne plus masquer l'erreur d'origine ni fuir de connexion au nettoyage |
-| 0.20.3 | 2026-09-09 | Bornes sur les listes admin, déduplication en simulation, timeout OCR |
+| 0.26.0 | 2026-09-13 | Admin : déposer la réponse du modèle depuis le tableau de bord |
+| 0.25.1 | 2026-09-11 | Outils : rendre le paquet `app` importable depuis `tools/` |
+| 0.25.0 | 2026-09-11 | Sous-thématiques : socle de données et chaîne export/import |
+| 0.24.2 | 2026-09-11 | Gemini : borner les appels à l'API et le nombre total de tentatives |
+| 0.24.1 | 2026-09-11 | Journaux : horodatages dans le fuseau local, décalage inclus |
+| 0.24.0 | 2026-09-11 | Déploiement : sauvegarde avant migration, fin de la boucle d'échec |
+| 0.23.3 | 2026-09-11 | OCR : réparer la structure du PDF via qpdf en dernier recours |
+| 0.23.2 | 2026-09-11 | Base : ne plus recréer un index déjà posé par une révision antérieure |
+| 0.23.1 | 2026-09-10 | Lecteur : conserver les résultats au clic, retour vers la collection |
+| 0.23.0 | 2026-09-10 | Thématiques : page dédiée triée par occurrences, avancement en admin |
 
 **L'historique complet est dans [`CHANGELOG.md`](./CHANGELOG.md)**, généré
 automatiquement à chaque release.
