@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.27.0](https://github.com/djkix/magazine-search/compare/v0.26.0...v0.27.0) (2026-09-13)
+
+
+### Features
+
+* **thematiques:** propager les tags de sujet et tirer la file au hasard ([e7d2913](https://github.com/djkix/magazine-search/commit/e7d291366193d038cc4f3faa7fd746e8b423ad60))
+
 ## [0.26.0](https://github.com/djkix/magazine-search/compare/v0.25.1...v0.26.0) (2026-09-13)
 
 
