@@ -15,6 +15,7 @@ from sqlalchemy import (
     Table,
     Text,
     UniqueConstraint,
+    false,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -172,6 +173,14 @@ class Tag(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    # Vrai pour un tag de SUJET (« Bricolage »), faux pour un tag de FORMAT
+    # éditorial (« Test », « Tutoriel », « Guide achat »).
+    #
+    # Seuls les sujets sont propagés en thématiques sur les numéros de la
+    # collection : propager les formats donnerait une navigation par sujet où
+    # « Test » écraserait tout. Faux par défaut, donc rien ne se propage tant
+    # que l'administrateur n'a pas choisi.
+    is_subject: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=false())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     collections: Mapped[list["Collection"]] = relationship(

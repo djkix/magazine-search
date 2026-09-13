@@ -21,6 +21,10 @@ export type IssueType = "normal" | "hs" | "sp";
 export interface Tag {
   id: number;
   name: string;
+  // Vrai pour un tag de sujet (« Bricolage »), propagé en thématique sur les
+  // numéros de ses collections. Faux pour un format éditorial (« Test »),
+  // qui n'a rien à faire dans une navigation par sujet.
+  is_subject: boolean;
 }
 
 export interface Magazine {

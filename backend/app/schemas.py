@@ -121,6 +121,9 @@ class TagOut(BaseModel):
 
     id: int
     name: str
+    # Un tag de sujet (« Bricolage ») est propagé en thématique sur les
+    # numéros de ses collections ; un tag de format (« Test ») ne l'est pas.
+    is_subject: bool = False
 
 
 class MagazineOut(BaseModel):
@@ -150,10 +153,14 @@ class MagazineOut(BaseModel):
 
 class TagCreate(BaseModel):
     name: str
+    is_subject: bool = False
 
 
 class TagUpdate(BaseModel):
     name: str
+    # Facultatif : les appels existants n'envoient que le nom et doivent
+    # continuer à fonctionner sans altérer la nature du tag.
+    is_subject: bool | None = None
 
 
 class CollectionOut(BaseModel):
