@@ -232,6 +232,19 @@ class MagazineThemeOut(BaseModel):
     magazine_count: int
 
 
+class ThemeExportOut(BaseModel):
+    """Une ligne de l'inventaire d'export des thématiques, côté admin."""
+
+    id: int
+    name: str
+    magazine_count: int
+    title_count: int
+    # Faux quand la thématique compte trop peu de numéros pour qu'un découpage
+    # en sous-thématiques ait du sens : le bouton de téléchargement reste
+    # accessible, mais l'interface le signale.
+    eligible: bool
+
+
 # ---- Scan ----
 
 

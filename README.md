@@ -174,6 +174,45 @@ jour. Le tableau de bord affiche deux compteurs : numéros déjà thématisés, 
 « reste à faire » — ce dernier n'inclut que les numéros réellement éligibles
 (sommaire extrait, pas encore passés par Gemini).
 
+**Sous-thématiques.** Une thématique peut être découpée en regroupements plus
+fins (« Crème solaire » sous « Santé »). Le quota Gemini ne permet pas de les
+calculer dans l'application : une requête par thématique consommerait les trois
+quarts d'une journée. Ils sont donc produits hors ligne.
+
+Tout se fait depuis le tableau de bord, section *Sous-thématiques* :
+
+1. **Télécharger** le corpus d'une thématique — ou tous en une archive. Le
+   fichier contient les titres d'articles et la consigne à donner au modèle.
+2. **Soumettre** ce fichier au modèle de votre choix, sans contrainte de quota.
+3. **Déposer** sa réponse dans le champ prévu, sur la même page.
+
+Le dépôt déclenche une **simulation** : la page affiche les numéros qui seraient
+rattachés à chaque sous-thématique, les mots-clés ne correspondant à aucun
+article, et le nombre de numéros qu'aucun regroupement ne couvre. **Rien n'est
+écrit** tant que vous n'avez pas cliqué sur *Appliquer*.
+
+Un avertissement apparaît si plus d'un tiers des numéros reste non rattaché :
+le découpage est alors trop étroit, mieux vaut relancer le modèle que de
+publier une navigation trouée.
+
+Les mêmes opérations restent disponibles en ligne de commande, avec la même
+logique et le même résultat :
+
+```bash
+docker exec magazine-search-app-backend-1 \
+  python tools/importer_sous_thematiques.py -f /data/exports/sante.json
+```
+
+Le modèle ne fait que nommer les regroupements et fournir leurs mots-clés. Le
+rattachement des numéros est calculé localement, en confrontant ces mots-clés
+aux titres : le décompte reste vérifiable, et un numéro ajouté plus tard
+rejoint les sous-thématiques existantes sans nouvel appel à un modèle.
+
+```bash
+docker exec magazine-search-app-backend-1 \
+  python tools/importer_sous_thematiques.py --recalculer-tout --appliquer
+```
+
 ### Consulter les journaux
 
 La page de logs filtre par niveau et par composant. Le fichier de sauvegarde
