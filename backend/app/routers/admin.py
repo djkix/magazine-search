@@ -1,6 +1,9 @@
+import io
+import json
 import logging
+import zipfile
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy import distinct, func
 from sqlalchemy.orm import Session
 
@@ -28,11 +31,20 @@ from app.schemas import (
     TagCreate,
     TagOut,
     TagUpdate,
+    ThemeExportOut,
     UserCreate,
     UserOut,
     UserUpdate,
 )
 from app.security import hash_password
+from app.services.export_thematiques import (
+    MIN_NUMEROS_POUR_SOUS_THEMATIQUES,
+    charge_utile,
+    inventaire,
+    inventaire_avec_titres,
+    nom_de_fichier,
+)
+from app.services.import_sous_thematiques import ImportInvalide, importer, recalculer_tout
 from app.services.logs import read_logs
 from app.services.progress import get_magazine_progress
 from app.services.gemini_quota import (
@@ -608,6 +620,128 @@ def reindex_all(db: Session = Depends(get_db)):
     for magazine_id in magazine_ids:
         ingestion_queue.enqueue(reindex_magazine, magazine_id, job_timeout="10m")
     return {"enqueued": len(magazine_ids)}
+
+
+@router.get("/themes/export", response_model=list[ThemeExportOut])
+def list_theme_exports(db: Session = Depends(get_db)):
+    """Inventaire des thématiques exportables, avec leur volume.
+
+    Le nombre de titres conditionne la faisabilité : au-delà d'environ 2 000,
+    le corpus ne tient plus dans une seule invite et il faut le découper.
+    """
+    return [
+        ThemeExportOut(
+            id=theme_id,
+            name=nom,
+            magazine_count=numeros,
+            title_count=titres,
+            eligible=numeros >= MIN_NUMEROS_POUR_SOUS_THEMATIQUES,
+        )
+        for theme_id, nom, numeros, titres in inventaire_avec_titres(db)
+    ]
+
+
+@router.get("/themes/export/zip")
+def download_all_theme_exports(db: Session = Depends(get_db)):
+    """Toutes les thématiques éligibles, en une archive.
+
+    Un fichier par thématique plutôt qu'un seul gros : le corpus complet ne
+    tiendrait dans aucune invite, chaque thématique se traite séparément.
+    """
+    tampon = io.BytesIO()
+    with zipfile.ZipFile(tampon, "w", zipfile.ZIP_DEFLATED) as archive:
+        for theme_id, nom, numeros in inventaire(db):
+            if numeros < MIN_NUMEROS_POUR_SOUS_THEMATIQUES:
+                continue
+            charge = charge_utile(db, theme_id, nom, numeros)
+            archive.writestr(
+                nom_de_fichier(nom),
+                json.dumps(charge, ensure_ascii=False, indent=2),
+            )
+    return Response(
+        content=tampon.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="thematiques.zip"'},
+    )
+
+
+@router.get("/themes/{theme_id}/export")
+def download_theme_export(theme_id: int, db: Session = Depends(get_db)):
+    """Le fichier d'une thématique, prêt à être soumis à un modèle de langage.
+
+    La consigne est incluse dans le fichier : rien à retenir au moment de
+    solliciter le modèle.
+    """
+    ligne = next((l for l in inventaire(db) if l[0] == theme_id), None)
+    if ligne is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thème introuvable")
+
+    _, nom, numeros = ligne
+    charge = charge_utile(db, theme_id, nom, numeros)
+    return Response(
+        content=json.dumps(charge, ensure_ascii=False, indent=2),
+        media_type="application/json",
+        # nom_de_fichier() ne laisse passer que des caractères alphanumériques :
+        # un nom de thématique contenant une barre oblique ou un guillemet
+        # casserait l'en-tête, voire y injecterait une directive.
+        headers={"Content-Disposition": 'attachment; filename="%s"' % nom_de_fichier(nom)},
+    )
+
+
+# Un fichier de sous-thématiques pèse quelques kilo-octets. Le plafond écarte
+# un dépôt manifestement erroné avant de charger quoi que ce soit en mémoire.
+TAILLE_MAX_IMPORT_OCTETS = 2 * 1024 * 1024
+
+
+@router.post("/themes/import")
+async def import_subthemes(
+    fichier: UploadFile = File(...),
+    appliquer: bool = Query(False, description="Écrire réellement ; simulation sinon"),
+    db: Session = Depends(get_db),
+):
+    """Injecte la réponse d'un modèle de langage et rend le compte rendu.
+
+    SIMULATION PAR DÉFAUT : sans `appliquer=true`, la transaction est annulée
+    et rien n'est écrit. L'appelant voit ce qui se produirait — numéros
+    rattachés, mots-clés sans correspondance, numéros laissés de côté — avant
+    de décider.
+    """
+    contenu = await fichier.read(TAILLE_MAX_IMPORT_OCTETS + 1)
+    if len(contenu) > TAILLE_MAX_IMPORT_OCTETS:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Fichier trop volumineux (%d Ko maximum)." % (TAILLE_MAX_IMPORT_OCTETS // 1024),
+        )
+
+    try:
+        charge = json.loads(contenu.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        # Le cas le plus fréquent : la réponse du modèle a été copiée avec son
+        # habillage (```json ...```), ou tronquée. Le dire plutôt que de
+        # renvoyer une erreur de bas niveau.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="JSON illisible : %s. Vérifiez que le fichier ne contient que le JSON, sans texte autour." % exc,
+        ) from exc
+
+    try:
+        return importer(db, charge, appliquer)
+    except ImportInvalide as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post("/themes/subthemes/recompute")
+def recompute_subthemes(
+    appliquer: bool = Query(False, description="Écrire réellement ; simulation sinon"),
+    db: Session = Depends(get_db),
+):
+    """Rejoue le rattachement de toutes les sous-thématiques existantes.
+
+    Sans appel à un modèle : les mots-clés sont conservés en base. À lancer
+    après l'arrivée de nouveaux numéros, pour qu'ils rejoignent les
+    regroupements déjà définis.
+    """
+    return recalculer_tout(db, appliquer)
 
 
 @router.post("/themes/regenerate-all")

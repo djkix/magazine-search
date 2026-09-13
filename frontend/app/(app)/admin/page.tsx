@@ -2,8 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { api, ApiError } from "@/lib/api";
-import type { AdminStats, Magazine, RetryFailedResponse, ScanStatusResponse, ScanTriggerResponse } from "@/lib/types";
+import { api, ApiError, fileUrl } from "@/lib/api";
+import type {
+  AdminStats,
+  Magazine,
+  RetryFailedResponse,
+  ScanStatusResponse,
+  ScanTriggerResponse,
+  SubthemeImportReport,
+  ThemeExport,
+} from "@/lib/types";
 import StatCard from "@/components/admin/StatCard";
 import StatusBadge from "@/components/ui/StatusBadge";
 import Icon from "@/components/ui/Icon";
@@ -45,6 +53,14 @@ export default function AdminDashboardPage() {
   const [progressById, setProgressById] = useState<Record<number, { current: number; total: number }>>({});
   const [deduplicatingArticles, setDeduplicatingArticles] = useState(false);
   const [dedupeMessage, setDedupeMessage] = useState<string | null>(null);
+  const [themeExports, setThemeExports] = useState<ThemeExport[] | null>(null);
+  // Le fichier est conservé après la simulation : appliquer, c'est le
+  // renvoyer tel quel avec le drapeau d'écriture, sans redemander à l'utilisateur
+  // de le sélectionner une seconde fois.
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importReport, setImportReport] = useState<SubthemeImportReport | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importRunning, setImportRunning] = useState(false);
 
   const FILTER_PAGE_SIZE = 100;
 
@@ -134,6 +150,16 @@ export default function AdminDashboardPage() {
     }, 5000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Chargé une seule fois, volontairement hors du rafraîchissement à 5 s :
+  // l'inventaire compte les titres distincts de toute la bibliothèque, et
+  // n'évolue qu'après une réindexation.
+  useEffect(() => {
+    api
+      .get<ThemeExport[]>("/admin/themes/export")
+      .then(setThemeExports)
+      .catch(() => setThemeExports([]));
   }, []);
 
   useEffect(() => {
@@ -293,6 +319,29 @@ export default function AdminDashboardPage() {
       setError(err instanceof ApiError ? err.message : "Erreur lors de la suppression des doublons");
     } finally {
       setDeduplicatingArticles(false);
+    }
+  }
+
+  // Un seul chemin pour la simulation et pour l'écriture : c'est le même
+  // appel, au drapeau près. Deux fonctions distinctes auraient pu diverger,
+  // et l'aperçu ne refléterait plus ce qui sera réellement écrit.
+  async function envoyerImport(fichier: File, appliquer: boolean) {
+    setImportRunning(true);
+    setImportError(null);
+    try {
+      const form = new FormData();
+      form.append("fichier", fichier);
+      const rapport = await api.postForm<SubthemeImportReport>(
+        `/admin/themes/import?appliquer=${appliquer}`,
+        form
+      );
+      setImportReport(rapport);
+      if (appliquer) setImportFile(null);
+    } catch (err) {
+      setImportReport(null);
+      setImportError(err instanceof ApiError ? err.message : "Import impossible");
+    } finally {
+      setImportRunning(false);
     }
   }
 
@@ -479,6 +528,174 @@ export default function AdminDashboardPage() {
           {deduplicatingArticles ? "Nettoyage en cours..." : "Supprimer les articles en double"}
         </Button>
         {dedupeMessage && <p className="text-sm text-foreground-muted">{dedupeMessage}</p>}
+      </div>
+
+      <div className="space-y-3 rounded-xl border border-outline-variant bg-surface/60 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Sous-thématiques</h2>
+            <p className="mt-1 text-sm text-foreground-muted">
+              Téléchargez le corpus d&apos;une thématique, soumettez-le à un modèle de langage, puis
+              réinjectez sa réponse. La consigne est incluse dans le fichier.
+            </p>
+          </div>
+          <a
+            href={fileUrl("/admin/themes/export/zip")}
+            className="shrink-0 rounded-xl border border-outline-variant px-3 py-2 text-sm text-foreground-muted transition hover:bg-surface-hover hover:text-foreground"
+          >
+            <Icon name="folder_zip" className="mr-1 align-middle text-base" />
+            Tout télécharger
+          </a>
+        </div>
+
+        {themeExports === null && <p className="text-sm text-foreground-muted">Chargement…</p>}
+
+        {themeExports?.length === 0 && (
+          <p className="text-sm text-foreground-muted">Aucune thématique pour le moment.</p>
+        )}
+
+        {themeExports && themeExports.length > 0 && (
+          <div className="overflow-hidden rounded-xl border border-outline-variant">
+            <table className="w-full text-sm">
+              <thead className="bg-surface-hover text-left font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
+                <tr>
+                  <th className="px-4 py-3">Thématique</th>
+                  <th className="px-4 py-3">Numéros</th>
+                  <th className="px-4 py-3">Titres</th>
+                  <th className="px-4 py-3"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-outline-variant">
+                {themeExports.map((theme) => (
+                  <tr key={theme.id} className="bg-surface/40">
+                    <td className="px-4 py-3 text-foreground">
+                      {theme.name}
+                      {!theme.eligible && (
+                        <span className="ml-2 rounded-full bg-surface-hover px-2 py-0.5 font-mono text-[10px] text-foreground-muted">
+                          trop peu de numéros
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-foreground-muted">
+                      {theme.magazine_count}
+                    </td>
+                    {/* Au-delà d'environ 2 000 titres, le corpus ne tient plus
+                        dans une seule invite : signalé plutôt que découpé
+                        d'office, le seuil dépendant du modèle employé. */}
+                    <td className="px-4 py-3 font-mono text-xs">
+                      <span className={theme.title_count > 2000 ? "text-amber-400" : "text-foreground-muted"}>
+                        {theme.title_count}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <a
+                        href={fileUrl(`/admin/themes/${theme.id}/export`)}
+                        className="rounded-lg px-2 py-1 text-foreground-muted transition hover:bg-surface-hover hover:text-foreground"
+                        title={`Télécharger le corpus « ${theme.name} »`}
+                      >
+                        <Icon name="download" />
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div className="space-y-3 border-t border-outline-variant pt-4">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Réinjecter la réponse du modèle</h3>
+            <p className="mt-1 text-sm text-foreground-muted">
+              Déposez le JSON obtenu. Rien n&apos;est écrit tant que vous n&apos;avez pas confirmé.
+            </p>
+          </div>
+
+          <input
+            type="file"
+            accept="application/json,.json"
+            onChange={(e) => {
+              const fichier = e.target.files?.[0] ?? null;
+              setImportFile(fichier);
+              setImportReport(null);
+              setImportError(null);
+              // La simulation part dès la sélection : l'utilisateur veut voir
+              // le résultat, pas cliquer une fois de plus pour l'obtenir.
+              if (fichier) envoyerImport(fichier, false);
+            }}
+            className="block w-full text-sm text-foreground-muted file:mr-3 file:rounded-lg file:border-0 file:bg-primary/10 file:px-3 file:py-2 file:text-sm file:text-primary-light hover:file:bg-primary/20"
+          />
+
+          {importRunning && <p className="text-sm text-foreground-muted">Analyse en cours…</p>}
+          {importError && <p className="text-sm text-red-400">{importError}</p>}
+
+          {importReport && (
+            <div className="space-y-3 rounded-xl border border-outline-variant bg-surface/40 p-3">
+              <p className="text-sm text-foreground">
+                <span className="font-semibold">{importReport.thematique}</span>{" "}
+                <span className="text-foreground-muted">
+                  — {importReport.articles_corpus} articles dans le corpus
+                </span>
+              </p>
+
+              <div className="overflow-hidden rounded-lg border border-outline-variant">
+                <table className="w-full text-sm">
+                  <thead className="bg-surface-hover text-left font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
+                    <tr>
+                      <th className="px-3 py-2">Sous-thématique</th>
+                      <th className="px-3 py-2">Numéros</th>
+                      <th className="px-3 py-2">Articles</th>
+                      <th className="px-3 py-2">Mots-clés sans correspondance</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-outline-variant">
+                    {importReport.sous_thematiques.map((st) => (
+                      <tr key={st.nom} className="bg-surface/40">
+                        <td className="px-3 py-2 text-foreground">{st.nom}</td>
+                        <td className="px-3 py-2 font-mono text-xs text-foreground-muted">{st.numeros}</td>
+                        <td className="px-3 py-2 font-mono text-xs text-foreground-muted">{st.articles}</td>
+                        <td className="px-3 py-2 text-xs text-amber-400">
+                          {st.mots_cles_steriles.length > 0 ? st.mots_cles_steriles.join(", ") : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <p className="font-mono text-xs text-foreground-muted">
+                {importReport.numeros_rattaches} numéro(s) rattaché(s) sur{" "}
+                {importReport.numeros_thematique} · {importReport.numeros_autres} dans « Autres »
+              </p>
+
+              {importReport.decoupage_suspect && (
+                <p className="text-sm text-amber-400">
+                  Plus d&apos;un tiers des numéros n&apos;est rattaché à rien. Le découpage est
+                  probablement trop étroit — mieux vaut relancer le modèle que de publier une
+                  navigation trouée.
+                </p>
+              )}
+
+              {importReport.obsoletes.length > 0 && (
+                <p className="text-sm text-foreground-muted">
+                  Sous-thématiques absentes du fichier, qui seront supprimées :{" "}
+                  {importReport.obsoletes.join(", ")}
+                </p>
+              )}
+
+              {importReport.applique ? (
+                <p className="text-sm text-primary-light">Appliqué.</p>
+              ) : (
+                <Button
+                  onClick={() => importFile && envoyerImport(importFile, true)}
+                  disabled={importRunning || !importFile}
+                >
+                  Appliquer
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       <div>

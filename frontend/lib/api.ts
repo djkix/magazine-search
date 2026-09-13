@@ -9,11 +9,16 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  // Un envoi de fichier passe par FormData, qui porte sa propre frontière
+  // multipart. Forcer un Content-Type JSON empêcherait le navigateur de la
+  // poser, et le serveur ne saurait plus découper le corps de la requête.
+  const estFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     credentials: "include",
     headers: {
-      "Content-Type": "application/json",
+      ...(estFormData ? {} : { "Content-Type": "application/json" }),
       ...options.headers,
     },
   });
@@ -39,6 +44,10 @@ export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "POST", body: body ? JSON.stringify(body) : undefined }),
+  // Envoi de fichier. Le Content-Type est laissé au navigateur, qui seul
+  // connaît la frontière multipart à déclarer.
+  postForm: <T>(path: string, form: FormData) =>
+    request<T>(path, { method: "POST", body: form }),
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "PATCH", body: body ? JSON.stringify(body) : undefined }),
   put: <T>(path: string, body?: unknown) =>

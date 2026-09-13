@@ -68,6 +68,38 @@ export interface MagazineTheme {
   magazine_count: number;
 }
 
+export interface SubthemeReportLine {
+  nom: string;
+  numeros: number;
+  articles: number;
+  // Mots-clés ne correspondant à aucun article : signalent un regroupement
+  // inventé par le modèle, absent du corpus réel.
+  mots_cles_steriles: string[];
+}
+
+export interface SubthemeImportReport {
+  thematique: string;
+  applique: boolean;
+  articles_corpus: number;
+  sous_thematiques: SubthemeReportLine[];
+  entrees_ignorees: string[];
+  obsoletes: string[];
+  numeros_thematique: number;
+  numeros_rattaches: number;
+  numeros_autres: number;
+  decoupage_suspect: boolean;
+}
+
+export interface ThemeExport {
+  id: number;
+  name: string;
+  magazine_count: number;
+  title_count: number;
+  // Faux quand la thématique compte trop peu de numéros pour qu'un découpage
+  // en sous-thématiques ait du sens.
+  eligible: boolean;
+}
+
 export interface YearFacet {
   year: number;
   count: number;

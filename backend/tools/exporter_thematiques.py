@@ -31,82 +31,14 @@ import json
 import sys
 from pathlib import Path
 
-from sqlalchemy import func
-
 from app.database import SessionLocal
-from app.models import Article, Magazine, Theme, theme_magazines
-
-# En deçà, une thématique n'a pas de sous-structure exploitable : la
-# navigation affiche directement ses numéros. Aligné sur le seuil appliqué
-# côté API.
-MIN_NUMEROS_POUR_SOUS_THEMATIQUES = 8
-
-
-def _titres_de_la_thematique(db, theme_id: int) -> list[str]:
-    """Titres d'articles des numéros portant cette thématique, dédoublonnés.
-
-    Le dédoublonnage est fait ici plutôt que côté modèle : un même titre
-    répété dans quarante numéros n'apporte rien à l'identification des
-    regroupements, et gonfle l'invite d'autant.
-    """
-    lignes = (
-        db.query(Article.title)
-        .join(Magazine, Magazine.id == Article.magazine_id)
-        .join(theme_magazines, theme_magazines.c.magazine_id == Magazine.id)
-        .filter(theme_magazines.c.theme_id == theme_id)
-        .all()
-    )
-    vus: set[str] = set()
-    titres: list[str] = []
-    for (titre,) in lignes:
-        propre = (titre or "").strip()
-        if not propre:
-            continue
-        cle = propre.casefold()
-        if cle in vus:
-            continue
-        vus.add(cle)
-        titres.append(propre)
-    return titres
-
-
-def _inventaire(db) -> list[tuple[int, str, int]]:
-    """(id, nom, nombre de numéros) par thématique, la plus fournie d'abord."""
-    return (
-        db.query(Theme.id, Theme.name, func.count(Magazine.id.distinct()))
-        .join(theme_magazines, theme_magazines.c.theme_id == Theme.id)
-        .join(Magazine, Magazine.id == theme_magazines.c.magazine_id)
-        .group_by(Theme.id, Theme.name)
-        .order_by(func.count(Magazine.id.distinct()).desc(), Theme.name)
-        .all()
-    )
-
-
-CONSIGNE = (
-    "Regroupe ces titres d'articles en 5 a 12 sous-thematiques concretes. "
-    "Reponds UNIQUEMENT par un JSON de la forme "
-    '{\"thematique\": \"<nom>\", \"sous_thematiques\": '
-    '[{\"nom\": \"...\", \"mots_cles\": [\"...\", \"...\"]}]}. '
-    "Les mots-cles doivent etre des expressions REELLEMENT presentes dans les "
-    "titres : ils servent a rattacher automatiquement les numeros, un mot-cle "
-    "absent du corpus ne rattachera rien."
+from app.services.export_thematiques import (
+    MIN_NUMEROS_POUR_SOUS_THEMATIQUES,
+    charge_utile,
+    inventaire,
+    nom_de_fichier,
+    titres_de_la_thematique,
 )
-
-
-def _charge_utile(db, theme_id: int, nom: str, numeros: int, max_titres: int | None) -> dict:
-    titres = _titres_de_la_thematique(db, theme_id)
-    tronque = max_titres is not None and len(titres) > max_titres
-    return {
-        "thematique": nom,
-        "numeros": numeros,
-        "titres_total": len(titres),
-        # Signalé explicitement plutôt que tronqué en silence : un découpage
-        # établi sur un échantillon ne couvre pas le reste du corpus, et il
-        # faut le savoir en lisant le résultat.
-        "titres_tronques": tronque,
-        "consigne": CONSIGNE,
-        "titres": titres[:max_titres] if tronque else titres,
-    }
 
 
 def main() -> int:
@@ -126,12 +58,12 @@ def main() -> int:
 
     db = SessionLocal()
     try:
-        inventaire = _inventaire(db)
+        thematiques = inventaire(db)
 
         if args.lister or not (args.thematique or args.tout):
             print("%-32s %8s %9s" % ("THEMATIQUE", "NUMEROS", "TITRES"))
-            for theme_id, nom, numeros in inventaire:
-                titres = len(_titres_de_la_thematique(db, theme_id))
+            for theme_id, nom, numeros in thematiques:
+                titres = len(titres_de_la_thematique(db, theme_id))
                 marque = "" if numeros >= MIN_NUMEROS_POUR_SOUS_THEMATIQUES else "  (sous le seuil)"
                 print("%-32s %8d %9d%s" % (nom[:32], numeros, titres, marque))
             print()
@@ -140,31 +72,30 @@ def main() -> int:
             return 0
 
         if args.thematique:
-            cibles = [(i, n, c) for i, n, c in inventaire if n == args.thematique]
+            cibles = [(i, n, c) for i, n, c in thematiques if n == args.thematique]
             if not cibles:
                 print("Thematique introuvable : %r" % args.thematique, file=sys.stderr)
-                print("Noms disponibles : %s" % ", ".join(n for _, n, _ in inventaire), file=sys.stderr)
+                print("Noms disponibles : %s" % ", ".join(n for _, n, _ in thematiques), file=sys.stderr)
                 return 1
         else:
-            cibles = [(i, n, c) for i, n, c in inventaire if c >= MIN_NUMEROS_POUR_SOUS_THEMATIQUES]
+            cibles = [(i, n, c) for i, n, c in thematiques if c >= MIN_NUMEROS_POUR_SOUS_THEMATIQUES]
 
         if args.stdout:
             if len(cibles) != 1:
                 print("--stdout exige une thematique unique (-t).", file=sys.stderr)
                 return 1
             theme_id, nom, numeros = cibles[0]
-            charge = _charge_utile(db, theme_id, nom, numeros, args.max_titres)
+            charge = charge_utile(db, theme_id, nom, numeros, args.max_titres)
             print(json.dumps(charge, ensure_ascii=False, indent=2))
             return 0
 
         repertoire = Path(args.sortie)
         repertoire.mkdir(parents=True, exist_ok=True)
         for theme_id, nom, numeros in cibles:
-            charge = _charge_utile(db, theme_id, nom, numeros, args.max_titres)
+            charge = charge_utile(db, theme_id, nom, numeros, args.max_titres)
             # Nom de fichier assaini : les thematiques peuvent contenir des
             # espaces, des accents ou une barre oblique.
-            sur = "".join(c if c.isalnum() else "_" for c in nom).strip("_")
-            chemin = repertoire / ("thematique_%s.json" % sur)
+            chemin = repertoire / nom_de_fichier(nom)
             chemin.write_text(json.dumps(charge, ensure_ascii=False, indent=2), encoding="utf-8")
             print(
                 "%-32s %5d numeros %6d titres -> %s"
