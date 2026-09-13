@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.27.1](https://github.com/djkix/magazine-search/compare/v0.27.0...v0.27.1) (2026-09-13)
+
+
+### Reverts
+
+* **deploiement:** supprimer la sauvegarde avant migration ([10df53a](https://github.com/djkix/magazine-search/commit/10df53a357b7777ebdba0b1a9f4153b1cebad83e))
+
 ## [0.27.0](https://github.com/djkix/magazine-search/compare/v0.26.0...v0.27.0) (2026-09-13)
 
 
