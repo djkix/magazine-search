@@ -94,14 +94,12 @@ export interface SubthemeImportReport {
   decoupage_suspect: boolean;
 }
 
-export interface ThemeExport {
-  id: number;
-  name: string;
-  magazine_count: number;
-  title_count: number;
-  // Faux quand la thématique compte trop peu de numéros pour qu'un découpage
-  // en sous-thématiques ait du sens.
-  eligible: boolean;
+// Volumétrie du corpus à soumettre au modèle externe. Affichée avant le
+// téléchargement : c'est elle qui dit si l'export tiendra dans une seule
+// invite ou s'il faudra le livrer en plusieurs fois.
+export interface CorpusExport {
+  articles: number;
+  collections: number;
 }
 
 export interface YearFacet {

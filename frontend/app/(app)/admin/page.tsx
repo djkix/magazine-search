@@ -10,7 +10,7 @@ import type {
   ScanStatusResponse,
   ScanTriggerResponse,
   SubthemeImportReport,
-  ThemeExport,
+  CorpusExport,
 } from "@/lib/types";
 import StatCard from "@/components/admin/StatCard";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -53,7 +53,7 @@ export default function AdminDashboardPage() {
   const [progressById, setProgressById] = useState<Record<number, { current: number; total: number }>>({});
   const [deduplicatingArticles, setDeduplicatingArticles] = useState(false);
   const [dedupeMessage, setDedupeMessage] = useState<string | null>(null);
-  const [themeExports, setThemeExports] = useState<ThemeExport[] | null>(null);
+  const [corpus, setCorpus] = useState<CorpusExport | null>(null);
   // Le fichier est conservé après la simulation : appliquer, c'est le
   // renvoyer tel quel avec le drapeau d'écriture, sans redemander à l'utilisateur
   // de le sélectionner une seconde fois.
@@ -157,9 +157,9 @@ export default function AdminDashboardPage() {
   // n'évolue qu'après une réindexation.
   useEffect(() => {
     api
-      .get<ThemeExport[]>("/admin/themes/export")
-      .then(setThemeExports)
-      .catch(() => setThemeExports([]));
+      .get<CorpusExport>("/admin/themes/export")
+      .then(setCorpus)
+      .catch(() => setCorpus(null));
   }, []);
 
   useEffect(() => {
@@ -535,12 +535,12 @@ export default function AdminDashboardPage() {
           <div>
             <h2 className="text-lg font-semibold text-foreground">Sous-thématiques</h2>
             <p className="mt-1 text-sm text-foreground-muted">
-              Téléchargez le corpus d&apos;une thématique, soumettez-le à un modèle de langage, puis
+              Téléchargez le corpus complet, soumettez-le à un modèle de langage, puis
               réinjectez sa réponse. La consigne est incluse dans le fichier.
             </p>
           </div>
           <a
-            href={fileUrl("/admin/themes/export/zip")}
+            href={fileUrl("/admin/themes/export/file")}
             className="shrink-0 rounded-xl border border-outline-variant px-3 py-2 text-sm text-foreground-muted transition hover:bg-surface-hover hover:text-foreground"
           >
             <Icon name="folder_zip" className="mr-1 align-middle text-base" />
@@ -548,59 +548,15 @@ export default function AdminDashboardPage() {
           </a>
         </div>
 
-        {themeExports === null && <p className="text-sm text-foreground-muted">Chargement…</p>}
+        {corpus === null && <p className="text-sm text-foreground-muted">Chargement…</p>}
 
-        {themeExports?.length === 0 && (
-          <p className="text-sm text-foreground-muted">Aucune thématique pour le moment.</p>
-        )}
-
-        {themeExports && themeExports.length > 0 && (
-          <div className="overflow-hidden rounded-xl border border-outline-variant">
-            <table className="w-full text-sm">
-              <thead className="bg-surface-hover text-left font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
-                <tr>
-                  <th className="px-4 py-3">Thématique</th>
-                  <th className="px-4 py-3">Numéros</th>
-                  <th className="px-4 py-3">Titres</th>
-                  <th className="px-4 py-3"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant">
-                {themeExports.map((theme) => (
-                  <tr key={theme.id} className="bg-surface/40">
-                    <td className="px-4 py-3 text-foreground">
-                      {theme.name}
-                      {!theme.eligible && (
-                        <span className="ml-2 rounded-full bg-surface-hover px-2 py-0.5 font-mono text-[10px] text-foreground-muted">
-                          trop peu de numéros
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-foreground-muted">
-                      {theme.magazine_count}
-                    </td>
-                    {/* Au-delà d'environ 2 000 titres, le corpus ne tient plus
-                        dans une seule invite : signalé plutôt que découpé
-                        d'office, le seuil dépendant du modèle employé. */}
-                    <td className="px-4 py-3 font-mono text-xs">
-                      <span className={theme.title_count > 2000 ? "text-amber-400" : "text-foreground-muted"}>
-                        {theme.title_count}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <a
-                        href={fileUrl(`/admin/themes/${theme.id}/export`)}
-                        className="rounded-lg px-2 py-1 text-foreground-muted transition hover:bg-surface-hover hover:text-foreground"
-                        title={`Télécharger le corpus « ${theme.name} »`}
-                      >
-                        <Icon name="download" />
-                      </a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        {corpus && (
+          <p className="text-sm text-foreground-muted">
+            <span className="font-mono text-foreground">{corpus.articles.toLocaleString("fr-FR")}</span>{" "}
+            articles répartis sur{" "}
+            <span className="font-mono text-foreground">{corpus.collections}</span> collections. Les
+            collections sans article extrait sont omises.
+          </p>
         )}
 
         <div className="space-y-3 border-t border-outline-variant pt-4">

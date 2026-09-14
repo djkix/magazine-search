@@ -1,7 +1,5 @@
-import io
 import json
 import logging
-import zipfile
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy import distinct, func
@@ -31,19 +29,13 @@ from app.schemas import (
     TagCreate,
     TagOut,
     TagUpdate,
-    ThemeExportOut,
+    CorpusExportOut,
     UserCreate,
     UserOut,
     UserUpdate,
 )
 from app.security import hash_password
-from app.services.export_thematiques import (
-    MIN_NUMEROS_POUR_SOUS_THEMATIQUES,
-    charge_utile,
-    inventaire,
-    inventaire_avec_titres,
-    nom_de_fichier,
-)
+from app.services.export_thematiques import charge_utile, nom_de_fichier, resume
 from app.services.import_sous_thematiques import ImportInvalide, importer, recalculer_tout
 from app.services.themes_des_tags import propager
 from app.services.logs import read_logs
@@ -627,69 +619,30 @@ def reindex_all(db: Session = Depends(get_db)):
     return {"enqueued": len(magazine_ids)}
 
 
-@router.get("/themes/export", response_model=list[ThemeExportOut])
-def list_theme_exports(db: Session = Depends(get_db)):
-    """Inventaire des thématiques exportables, avec leur volume.
+@router.get("/themes/export", response_model=CorpusExportOut)
+def corpus_export_summary(db: Session = Depends(get_db)):
+    """Volumétrie du corpus, sans charger les titres.
 
-    Le nombre de titres conditionne la faisabilité : au-delà d'environ 2 000,
-    le corpus ne tient plus dans une seule invite et il faut le découper.
+    Sert à afficher ce que pèse l'export avant de le télécharger : au-delà
+    d'environ 150 000 caractères, le corpus ne tiendra pas dans une seule
+    invite et il faudra le soumettre en plusieurs fois.
     """
-    return [
-        ThemeExportOut(
-            id=theme_id,
-            name=nom,
-            magazine_count=numeros,
-            title_count=titres,
-            eligible=numeros >= MIN_NUMEROS_POUR_SOUS_THEMATIQUES,
-        )
-        for theme_id, nom, numeros, titres in inventaire_avec_titres(db)
-    ]
+    return CorpusExportOut(**resume(db))
 
 
-@router.get("/themes/export/zip")
-def download_all_theme_exports(db: Session = Depends(get_db)):
-    """Toutes les thématiques éligibles, en une archive.
+@router.get("/themes/export/file")
+def download_corpus_export(db: Session = Depends(get_db)):
+    """Le corpus complet, groupé par collection, prêt pour un modèle externe.
 
-    Un fichier par thématique plutôt qu'un seul gros : le corpus complet ne
-    tiendrait dans aucune invite, chaque thématique se traite séparément.
+    Un seul fichier : un découpage par collection ferait diverger la taxonomie
+    d'une revue à l'autre, sans rien pour les réconcilier ensuite. La consigne
+    est incluse — rien à retenir au moment de solliciter le modèle.
     """
-    tampon = io.BytesIO()
-    with zipfile.ZipFile(tampon, "w", zipfile.ZIP_DEFLATED) as archive:
-        for theme_id, nom, numeros in inventaire(db):
-            if numeros < MIN_NUMEROS_POUR_SOUS_THEMATIQUES:
-                continue
-            charge = charge_utile(db, theme_id, nom, numeros)
-            archive.writestr(
-                nom_de_fichier(nom),
-                json.dumps(charge, ensure_ascii=False, indent=2),
-            )
-    return Response(
-        content=tampon.getvalue(),
-        media_type="application/zip",
-        headers={"Content-Disposition": 'attachment; filename="thematiques.zip"'},
-    )
-
-
-@router.get("/themes/{theme_id}/export")
-def download_theme_export(theme_id: int, db: Session = Depends(get_db)):
-    """Le fichier d'une thématique, prêt à être soumis à un modèle de langage.
-
-    La consigne est incluse dans le fichier : rien à retenir au moment de
-    solliciter le modèle.
-    """
-    ligne = next((l for l in inventaire(db) if l[0] == theme_id), None)
-    if ligne is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thème introuvable")
-
-    _, nom, numeros = ligne
-    charge = charge_utile(db, theme_id, nom, numeros)
+    charge = charge_utile(db)
     return Response(
         content=json.dumps(charge, ensure_ascii=False, indent=2),
         media_type="application/json",
-        # nom_de_fichier() ne laisse passer que des caractères alphanumériques :
-        # un nom de thématique contenant une barre oblique ou un guillemet
-        # casserait l'en-tête, voire y injecterait une directive.
-        headers={"Content-Disposition": 'attachment; filename="%s"' % nom_de_fichier(nom)},
+        headers={"Content-Disposition": 'attachment; filename="%s"' % nom_de_fichier()},
     )
 
 

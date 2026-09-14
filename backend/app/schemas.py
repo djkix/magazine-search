@@ -239,17 +239,15 @@ class MagazineThemeOut(BaseModel):
     magazine_count: int
 
 
-class ThemeExportOut(BaseModel):
-    """Une ligne de l'inventaire d'export des thématiques, côté admin."""
+class CorpusExportOut(BaseModel):
+    """Volumétrie du corpus à soumettre au modèle externe.
 
-    id: int
-    name: str
-    magazine_count: int
-    title_count: int
-    # Faux quand la thématique compte trop peu de numéros pour qu'un découpage
-    # en sous-thématiques ait du sens : le bouton de téléchargement reste
-    # accessible, mais l'interface le signale.
-    eligible: bool
+    Affichée avant le téléchargement : c'est elle qui dit si l'export tiendra
+    dans une seule invite ou s'il faudra le livrer en plusieurs fois.
+    """
+
+    articles: int
+    collections: int
 
 
 # ---- Scan ----

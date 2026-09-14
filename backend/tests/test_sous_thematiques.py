@@ -8,7 +8,7 @@ regroupements hors ligne, mais le rattachement se joue ici — d'où ces tests.
 """
 
 from app.services.sous_thematiques import (
-    compter_par_numero,
+    articles_correspondants,
     motif_du_mot_cle,
     motifs_des_mots_cles,
     mots_cles_steriles,
@@ -66,34 +66,42 @@ def test_mot_cle_vide_ignore():
     assert len(motifs_des_mots_cles(["", "  ", "UV"])) == 1
 
 
-def test_comptage_par_numero():
+def test_articles_correspondants():
+    """Le rattachement vise l'ARTICLE, pas le numéro qui le contient.
+
+    « Assurance auto » paraît dans le même numéro que « Crème solaire », et ne
+    doit pas pour autant relever du même regroupement. Viser le numéro entier
+    noyait chaque sous-thématique sous le contenu voisin.
+    """
     articles = [
-        (1, "Crème solaire : notre test"),
-        (1, "Protection solaire pour enfants"),
-        (1, "Assurance auto : comparatif"),
-        (2, "Les rayons UV en question"),
-        (3, "Comment ouvrir un livret A"),
+        (11, "Crème solaire : notre test"),
+        (12, "Protection solaire pour enfants"),
+        (13, "Assurance auto : comparatif"),
+        (14, "Les rayons UV en question"),
+        (15, "Comment ouvrir un livret A"),
     ]
     motifs = motifs_des_mots_cles(["crème solaire", "protection solaire", "UV"])
 
-    comptes = compter_par_numero(motifs, articles)
-
-    assert comptes[1] == 2
-    assert comptes[2] == 1
-    # Le numéro 3 ne correspond à rien : il relèvera de « Autres ».
-    assert 3 not in comptes
+    assert articles_correspondants(motifs, articles) == {11, 12, 14}
 
 
-def test_un_article_ne_compte_qu_une_fois():
-    """La grandeur mesurée est « combien d'articles parlent de ça ».
+def test_sans_motif_aucun_article():
+    """Une sous-thématique sans mot-clé exploitable ne rattache rien.
 
-    Compter les mots-clés touchés récompenserait les listes verbeuses : une
-    sous-thématique à quinze synonymes écraserait les autres au tri.
+    Sans ce court-circuit, la liste vide de motifs ferait correspondre
+    l'intégralité du corpus — `any()` d'une séquence vide étant faux, mais la
+    boucle restant inutilement parcourue sur des milliers de titres.
     """
+    assert articles_correspondants([], [(1, "Crème solaire")]) == set()
+
+
+def test_un_article_touche_par_deux_mots_cles_n_apparait_qu_une_fois():
+    """Le résultat est un ensemble : deux mots-clés sur le même titre ne le
+    rattachent pas deux fois."""
     articles = [(9, "Crème solaire et protection solaire renforcee")]
     motifs = motifs_des_mots_cles(["crème solaire", "protection solaire"])
 
-    assert compter_par_numero(motifs, articles) == {9: 1}
+    assert articles_correspondants(motifs, articles) == {9}
 
 
 def test_mots_cles_steriles_signales():
