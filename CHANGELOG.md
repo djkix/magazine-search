@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.28.1](https://github.com/djkix/magazine-search/compare/v0.28.0...v0.28.1) (2026-09-14)
+
+
+### Bug Fixes
+
+* **thematiques:** passer les titres OCR à la ligne au lieu de les tronquer ([e109697](https://github.com/djkix/magazine-search/commit/e109697237d7f1c66eefcf73dee114cebd7b973e))
+
 ## [0.28.0](https://github.com/djkix/magazine-search/compare/v0.27.1...v0.28.0) (2026-09-14)
 
 
