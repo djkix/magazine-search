@@ -73,8 +73,12 @@ export interface MagazineTheme {
 }
 
 export interface SubthemeReportLine {
+  // Thématique de rattachement — la taxonomie étant désormais globale, un
+  // compte rendu couvre plusieurs thématiques à la fois.
+  thematique: string;
   nom: string;
-  numeros: number;
+  // Nombre d'ARTICLES rattachés, et non de numéros : c'est l'article qui
+  // relève d'une sous-thématique, pas le numéro qui le contient.
   articles: number;
   // Mots-clés ne correspondant à aucun article : signalent un regroupement
   // inventé par le modèle, absent du corpus réel.
@@ -82,16 +86,13 @@ export interface SubthemeReportLine {
 }
 
 export interface SubthemeImportReport {
-  thematique: string;
   applique: boolean;
   articles_corpus: number;
+  articles_couverts: number;
+  articles_sans_sous_thematique: number;
+  thematiques: number;
   sous_thematiques: SubthemeReportLine[];
   entrees_ignorees: string[];
-  obsoletes: string[];
-  numeros_thematique: number;
-  numeros_rattaches: number;
-  numeros_autres: number;
-  decoupage_suspect: boolean;
 }
 
 // Volumétrie du corpus à soumettre au modèle externe. Affichée avant le

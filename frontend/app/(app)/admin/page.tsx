@@ -588,27 +588,26 @@ export default function AdminDashboardPage() {
           {importReport && (
             <div className="space-y-3 rounded-xl border border-outline-variant bg-surface/40 p-3">
               <p className="text-sm text-foreground">
-                <span className="font-semibold">{importReport.thematique}</span>{" "}
-                <span className="text-foreground-muted">
-                  — {importReport.articles_corpus} articles dans le corpus
-                </span>
+                <span className="font-semibold">{importReport.thematiques}</span> thématique(s),{" "}
+                <span className="font-semibold">{importReport.sous_thematiques.length}</span>{" "}
+                sous-thématique(s)
               </p>
 
-              <div className="overflow-hidden rounded-lg border border-outline-variant">
+              <div className="max-h-96 overflow-auto rounded-lg border border-outline-variant">
                 <table className="w-full text-sm">
-                  <thead className="bg-surface-hover text-left font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
+                  <thead className="sticky top-0 bg-surface-hover text-left font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
                     <tr>
+                      <th className="px-3 py-2">Thématique</th>
                       <th className="px-3 py-2">Sous-thématique</th>
-                      <th className="px-3 py-2">Numéros</th>
                       <th className="px-3 py-2">Articles</th>
                       <th className="px-3 py-2">Mots-clés sans correspondance</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant">
                     {importReport.sous_thematiques.map((st) => (
-                      <tr key={st.nom} className="bg-surface/40">
+                      <tr key={`${st.thematique}/${st.nom}`} className="bg-surface/40">
+                        <td className="px-3 py-2 text-foreground-muted">{st.thematique}</td>
                         <td className="px-3 py-2 text-foreground">{st.nom}</td>
-                        <td className="px-3 py-2 font-mono text-xs text-foreground-muted">{st.numeros}</td>
                         <td className="px-3 py-2 font-mono text-xs text-foreground-muted">{st.articles}</td>
                         <td className="px-3 py-2 text-xs text-amber-400">
                           {st.mots_cles_steriles.length > 0 ? st.mots_cles_steriles.join(", ") : "—"}
@@ -620,22 +619,26 @@ export default function AdminDashboardPage() {
               </div>
 
               <p className="font-mono text-xs text-foreground-muted">
-                {importReport.numeros_rattaches} numéro(s) rattaché(s) sur{" "}
-                {importReport.numeros_thematique} · {importReport.numeros_autres} dans « Autres »
+                {importReport.articles_couverts} article(s) rattaché(s) sur{" "}
+                {importReport.articles_corpus} · {importReport.articles_sans_sous_thematique} sans
+                rattachement
               </p>
 
-              {importReport.decoupage_suspect && (
-                <p className="text-sm text-amber-400">
-                  Plus d&apos;un tiers des numéros n&apos;est rattaché à rien. Le découpage est
-                  probablement trop étroit — mieux vaut relancer le modèle que de publier une
-                  navigation trouée.
-                </p>
-              )}
+              {/* Un corpus couvert à moins de la moitié trahit des mots-clés trop
+                  étroits : mieux vaut le signaler que de publier une navigation
+                  dont la majorité des articles est absente. */}
+              {importReport.articles_corpus > 0 &&
+                importReport.articles_couverts < importReport.articles_corpus / 2 && (
+                  <p className="text-sm text-amber-400">
+                    Moins de la moitié du corpus est rattachée. Les mots-clés sont probablement trop
+                    étroits, ou trop peu nombreux — vous pouvez compléter en déposant un second
+                    fichier, l&apos;import s&apos;ajoute au précédent.
+                  </p>
+                )}
 
-              {importReport.obsoletes.length > 0 && (
+              {importReport.entrees_ignorees.length > 0 && (
                 <p className="text-sm text-foreground-muted">
-                  Sous-thématiques absentes du fichier, qui seront supprimées :{" "}
-                  {importReport.obsoletes.join(", ")}
+                  Entrées ignorées, nom ou mots-clés absents : {importReport.entrees_ignorees.join(", ")}
                 </p>
               )}
 
