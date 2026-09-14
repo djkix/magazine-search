@@ -239,6 +239,50 @@ class MagazineThemeOut(BaseModel):
     magazine_count: int
 
 
+class TaxonomyThemeOut(BaseModel):
+    """Niveau 1 de la taxonomie : une thématique ayant des sous-thématiques.
+
+    Distincte de MagazineThemeOut, qui compte les NUMÉROS portant une
+    étiquette posée par Gemini. Ici on compte les ARTICLES rattachés par
+    mots-clés, ce qui n'est ni la même granularité ni la même source.
+    """
+
+    id: int
+    name: str
+    subtheme_count: int
+    article_count: int
+
+
+class SubthemeOut(BaseModel):
+    """Niveau 2 : un regroupement à l'intérieur d'une thématique."""
+
+    id: int
+    name: str
+    article_count: int
+
+
+class SubthemeArticleOut(BaseModel):
+    """Un article rattaché, avec de quoi le situer et l'ouvrir."""
+
+    id: int
+    title: str
+    start_page: int
+    magazine_id: int
+    magazine_title: str
+    issue_number: str | None = None
+    issue_month_label: str | None = None
+    publication_date: datetime | None = None
+
+
+class SubthemeCollectionGroupOut(BaseModel):
+    """Articles d'une sous-thématique, regroupés par collection."""
+
+    collection_id: int | None
+    collection_name: str | None
+    article_count: int
+    articles: list[SubthemeArticleOut]
+
+
 class CorpusExportOut(BaseModel):
     """Volumétrie du corpus à soumettre au modèle externe.
 

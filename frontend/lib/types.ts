@@ -95,6 +95,42 @@ export interface SubthemeImportReport {
   entrees_ignorees: string[];
 }
 
+// Niveau 1 de la taxonomie. À ne pas confondre avec MagazineTheme, qui compte
+// les NUMÉROS portant une étiquette posée par Gemini : ici on compte les
+// ARTICLES rattachés par mots-clés.
+export interface TaxonomyTheme {
+  id: number;
+  name: string;
+  subtheme_count: number;
+  article_count: number;
+}
+
+// Niveau 2.
+export interface Subtheme {
+  id: number;
+  name: string;
+  article_count: number;
+}
+
+export interface SubthemeArticle {
+  id: number;
+  title: string;
+  start_page: number;
+  magazine_id: number;
+  magazine_title: string;
+  issue_number: string | null;
+  issue_month_label: string | null;
+  publication_date: string | null;
+}
+
+// Niveau 3 : les articles d'une sous-thématique, regroupés par collection.
+export interface SubthemeCollectionGroup {
+  collection_id: number | null;
+  collection_name: string | null;
+  article_count: number;
+  articles: SubthemeArticle[];
+}
+
 // Volumétrie du corpus à soumettre au modèle externe. Affichée avant le
 // téléchargement : c'est elle qui dit si l'export tiendra dans une seule
 // invite ou s'il faudra le livrer en plusieurs fois.

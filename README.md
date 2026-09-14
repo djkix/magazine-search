@@ -113,9 +113,24 @@ et les Hors-Séries, chacune cliquable pour filtrer.
 La vue « Sommaires » d'une collection affiche les articles extraits de chaque
 numéro, avec le même système de filtres.
 
-La page « Thématiques » les liste toutes triées par nombre de numéros
-distincts qui les portent, toutes collections confondues ; cliquer sur l'une
-d'elles affiche les numéros concernés.
+### Explorer par thématique
+
+La page « Thématiques » descend en trois écrans :
+
+1. **La thématique** — « Alimentation », « Audio », « Fiscalité » — avec le
+   nombre d'articles rattachés, les plus fournies en tête.
+2. **Ses sous-thématiques** — « Légumes », « Budget alimentaire ». Une
+   sous-thématique affichée à zéro article n'est pas un oubli : elle signale
+   des mots-clés qui n'accrochent rien, ce qui aide à corriger la taxonomie.
+3. **Les articles**, regroupés par collection, du numéro le plus récent au plus
+   ancien. Chaque ligne ouvre le lecteur directement à la page de l'article.
+
+Le rattachement se fait au niveau de l'**article**, pas du numéro : « Les
+légumes, bientôt une denrée de luxe » relève de « Alimentation > légumes » sans
+y entraîner les vingt autres titres du même sommaire.
+
+Cette navigation reste vide tant qu'aucune taxonomie n'a été importée — voir
+*Gérer les thématiques* plus bas.
 
 ### Organiser avec des tags
 
