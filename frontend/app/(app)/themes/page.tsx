@@ -184,7 +184,17 @@ export default function ThemesPage() {
                           href={`/viewer/${a.magazine_id}/${a.start_page}`}
                           className="flex items-baseline gap-3 bg-surface/40 px-4 py-2.5 text-sm transition hover:bg-surface-hover"
                         >
-                          <span className="min-w-0 flex-1 truncate text-foreground">{a.title}</span>
+                          {/* Les titres viennent de l'OCR : ils sont longs et souvent
+                              concatenes. Les couper sur une ligne les rendait illisibles ;
+                              on les laisse passer a la ligne, plafonnes a deux lignes pour
+                              que la liste reste parcourable. Le titre complet reste
+                              accessible en infobulle. */}
+                          <span
+                            className="min-w-0 flex-1 line-clamp-2 [overflow-wrap:anywhere] text-foreground"
+                            title={a.title}
+                          >
+                            {a.title}
+                          </span>
                           <span className="shrink-0 truncate text-xs text-foreground-muted">
                             {a.issue_number ? `n°${a.issue_number}` : a.magazine_title}
                             {a.issue_month_label ? ` · ${a.issue_month_label}` : ""}
