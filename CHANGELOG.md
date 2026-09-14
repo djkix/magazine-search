@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.28.0](https://github.com/djkix/magazine-search/compare/v0.27.1...v0.28.0) (2026-09-14)
+
+
+### Features
+
+* **thematiques:** navigation a trois ecrans sur la taxonomie ([877cf44](https://github.com/djkix/magazine-search/commit/877cf44381bbd7b74565cddafd4426ee151f69da))
+
 ## [0.27.1](https://github.com/djkix/magazine-search/compare/v0.27.0...v0.27.1) (2026-09-13)
 
 
