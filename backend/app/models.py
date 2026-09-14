@@ -237,12 +237,11 @@ class Theme(Base):
 # qui l'ont déclenché. Table explicite plutôt que relationship simple : la
 # colonne `occurrences` est une donnée métier — c'est le premier critère de
 # tri de la liste affichée — et non un détail de liaison.
-subtheme_magazines = Table(
-    "subtheme_magazines",
+subtheme_articles = Table(
+    "subtheme_articles",
     Base.metadata,
     Column("subtheme_id", ForeignKey("subthemes.id", ondelete="CASCADE"), primary_key=True),
-    Column("magazine_id", ForeignKey("magazines.id", ondelete="CASCADE"), primary_key=True),
-    Column("occurrences", Integer, nullable=False),
+    Column("article_id", ForeignKey("articles.id", ondelete="CASCADE"), primary_key=True),
 )
 
 
@@ -257,9 +256,15 @@ class Subtheme(Base):
     de les calculer ici, et encore moins de les recalculer.
 
     Le modèle ne fait que NOMMER les regroupements et fournir leurs mots-clés.
-    Le rattachement aux numéros, lui, est calculé localement en confrontant ces
-    mots-clés aux titres d'articles : le décompte reste ainsi vérifiable,
-    explicable, et rejouable gratuitement quand la bibliothèque s'enrichit.
+    Le rattachement, lui, est calculé localement en confrontant ces mots-clés
+    aux titres : le résultat reste vérifiable, explicable, et rejouable
+    gratuitement quand la bibliothèque s'enrichit.
+
+    Le rattachement vise l'ARTICLE, pas le numéro. « Les légumes, bientôt une
+    denrée de luxe » est un article isolé, page 6 ; les vingt autres titres du
+    même numéro ne relèvent pas de « Alimentation > légumes » pour autant.
+    Viser le numéro entier, comme le faisait la version initiale, contaminait
+    les regroupements avec tout le contenu voisin.
     """
 
     __tablename__ = "subthemes"

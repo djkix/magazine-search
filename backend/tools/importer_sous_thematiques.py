@@ -1,34 +1,46 @@
 #!/usr/bin/env python3
-"""Injecte les sous-thématiques produites hors ligne, en ligne de commande.
+"""Injecte la taxonomie produite hors ligne, en ligne de commande.
 
-EN SIMULATION PAR DÉFAUT : sans --appliquer, rien n'est écrit.
+EN SIMULATION PAR DEFAUT : sans --appliquer, rien n'est ecrit.
 
 Ce script n'est qu'une mise en forme pour le terminal. Toute la logique vit
-dans app/services/import_sous_thematiques.py, partagée avec l'API
-d'administration — le dépôt de fichier depuis le tableau de bord produit donc
-exactement le même résultat.
+dans app/services/import_sous_thematiques.py, partagee avec l'API
+d'administration — le depot de fichier depuis le tableau de bord produit donc
+exactement le meme resultat.
 
-Format attendu (ce que doit produire le modèle) :
+Deux niveaux, rattaches aux ARTICLES :
+
+    Thematique (Alimentation) -> Sous-thematique (legumes) -> Articles
+
+Format attendu (ce que doit produire le modele) :
 
     {
-      "thematique": "Santé",
-      "sous_thematiques": [
-        {"nom": "Crème solaire",
-         "mots_cles": ["crème solaire", "protection solaire", "indice SPF"]},
-        {"nom": "Sommeil et somnifères",
-         "mots_cles": ["somnifère", "mélatonine", "insomnie"]}
+      "thematiques": [
+        {
+          "nom": "Alimentation",
+          "sous_thematiques": [
+            {"nom": "Legumes", "mots_cles": ["legume", "potager", "maraicher"]},
+            {"nom": "Budget alimentaire", "mots_cles": ["panier", "prix alimentaires"]}
+          ]
+        }
       ]
     }
 
-Usage, depuis l'hôte :
+L'import est CUMULATIF : les sous-thematiques absentes du fichier ne sont pas
+supprimees. Un envoi en plusieurs morceaux enrichit la taxonomie au lieu de
+l'ecraser, ce qui permet de decouper la reponse du modele quand elle depasse
+sa limite de sortie.
 
-    docker exec magazine-search-app-backend-1 python tools/importer_sous_thematiques.py -f /data/exports/sante.json
+Usage, depuis l'hote :
+
+    docker exec magazine-search-app-backend-1 python tools/importer_sous_thematiques.py -f /data/exports/taxonomie.json
     docker exec magazine-search-app-backend-1 python tools/importer_sous_thematiques.py -f ... --appliquer
     docker exec magazine-search-app-backend-1 python tools/importer_sous_thematiques.py --recalculer-tout --appliquer
 
---recalculer-tout rejoue le rattachement des sous-thématiques déjà en base,
-sans fichier ni modèle : c'est ce qu'il faut lancer après l'arrivée de
-nouveaux numéros.
+--recalculer-tout rejoue le rattachement des sous-thematiques deja en base,
+sans fichier ni modele : c'est ce qu'il faut lancer apres l'arrivee de
+nouveaux numeros, pour que leurs articles rejoignent les regroupements
+existants.
 """
 
 import argparse
@@ -40,13 +52,36 @@ from app.database import SessionLocal
 from app.services.import_sous_thematiques import ImportInvalide, importer, recalculer_tout
 
 
-def _afficher_import(rapport: dict) -> None:
-    print("Thematique %r : %d articles dans le corpus." % (rapport["thematique"], rapport["articles_corpus"]))
+def _afficher_couverture(rapport: dict) -> None:
+    corpus = rapport["articles_corpus"]
+    couverts = rapport["articles_couverts"]
+    part = (100.0 * couverts / corpus) if corpus else 0.0
     print()
-    print("%-38s %8s %9s  %s" % ("SOUS-THEMATIQUE", "NUMEROS", "ARTICLES", "MOTS-CLES STERILES"))
+    print("Articles du corpus        : %d" % corpus)
+    print("Articles rattaches        : %d (%.1f %%)" % (couverts, part))
+    print("Articles sans rattachement: %d" % rapport["articles_sans_sous_thematique"])
+    if corpus and part < 50:
+        print()
+        print("  ATTENTION : moins de la moitie du corpus est rattachee.")
+        print("  Les mots-cles sont probablement trop etroits, ou trop peu nombreux.")
+
+
+def _afficher_import(rapport: dict) -> None:
+    print(
+        "%d thematique(s), %d sous-thematique(s)."
+        % (rapport["thematiques"], len(rapport["sous_thematiques"]))
+    )
+    print()
+    print(
+        "%-22s %-30s %9s  %s"
+        % ("THEMATIQUE", "SOUS-THEMATIQUE", "ARTICLES", "MOTS-CLES STERILES")
+    )
     for st in rapport["sous_thematiques"]:
         steriles = ", ".join(st["mots_cles_steriles"]) if st["mots_cles_steriles"] else "-"
-        print("%-38s %8d %9d  %s" % (st["nom"][:38], st["numeros"], st["articles"], steriles))
+        print(
+            "%-22s %-30s %9d  %s"
+            % (st["thematique"][:22], st["nom"][:30], st["articles"], steriles)
+        )
 
     if rapport["entrees_ignorees"]:
         print()
@@ -54,31 +89,17 @@ def _afficher_import(rapport: dict) -> None:
         for e in rapport["entrees_ignorees"]:
             print("  - %s" % e)
 
-    print()
-    print("Numeros de la thematique  : %d" % rapport["numeros_thematique"])
-    print("Numeros rattaches         : %d" % rapport["numeros_rattaches"])
-    print("Numeros dans « Autres »   : %d" % rapport["numeros_autres"])
-    if rapport["decoupage_suspect"]:
-        print("  ATTENTION : plus d'un tiers des numeros n'est rattache a rien.")
-        print("  Le decoupage est probablement trop etroit — relancer le modele.")
-
-    if rapport["obsoletes"]:
-        print()
-        print("Sous-thematiques absentes du fichier (supprimees) :")
-        for nom in rapport["obsoletes"]:
-            print("  - %s" % nom)
+    _afficher_couverture(rapport)
 
 
 def _afficher_recalcul(rapport: dict) -> None:
     if not rapport["sous_thematiques"]:
         print("Aucune sous-thematique en base : rien a recalculer.")
         return
-    print("%-24s %-30s %8s %9s" % ("THEMATIQUE", "SOUS-THEMATIQUE", "NUMEROS", "ARTICLES"))
+    print("%-22s %-30s %9s" % ("THEMATIQUE", "SOUS-THEMATIQUE", "ARTICLES"))
     for st in rapport["sous_thematiques"]:
-        print(
-            "%-24s %-30s %8d %9d"
-            % (st["thematique"][:24], st["nom"][:30], st["numeros"], st["articles"])
-        )
+        print("%-22s %-30s %9d" % (st["thematique"][:22], st["nom"][:30], st["articles"]))
+    _afficher_couverture(rapport)
 
 
 def _epilogue(applique: bool) -> None:

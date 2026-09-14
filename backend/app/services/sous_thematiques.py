@@ -73,16 +73,21 @@ def mots_cles_steriles(mots_cles: list[str], titres: list[str]) -> list[str]:
     return steriles
 
 
-def compter_par_numero(motifs: list[re.Pattern], articles: list[tuple[int, str]]) -> dict[int, int]:
-    """Nombre d'articles correspondants, par numéro.
+def articles_correspondants(motifs: list[re.Pattern], articles: list[tuple[int, str]]) -> set[int]:
+    """Identifiants des articles dont le titre correspond à au moins un motif.
 
-    Un article compte UNE fois même s'il déclenche plusieurs mots-clés : la
-    grandeur affichée est « combien d'articles parlent de ça », pas « combien
-    de mots-clés ont été touchés », qui récompenserait les listes verbeuses.
+    `articles` est une liste de (article_id, titre).
+
+    C'est la granularité qui compte : « Les légumes, bientôt une denrée de
+    luxe » relève de « Alimentation > légumes », mais pas les vingt autres
+    titres du même numéro. Rattacher le numéro entier, comme le faisait la
+    première version, noyait chaque regroupement sous le contenu voisin.
     """
-    comptes: dict[int, int] = {}
-    for magazine_id, titre in articles:
+    if not motifs:
+        return set()
+    retenus: set[int] = set()
+    for article_id, titre in articles:
         cible = normaliser(titre)
         if any(motif.search(cible) for motif in motifs):
-            comptes[magazine_id] = comptes.get(magazine_id, 0) + 1
-    return comptes
+            retenus.add(article_id)
+    return retenus
