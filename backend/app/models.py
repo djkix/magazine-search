@@ -233,10 +233,9 @@ class Theme(Base):
     )
 
 
-# Rattachement d'un numéro à une sous-thématique, avec le nombre d'articles
-# qui l'ont déclenché. Table explicite plutôt que relationship simple : la
-# colonne `occurrences` est une donnée métier — c'est le premier critère de
-# tri de la liste affichée — et non un détail de liaison.
+# Rattachement d'un article à une sous-thématique. Vise l'article et non le
+# numéro entier : un numéro touche souvent plusieurs sujets à la fois, et
+# rattacher tout son sommaire à chacun contaminerait les corpus.
 subtheme_articles = Table(
     "subtheme_articles",
     Base.metadata,

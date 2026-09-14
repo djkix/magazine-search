@@ -196,38 +196,42 @@ jour. Le tableau de bord affiche deux compteurs : numéros déjà thématisés, 
 « reste à faire » — ce dernier n'inclut que les numéros réellement éligibles
 (sommaire extrait, pas encore passés par Gemini).
 
-**Sous-thématiques.** Une thématique peut être découpée en regroupements plus
-fins (« Crème solaire » sous « Santé »). Le quota Gemini ne permet pas de les
-calculer dans l'application : une requête par thématique consommerait les trois
-quarts d'une journée. Ils sont donc produits hors ligne.
+**Sous-thématiques.** Chaque thématique peut être découpée en regroupements
+plus fins (« Légumes » sous « Alimentation »), rattachés aux **articles** et
+non aux numéros entiers — un numéro touche souvent plusieurs sujets, et
+rattacher tout son sommaire à chacun contaminerait les corpus. Le quota Gemini
+ne permet pas de calculer cette taxonomie dans l'application : elle est donc
+produite hors ligne, par un modèle sans contrainte de quota.
 
 Tout se fait depuis le tableau de bord, section *Sous-thématiques* :
 
-1. **Télécharger** le corpus d'une thématique — ou tous en une archive. Le
-   fichier contient les titres d'articles et la consigne à donner au modèle.
-2. **Soumettre** ce fichier au modèle de votre choix, sans contrainte de quota.
+1. **Télécharger** le corpus complet (tous les titres d'articles, groupés par
+   collection pour donner du contexte au modèle, avec la consigne intégrée).
+2. **Soumettre** ce fichier à un modèle de langage de votre choix.
 3. **Déposer** sa réponse dans le champ prévu, sur la même page.
 
-Le dépôt déclenche une **simulation** : la page affiche les numéros qui seraient
-rattachés à chaque sous-thématique, les mots-clés ne correspondant à aucun
-article, et le nombre de numéros qu'aucun regroupement ne couvre. **Rien n'est
-écrit** tant que vous n'avez pas cliqué sur *Appliquer*.
+Le dépôt déclenche une **simulation** : la page affiche, par sous-thématique,
+le nombre d'articles rattachés et les mots-clés sans correspondance, ainsi que
+la proportion du corpus couverte. **Rien n'est écrit** tant que vous n'avez pas
+cliqué sur *Appliquer*.
 
-Un avertissement apparaît si plus d'un tiers des numéros reste non rattaché :
-le découpage est alors trop étroit, mieux vaut relancer le modèle que de
-publier une navigation trouée.
+L'import est **cumulatif** : la réponse d'un modèle sur un corpus de cette
+taille dépasse souvent sa limite de sortie et arrive en plusieurs morceaux —
+chaque dépôt s'ajoute aux sous-thématiques déjà en base plutôt que de les
+remplacer. Un avertissement apparaît si moins de la moitié du corpus est
+couverte : les mots-clés sont probablement trop étroits.
 
 Les mêmes opérations restent disponibles en ligne de commande, avec la même
 logique et le même résultat :
 
 ```bash
 docker exec magazine-search-app-backend-1 \
-  python tools/importer_sous_thematiques.py -f /data/exports/sante.json
+  python tools/importer_sous_thematiques.py -f /data/exports/reponse.json
 ```
 
 Le modèle ne fait que nommer les regroupements et fournir leurs mots-clés. Le
-rattachement des numéros est calculé localement, en confrontant ces mots-clés
-aux titres : le décompte reste vérifiable, et un numéro ajouté plus tard
+rattachement des articles est calculé localement, en confrontant ces mots-clés
+aux titres : le résultat reste vérifiable, et un article ajouté plus tard
 rejoint les sous-thématiques existantes sans nouvel appel à un modèle.
 
 ```bash
