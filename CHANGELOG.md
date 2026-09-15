@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.0](https://github.com/djkix/magazine-search/compare/v0.28.1...v0.29.0) (2026-09-15)
+
+
+### Features
+
+* **sous-thematiques:** rattachement au fil de l'eau et ecran des orphelins ([c42ed6a](https://github.com/djkix/magazine-search/commit/c42ed6a1f58025e5f96dcbaf0bc4a6c247b9e466))
+
 ## [0.28.1](https://github.com/djkix/magazine-search/compare/v0.28.0...v0.28.1) (2026-09-14)
 
 
