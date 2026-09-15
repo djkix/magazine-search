@@ -247,12 +247,18 @@ docker exec magazine-search-app-backend-1 \
 Le modèle ne fait que nommer les regroupements et fournir leurs mots-clés. Le
 rattachement des articles est calculé localement, en confrontant ces mots-clés
 aux titres : le résultat reste vérifiable, et un article ajouté plus tard
-rejoint les sous-thématiques existantes sans nouvel appel à un modèle.
+rejoint automatiquement les sous-thématiques existantes, dès l'extraction de
+son sommaire — sans nouvel appel à un modèle, et sans action de votre part.
 
 ```bash
 docker exec magazine-search-app-backend-1 \
   python tools/importer_sous_thematiques.py --recalculer-tout --appliquer
 ```
+
+Le tableau de bord affiche aussi, à la demande, les **articles non
+rattachés** et les mots les plus fréquents parmi eux : un terme qui revient
+souvent et qu'aucun mot-clé ne couvre encore se repère à l'œil, sans appel à
+un modèle — de quoi compléter la taxonomie au fil de l'eau.
 
 ### Consulter les journaux
 
