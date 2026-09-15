@@ -337,20 +337,19 @@ def get_stats(db: Session = Depends(get_db)):
         out.article_count = article_count
         recent.append(out)
 
-    # Thématisation : même critère d'éligibilité que process_pending_theme_batch,
-    # sans quoi le « reste à faire » afficherait des numéros que la file ne
-    # prendra jamais — notamment ceux dépourvus de sommaire, que le modèle ne
-    # peut pas traiter faute de liste d'articles.
-    themed = db.query(Magazine).filter(Magazine.themed_at.isnot(None)).count()
-    pending_themes = (
-        db.query(Magazine)
-        .filter(
-            Magazine.scan_status == ScanStatus.done,
-            Magazine.toc_status == OcrStatus.done,
-            Magazine.themed_at.is_(None),
-        )
-        .count()
-    )
+    # Couverture de la taxonomie, mesurée au niveau de l'ARTICLE.
+    #
+    # Les compteurs précédents s'appuyaient sur `Magazine.themed_at`, qui est
+    # posé sur tout numéro parcouru par le lot Gemini, y compris quand le
+    # modèle ne lui a attribué aucune thématique : ils surestimaient donc la
+    # couverture. Et depuis que la navigation par sujet passe par la taxonomie
+    # par article, ils ne mesuraient plus ce qui intéresse.
+    #
+    # `articles_rattaches` compte les articles DISTINCTS : un article peut
+    # relever de plusieurs sous-thématiques, le compter une fois par
+    # rattachement gonflerait artificiellement le total.
+    articles_total = db.query(Article).count()
+    articles_rattaches = db.query(subtheme_articles.c.article_id).distinct().count()
 
     return AdminStatsResponse(
         total=sum(counts.values()),
@@ -358,8 +357,8 @@ def get_stats(db: Session = Depends(get_db)):
         processing=count_of(ScanStatus.processing),
         failed=count_of(ScanStatus.failed),
         pending=count_of(ScanStatus.detected, ScanStatus.stable, ScanStatus.queued),
-        themed=themed,
-        pending_themes=pending_themes,
+        articles_total=articles_total,
+        articles_rattaches=articles_rattaches,
         recent=recent,
     )
 

@@ -191,25 +191,33 @@ Les deux se cumulent. Mais le vocabulaire des tags mélange des **sujets**
 *sujet* / *format* : seuls les sujets sont propagés. Tout est en *format* par
 défaut — rien ne se propage tant que vous n'avez pas choisi.
 
-Le bouton *Simuler* affiche ce qui serait rattaché avant d'écrire quoi que ce
-soit. La propagation ne marque pas les numéros comme traités : ils restent dans
-la file de thématisation, et Gemini viendra compléter sans jamais effacer le
-thème hérité du tag.
+> **Le thémage par numéro n'est plus actif.** Il reposait sur des appels à
+> Gemini, dont le quota gratuit (20 requêtes par jour) rendait l'opération
+> irréaliste à l'échelle de la bibliothèque. La navigation par sujet passe
+> désormais par la **taxonomie par article** décrite plus bas, construite hors
+> ligne puis importée.
+>
+> Concrètement : plus aucun enfilement automatique à l'ingestion ni à la
+> ré-extraction des sommaires, et deux commandes retirées de l'interface —
+> *Régénérer les thématiques* et *Propager les tags de sujet*. Leurs endpoints
+> (`POST /admin/themes/regenerate-all`, `POST /admin/tags/propagate`) existent
+> toujours : rien n'a été supprimé en base, et les écrans sont restaurables.
+>
+> La bascule *sujet* / *format* de chaque tag subsiste mais n'a plus de
+> consommateur : les tags servent aujourd'hui à **filtrer la recherche**, tous
+> types confondus.
 
-L'ordre de passage de la file est **aléatoire**, et non par ordre de scan : une
-collection indexée tardivement se retrouvait sinon derrière toute la
-bibliothèque — 1 043 numéros d'attente ont été mesurés pour « Système D », soit
-près de trois jours de quota.
+Le tableau de bord mesure désormais la couverture de la taxonomie au niveau de
+l'**article** et non du numéro : *Articles rattachés* et *Sans sous-thématique*.
+Les articles sont comptés distincts — un article relevant de plusieurs
+sous-thématiques ne pèse qu'une fois. Les anciens compteurs s'appuyaient sur
+`themed_at`, posé sur tout numéro parcouru par un lot même quand le modèle ne
+lui attribuait rien : ils surestimaient la couverture.
 
-La régénération complète, depuis les réglages, est **non destructive et
-reprenable** : chaque numéro conserve ses thématiques actuelles jusqu'à ce
-qu'un lot les remplace. Si le quota s'épuise en cours de route, l'opération
-s'arrête proprement et un nouveau clic reprend là où elle s'était interrompue.
-
-Les réglages affichent le modèle utilisé, les plafonds, et la consommation du
-jour. Le tableau de bord affiche deux compteurs : numéros déjà thématisés, et
-« reste à faire » — ce dernier n'inclut que les numéros réellement éligibles
-(sommaire extrait, pas encore passés par Gemini).
+La vue *Par thématique* d'une collection s'appuie elle aussi sur la taxonomie :
+elle liste les sous-thématiques présentes dans les articles de la collection,
+puis les articles correspondants groupés par numéro. Elle tient en une requête,
+là où la version précédente en faisait une par numéro affiché.
 
 **Sous-thématiques.** Chaque thématique peut être découpée en regroupements
 plus fins (« Légumes » sous « Alimentation »), rattachés aux **articles** et

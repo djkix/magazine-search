@@ -257,11 +257,11 @@ export interface AdminStats {
   processing: number;
   failed: number;
   pending: number;
-  /** Numeros deja passes par la thematisation Gemini. */
-  themed: number;
-  /** Numeros eligibles restants : sommaire extrait, pas encore thematises.
-   *  Un numero sans sommaire n'y figure pas — le modele a besoin de la
-   *  liste des articles pour travailler. */
-  pending_themes: number;
+  /** Nombre total d'articles extraits des sommaires. */
+  articles_total: number;
+  /** Articles DISTINCTS rattaches a au moins une sous-thematique. Le reste
+   *  a faire se deduit par soustraction, pour eviter deux valeurs qui
+   *  pourraient diverger. */
+  articles_rattaches: number;
   recent: Magazine[];
 }

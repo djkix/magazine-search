@@ -5,7 +5,16 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
 import { formatMagazineHeading } from "@/lib/formatDate";
-import type { Article, ArticleWithMagazine, LibraryOverview, Magazine, MagazineFacets, MagazineTheme } from "@/lib/types";
+import type {
+  Article,
+  ArticleWithMagazine,
+  LibraryOverview,
+  Magazine,
+  MagazineFacets,
+  Subtheme,
+  SubthemeArticle,
+  SubthemeCollectionGroup,
+} from "@/lib/types";
 import { useUser } from "@/components/layout/UserContext";
 import PageContainer from "@/components/layout/PageContainer";
 import Icon from "@/components/ui/Icon";
@@ -41,12 +50,15 @@ export default function CollectionArticlesPage() {
   const [searching, setSearching] = useState(false);
 
   // "Par thématique".
-  const [themes, setThemes] = useState<MagazineTheme[]>([]);
+  // « Par thématique » s'appuie désormais sur la taxonomie par article et non
+  // sur le thémage Gemini par numéro, qui n'est plus alimenté. Les articles
+  // portent eux-mêmes de quoi situer leur numéro : inutile de recharger les
+  // magazines à côté.
+  const [themes, setThemes] = useState<Subtheme[]>([]);
   const [themesLoading, setThemesLoading] = useState(false);
-  const [selectedTheme, setSelectedTheme] = useState<MagazineTheme | null>(null);
-  const [themeMagazines, setThemeMagazines] = useState<Magazine[]>([]);
-  const [themeMagazinesLoading, setThemeMagazinesLoading] = useState(false);
-  const [themeArticlesByMagazine, setThemeArticlesByMagazine] = useState<Map<number, Article[]>>(new Map());
+  const [selectedTheme, setSelectedTheme] = useState<Subtheme | null>(null);
+  const [themeArticles, setThemeArticles] = useState<SubthemeArticle[]>([]);
+  const [themeArticlesLoading, setThemeArticlesLoading] = useState(false);
 
   useEffect(() => {
     if (isUnassigned) {
@@ -170,43 +182,46 @@ export default function CollectionArticlesPage() {
     setThemesLoading(true);
     setSelectedTheme(null);
     api
-      .get<MagazineTheme[]>(`/collections/${collectionId}/themes`)
+      .get<Subtheme[]>(`/collections/${collectionId}/subthemes`)
       .then(setThemes)
       .catch(() => setThemes([]))
       .finally(() => setThemesLoading(false));
   }, [viewMode, collectionId, isUnassigned]);
 
+  // Une seule requête là où il en fallait 1 + N : l'ancien mode chargeait la
+  // liste des numéros portant la thématique, puis le sommaire de chacun. La
+  // taxonomie rattachant directement les ARTICLES, ils arrivent en un appel,
+  // déjà porteurs du titre et du numéro d'où ils viennent.
   useEffect(() => {
     if (!selectedTheme) return;
-    setThemeMagazinesLoading(true);
-    const p = collectionParams({ theme_id: String(selectedTheme.id), limit: "100" });
+    setThemeArticlesLoading(true);
     api
-      .get<Magazine[]>(`/magazines?${p.toString()}`)
-      .then(async (mags) => {
-        setThemeMagazines(mags);
-        // A theme is assigned to the whole issue, not to individual
-        // articles, so the magazine list alone ("Consommation, 8
-        // numéros") gives no way to tell what within each issue actually
-        // relates to it - showing each one's own article list (title +
-        // page, exactly like "Par numéro") lets the reader scan for the
-        // relevant piece instead of opening every issue blind.
-        const entries = await Promise.all(
-          mags.map((m) =>
-            api
-              .get<Article[]>(`/magazines/${m.id}/articles`)
-              .then((a): [number, Article[]] => [m.id, a])
-              .catch((): [number, Article[]] => [m.id, []])
-          )
-        );
-        setThemeArticlesByMagazine(new Map(entries));
+      .get<SubthemeCollectionGroup[]>(`/themes/subthemes/${selectedTheme.id}/articles`)
+      .then((groupes) => {
+        // L'endpoint sert la sous-thématique pour toutes les collections ;
+        // on ne garde que celle qu'on consulte.
+        const groupe = groupes.find((g) => g.collection_id === Number(collectionId));
+        setThemeArticles(groupe?.articles ?? []);
       })
-      .catch(() => {
-        setThemeMagazines([]);
-        setThemeArticlesByMagazine(new Map());
-      })
-      .finally(() => setThemeMagazinesLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTheme]);
+      .catch(() => setThemeArticles([]))
+      .finally(() => setThemeArticlesLoading(false));
+  }, [selectedTheme, collectionId]);
+
+  // Regroupement par numéro, dans l'ordre d'arrivée : l'endpoint trie déjà
+  // les articles, et respecter cet ordre évite un second critère de tri qui
+  // divergerait de celui du serveur.
+  const themeGroupes = useMemo(() => {
+    const parNumero = new Map<number, { titre: string; articles: SubthemeArticle[] }>();
+    for (const article of themeArticles) {
+      const existant = parNumero.get(article.magazine_id);
+      if (existant) {
+        existant.articles.push(article);
+      } else {
+        parNumero.set(article.magazine_id, { titre: article.magazine_title, articles: [article] });
+      }
+    }
+    return [...parNumero.entries()];
+  }, [themeArticles]);
 
   const groups = useMemo(() => {
     return magazines.map((m) => ({ magazine: m, articles: articlesByMagazine.get(m.id) ?? [] }));
@@ -317,53 +332,40 @@ export default function CollectionArticlesPage() {
               Toutes les thématiques
             </button>
             <h2 className="text-lg font-semibold text-foreground">{selectedTheme.name}</h2>
-            {themeMagazinesLoading && <p className="text-sm text-foreground-muted">Chargement...</p>}
+            {themeArticlesLoading && <p className="text-sm text-foreground-muted">Chargement...</p>}
             <div className="space-y-6">
-              {themeMagazines.map((magazine) => {
-                const articles = themeArticlesByMagazine.get(magazine.id) ?? [];
-                return (
-                  <div key={magazine.id} className="overflow-hidden rounded-xl border border-outline-variant">
-                    <div className="bg-surface-hover px-4 py-3">
-                      <Link
-                        href={`/viewer/${magazine.id}/1`}
-                        className="text-sm font-semibold text-foreground hover:text-primary-light"
-                      >
-                        {formatMagazineHeading(
-                          magazine.collection_name,
-                          magazine.title,
-                          magazine.issue_number,
-                          magazine.issue_month,
-                          magazine.publication_date
-                        )}
-                      </Link>
-                    </div>
-                    <ul className="divide-y divide-outline-variant">
-                      {articles.map((article) => (
-                        <li key={article.id}>
-                          <Link
-                            href={`/viewer/${magazine.id}/${article.start_page}`}
-                            className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-surface/60 hover:text-primary-light"
-                          >
-                            <span className="min-w-0 truncate">
-                              <TexteSurligne texte={article.title} terme={selectedTheme?.name} />
-                            </span>
-                            <span className="shrink-0 font-mono text-xs text-foreground-muted">
-                              p.{article.start_page}
-                              {article.end_page && article.end_page !== article.start_page ? `–${article.end_page}` : ""}
-                            </span>
-                          </Link>
-                        </li>
-                      ))}
-                      {articles.length === 0 && (
-                        <li className="px-4 py-3 text-sm text-foreground-muted">Aucun sommaire pour ce numéro.</li>
-                      )}
-                    </ul>
+              {themeGroupes.map(([magazineId, groupe]) => (
+                <div key={magazineId} className="overflow-hidden rounded-xl border border-outline-variant">
+                  <div className="bg-surface-hover px-4 py-3">
+                    <Link
+                      href={`/viewer/${magazineId}/1`}
+                      className="text-sm font-semibold text-foreground hover:text-primary-light"
+                    >
+                      {groupe.titre}
+                    </Link>
                   </div>
-                );
-              })}
+                  <ul className="divide-y divide-outline-variant">
+                    {groupe.articles.map((article) => (
+                      <li key={article.id}>
+                        <Link
+                          href={`/viewer/${magazineId}/${article.start_page}`}
+                          className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-surface/60 hover:text-primary-light"
+                        >
+                          <span className="min-w-0 truncate">
+                            <TexteSurligne texte={article.title} terme={selectedTheme?.name} />
+                          </span>
+                          <span className="shrink-0 font-mono text-xs text-foreground-muted">p.{article.start_page}</span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
             </div>
-            {!themeMagazinesLoading && themeMagazines.length === 0 && (
-              <p className="py-8 text-center text-sm text-foreground-muted">Aucun magazine pour cette thématique.</p>
+            {!themeArticlesLoading && themeGroupes.length === 0 && (
+              <p className="py-8 text-center text-sm text-foreground-muted">
+                Aucun article rattaché à cette sous-thématique dans cette collection.
+              </p>
             )}
           </div>
         ) : (
@@ -377,14 +379,15 @@ export default function CollectionArticlesPage() {
                   className="rounded-xl border border-outline-variant bg-surface px-4 py-2 text-sm text-foreground transition hover:border-primary"
                 >
                   {t.name}
-                  <span className="ml-2 font-mono text-xs text-foreground-muted">{t.magazine_count}</span>
+                  <span className="ml-2 font-mono text-xs text-foreground-muted">{t.article_count}</span>
                 </button>
               ))}
             </div>
             {!themesLoading && themes.length === 0 && (
               <p className="py-8 text-center text-sm text-foreground-muted">
-                Aucune thématique générée pour le moment — elles sont créées automatiquement à l'indexation de chaque
-                numéro.
+                Aucune sous-thématique ne couvre les articles de cette collection. La taxonomie se construit hors
+                ligne : exportez le corpus depuis l&apos;administration, soumettez-le à un modèle, puis réinjectez sa
+                réponse.
               </p>
             )}
           </div>

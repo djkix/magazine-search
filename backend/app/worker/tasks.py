@@ -411,7 +411,12 @@ def process_magazine(magazine_id: int) -> None:
         logger.info("Magazine %s processed successfully", magazine_id)
 
         extract_and_store_articles(db, magazine)
-        ingestion_queue.enqueue(process_pending_theme_batch, job_timeout="15m")
+        # Le thémage Gemini par numéro n'est plus déclenché à l'ingestion : la
+        # navigation par sujet passe désormais par la taxonomie par article,
+        # construite hors ligne puis importée. Laisser cet enfilement dépensait
+        # le quota Gemini (20 requêtes par jour) pour alimenter une table que
+        # plus aucun écran ne lit. Le lot reste déclenchable à la demande
+        # depuis l'administration.
     except Exception as exc:  # noqa: BLE001 - failure is reported on the magazine row, not re-raised silently
         db.rollback()
         magazine = db.get(Magazine, magazine_id)

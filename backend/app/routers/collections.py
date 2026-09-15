@@ -66,3 +66,30 @@ def get_collection_themes(collection_id: int, db: Session = Depends(get_db)):
         .all()
     )
     return [MagazineThemeOut(id=theme_id, name=name, magazine_count=count) for theme_id, name, count in rows]
+
+
+@router.get("/{collection_id}/subthemes", response_model=list[SubthemeOut])
+def get_collection_subthemes(collection_id: int, db: Session = Depends(get_db)):
+    """Sous-thématiques présentes dans les articles de cette collection.
+
+    Remplace `/{collection_id}/themes`, qui comptait les NUMÉROS portant une
+    étiquette posée par Gemini. Ici on compte les ARTICLES rattachés par la
+    taxonomie : ni la même granularité, ni la même source. Le thémage par
+    numéro n'étant plus alimenté, l'ancien endpoint renvoyait un résultat qui
+    se serait figé sur les seuls numéros déjà traités.
+
+    Les articles sont comptés DISTINCTS : un même article peut relever de
+    plusieurs sous-thématiques, mais il ne doit peser qu'une fois dans
+    chacune.
+    """
+    rows = (
+        db.query(Subtheme.id, Subtheme.name, func.count(Article.id.distinct()))
+        .join(subtheme_articles, subtheme_articles.c.subtheme_id == Subtheme.id)
+        .join(Article, Article.id == subtheme_articles.c.article_id)
+        .join(Magazine, Magazine.id == Article.magazine_id)
+        .filter(Magazine.collection_id == collection_id)
+        .group_by(Subtheme.id, Subtheme.name)
+        .order_by(func.count(Article.id.distinct()).desc(), Subtheme.name)
+        .all()
+    )
+    return [SubthemeOut(id=sid, name=name, article_count=count) for sid, name, count in rows]

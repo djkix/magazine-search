@@ -366,15 +366,12 @@ class AdminStatsResponse(BaseModel):
     processing: int
     failed: int
     pending: int
-    # Thématisation par Gemini. `themed` compte les numéros déjà traités —
-    # y compris ceux auxquels le modèle n'a attribué aucune thématique, car
-    # ils sont bel et bien traités et ne seront pas resoumis.
-    # `pending_themes` ne compte que les numéros RÉELLEMENT éligibles :
-    # sommaire extrait et pas encore thématisés. Un numéro sans sommaire
-    # n'apparaît dans aucun des deux, le modèle ayant besoin de la liste des
-    # articles pour travailler.
-    themed: int
-    pending_themes: int
+    # Couverture de la taxonomie, mesurée au niveau de l'article et non du
+    # numéro. Le reste à faire se déduit par soustraction plutôt que d'être
+    # transmis : deux valeurs qui doivent rester cohérentes entre elles sont
+    # une occasion de divergence.
+    articles_total: int
+    articles_rattaches: int
     recent: list[MagazineOut]
 
 
