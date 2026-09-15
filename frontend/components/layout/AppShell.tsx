@@ -7,6 +7,7 @@ import type { User } from "@/lib/types";
 import Sidebar from "./Sidebar";
 import BottomNav from "./BottomNav";
 import { UserContext } from "./UserContext";
+import { SidebarContext } from "./SidebarContext";
 
 // Clé de persistance du repli. Le choix doit survivre à la navigation et au
 // rechargement : le refaire à chaque page serait plus agaçant qu'utile.
