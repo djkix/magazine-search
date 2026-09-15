@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.30.0](https://github.com/djkix/magazine-search/compare/v0.29.0...v0.30.0) (2026-09-15)
+
+
+### Features
+
+* **navigation:** barre laterale repliable et acces mobile aux thematiques ([465ed2e](https://github.com/djkix/magazine-search/commit/465ed2ed419b348b21ca8b593d4e2c40d14d3092))
+
+
+### Bug Fixes
+
+* **navigation:** restaurer l'affichage de la version dans la barre repliable ([dfabf2a](https://github.com/djkix/magazine-search/commit/dfabf2aa8807a0e4e888b35b77a80092cb09cff4))
+
+
+### Performance Improvements
+
+* **lecteur:** mettre en cache la couverture et le PDF servis au navigateur ([359cfcf](https://github.com/djkix/magazine-search/commit/359cfcfe47a1c9e6fee7c5ab19d41ac1bb14eef6))
+
 ## [0.29.0](https://github.com/djkix/magazine-search/compare/v0.28.1...v0.29.0) (2026-09-15)
 
 
