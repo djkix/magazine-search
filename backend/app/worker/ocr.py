@@ -235,6 +235,114 @@ def _reparer_avec_qpdf(source_path: Path, destination: Path) -> bool:
     return destination.exists() and destination.stat().st_size > 0
 
 
+def _compter_pages(pdf_path: Path) -> int:
+    """Nombre de pages, ou 0 si le document est illisible."""
+    try:
+        doc = fitz.open(pdf_path)
+    except Exception:  # noqa: BLE001 - un PDF illisible doit juste valoir 0
+        return 0
+    try:
+        return doc.page_count
+    finally:
+        doc.close()
+
+
+def _normaliser_avec_ghostscript(source_path: Path, destination: Path) -> bool:
+    """Fait reecrire le PDF par Ghostscript. Rend True si le resultat tient debout.
+
+    Complement de `_reparer_avec_qpdf`, et non doublon : les deux outils
+    traitent deux pannes differentes. qpdf reconstruit l'index des objets,
+    ce qui debloque un document que Ghostscript refuse d'ouvrir. Mais un
+    document peut tres bien s'ouvrir et casser plus loin, au rendu page par
+    page, parce que la geometrie d'une page est incoherente. qpdf recopie
+    alors fidelement la geometrie fautive et ne change rien ; Ghostscript,
+    lui, reconstruit le contenu de chaque page et produit des boites saines.
+
+    Cas reel mesure : « Systeme D 859 - Aout 2017.pdf », qui echouait page 121
+    sur `img2pdf.NegativeDimensionError: one border dimension is larger than
+    half of the respective page dimension` — la page annoncait 243 DPI en
+    moyenne pour 894 DPI au maximum. Apres cette passe, l'OCR traite les
+    132 pages sans broncher.
+
+    La source n'est jamais modifiee : la copie normalisee est ecrite ailleurs.
+    """
+    pages_attendues = _compter_pages(source_path)
+    try:
+        resultat = subprocess.run(
+            [
+                "gs",
+                "-sDEVICE=pdfwrite",
+                "-dNOPAUSE",
+                "-dBATCH",
+                "-dQUIET",
+                "-dSAFER",
+                f"-sOutputFile={destination}",
+                str(source_path),
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+            timeout=settings.ocr_timeout_seconds,
+        )
+    except subprocess.TimeoutExpired:
+        logger.warning(
+            "Ghostscript n'a pas terminé dans le délai imparti pour %s", source_path.name
+        )
+        return False
+    except FileNotFoundError:
+        logger.warning(
+            "Ghostscript est absent de l'image : normalisation impossible pour %s",
+            source_path.name,
+        )
+        return False
+
+    if resultat.returncode != 0:
+        logger.warning(
+            "Ghostscript n'a pas pu normaliser %s (code %s) : %s",
+            source_path.name,
+            resultat.returncode,
+            resumer_erreur_ocrmypdf(resultat.stderr),
+        )
+        return False
+
+    if not destination.exists() or destination.stat().st_size == 0:
+        return False
+
+    # Garde-fou propre a cette passe : Ghostscript peut rendre 0 apres avoir
+    # silencieusement abandonne des pages qu'il n'a pas su interpreter.
+    # Remplacer un document abime par un document tronque serait pire que
+    # l'echec qu'on essaie de rattraper.
+    pages_obtenues = _compter_pages(destination)
+    if pages_attendues and pages_obtenues != pages_attendues:
+        logger.warning(
+            "Normalisation Ghostscript rejetée pour %s : %s pages en sortie contre %s attendues",
+            source_path.name,
+            pages_obtenues,
+            pages_attendues,
+        )
+        return False
+
+    return True
+
+
+def _recours_reparation():
+    """Les recours a tenter, dans l'ordre.
+
+    Construit a l'appel et non au chargement du module : un tuple fige au
+    niveau module capturerait les fonctions une fois pour toutes, et un
+    monkeypatch de test sur `_reparer_avec_qpdf` n'aurait aucun effet.
+
+    Ordre voulu : qpdf d'abord, rapide et non destructif puisqu'il ne touche
+    qu'a l'index des objets ; Ghostscript ensuite, qui reencode tout le
+    document et reste donc reserve aux cas que qpdf ne sait pas regler.
+    """
+    return (
+        ("qpdf", _reparer_avec_qpdf),
+        ("ghostscript", _normaliser_avec_ghostscript),
+    )
+
+
 def _reprendre_apres_reparation(
     source_path: Path, output_path: Path, code_echec: int, erreur: str
 ) -> None:
@@ -250,29 +358,46 @@ def _reprendre_apres_reparation(
     parlante, de la tentative de secours.
     """
     logger.warning(
-        "ocrmypdf a échoué en --force-ocr pour %s (%s) — tentative de réparation qpdf",
+        "ocrmypdf a échoué en --force-ocr pour %s (%s) — tentatives de réparation",
         source_path.name,
         erreur,
     )
 
-    repare = output_path.with_name(f"{output_path.stem}.qpdf-repare.pdf")
-    try:
-        if not _reparer_avec_qpdf(source_path, repare):
-            raise RuntimeError(
-                f"ocrmypdf failed (code {code_echec}) y compris en --force-ocr : {erreur}"
-            )
+    # On conserve la derniere erreur rencontree plutot que la premiere : si un
+    # recours a permis d'aller plus loin qu'un autre, c'est son echec a lui qui
+    # renseigne le mieux sur ce qui reste a corriger.
+    dernier_message = erreur
+    tentes: list[str] = []
 
-        resultat = _lancer_ocrmypdf(repare, output_path, "--force-ocr")
-        if resultat.returncode != 0:
-            raise RuntimeError(
-                f"ocrmypdf failed (code {resultat.returncode}) y compris après réparation qpdf : "
-                f"{resumer_erreur_ocrmypdf(resultat.stderr)}"
+    for nom, reparer in _recours_reparation():
+        repare = output_path.with_name(f"{output_path.stem}.{nom}-repare.pdf")
+        try:
+            if not reparer(source_path, repare):
+                continue
+
+            tentes.append(nom)
+            resultat = _lancer_ocrmypdf(repare, output_path, "--force-ocr")
+            if resultat.returncode == 0:
+                logger.info(
+                    "Document récupéré par la réparation %s : %s", nom, source_path.name
+                )
+                return
+
+            dernier_message = resumer_erreur_ocrmypdf(resultat.stderr)
+            logger.warning(
+                "ocrmypdf échoue encore après réparation %s pour %s (code %s) : %s",
+                nom,
+                source_path.name,
+                resultat.returncode,
+                dernier_message,
             )
-        logger.info("Document récupéré par la réparation qpdf : %s", source_path.name)
-    finally:
-        # La copie réparée peut peser autant que la source : on ne la laisse
-        # pas s'accumuler dans le dossier des documents traités.
-        repare.unlink(missing_ok=True)
+        finally:
+            # La copie réparée peut peser autant que la source : on ne la laisse
+            # pas s'accumuler dans le dossier des documents traités.
+            repare.unlink(missing_ok=True)
+
+    detail = f"y compris après {' puis '.join(tentes)}" if tentes else "et aucune réparation n'a abouti"
+    raise RuntimeError(f"ocrmypdf failed (code {code_echec}) {detail} : {dernier_message}")
 
 
 def ensure_text_layer(source_path: Path, output_path: Path) -> None:
