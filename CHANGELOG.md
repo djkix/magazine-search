@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.1](https://github.com/djkix/magazine-search/compare/v0.30.0...v0.30.1) (2026-09-15)
+
+
+### Bug Fixes
+
+* **ocr:** normaliser via Ghostscript quand qpdf ne suffit pas ([e0fd8ff](https://github.com/djkix/magazine-search/commit/e0fd8ff85f11242504bc04dba290cdda0e1e9508))
+
 ## [0.30.0](https://github.com/djkix/magazine-search/compare/v0.29.0...v0.30.0) (2026-09-15)
 
 
