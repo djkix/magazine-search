@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_admin
-from app.models import Article, Collection, Magazine, OcrStatus, Page, ScanStatus, Tag, User
+from app.models import Article, Collection, Magazine, OcrStatus, Page, ScanStatus, Tag, User, subtheme_articles
 from app.queue import ingestion_queue
 from app.schemas import (
     AdminStatsResponse,

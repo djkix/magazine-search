@@ -15,13 +15,17 @@ de là, une recherche sur « ponceuse excentrique » remonte les numéros qui en
 parlent, avec les occurrences surlignées directement dans les pages.
 
 Le reste est déduit automatiquement : le titre du magazine devient une
-collection, le numéro et la date sont lus dans le nom de fichier, le sommaire
-est reconstruit depuis la page de sommaire du magazine, et des thématiques sont
-attribuées à chaque numéro. Vous n'avez rien à saisir.
+collection, le numéro et la date sont lus dans le nom de fichier, et le
+sommaire est reconstruit depuis la page de sommaire du magazine. Vous n'avez
+rien à saisir.
+
+Une navigation par sujet vient compléter cette organisation : une fois une
+taxonomie mise en place (une seule fois, voir *Gérer les thématiques*), chaque
+nouvel article y est rattaché de lui-même, sans aucune action de votre part.
 
 L'application est **auto-hébergée** : vos fichiers restent chez vous, sur votre
-matériel. Seule l'attribution des thématiques fait appel à un service externe,
-et elle est facultative.
+matériel. Seule la construction initiale de la taxonomie fait appel à un
+service externe, et elle est facultative.
 
 ## Sommaire
 
@@ -74,11 +78,11 @@ backoffice : page introuvable, ou page trouvée mais illisible.
 
 **Thématiques**
 
-Regroupement des numéros par sujet (« Automobile », « Bricolage »…) via l'API
-Google Gemini, par lots de 20 numéros et un seul appel par lot. Le vocabulaire
-déjà utilisé est transmis au modèle pour éviter les doublons proches. Deux
-plafonds — journalier et par minute — protègent votre quota. Fonctionnalité
-entièrement facultative.
+Navigation par sujet à deux niveaux (thématique puis sous-thématique),
+rattachée aux **articles**. La taxonomie se construit hors ligne — un modèle
+de langage sans contrainte de quota nomme les regroupements, le rattachement
+lui-même est calculé localement par correspondance de mots-clés, donc gratuit
+et rejouable à volonté. Fonctionnalité entièrement facultative.
 
 **Administration**
 

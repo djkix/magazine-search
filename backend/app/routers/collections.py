@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Collection, Magazine, Theme
-from app.schemas import CollectionSummary, LibraryOverview, MagazineThemeOut, TagOut
+from app.models import Article, Collection, Magazine, Subtheme, Theme, subtheme_articles
+from app.schemas import CollectionSummary, LibraryOverview, MagazineThemeOut, SubthemeOut, TagOut
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
