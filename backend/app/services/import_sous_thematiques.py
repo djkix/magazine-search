@@ -20,6 +20,9 @@ morceaux — exiger un fichier unique et complet rendrait l'opération
 impraticable.
 """
 
+import re
+
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import Article, Subtheme, Theme, subtheme_articles
@@ -27,8 +30,25 @@ from app.services.sous_thematiques import (
     articles_correspondants,
     motifs_des_mots_cles,
     mots_cles_steriles,
+    normaliser,
 )
 from app.services.themes_des_tags import theme_pour_nom
+
+_MOT_RE = re.compile(r"[a-z0-9]+")
+
+# Mots trop courants pour dire quoi que ce soit d'un sujet. Sans ce filtre, le
+# classement des orphelins ne remonterait que « pour », « avec » et « dans ».
+# Volontairement court : on ne cherche pas l'exhaustivite linguistique, juste a
+# degager les termes porteurs.
+_MOTS_VIDES = {
+    "avec", "sans", "pour", "dans", "chez", "tout", "tous", "toute", "toutes",
+    "plus", "moins", "bien", "cette", "cet", "ces", "leur", "leurs", "notre",
+    "nos", "votre", "vos", "mais", "donc", "quand", "comme", "faire", "fait",
+    "etre", "avoir", "peut", "faut", "sont", "ont", "une", "des", "les", "que",
+    "qui", "quoi", "dont", "vous", "nous", "elle", "elles", "ils",
+    "the", "and", "for", "with", "your", "you", "our", "this", "that", "from",
+    "how", "what", "why", "all", "new", "best", "get", "are", "can", "has",
+}
 
 
 class ImportInvalide(ValueError):
@@ -194,4 +214,87 @@ def recalculer_tout(db: Session, appliquer: bool) -> dict:
         "articles_couverts": len(couverts),
         "articles_sans_sous_thematique": len(corpus) - len(couverts),
         "sous_thematiques": rapports,
+    }
+
+
+def rattacher_magazine(db: Session, magazine_id: int) -> dict:
+    """Rattache les articles d'un SEUL numéro aux sous-thématiques existantes.
+
+    Appelé à la fin de chaque extraction de sommaire : c'est ce qui fait
+    entrer un numéro fraîchement scanné dans la navigation sans intervention,
+    et sans le moindre appel à un modèle — les mots-clés sont déjà en base.
+
+    Ne touche qu'aux liens de CE numéro. `rattacher()`, lui, purge une
+    sous-thématique entière : l'employer ici effacerait les rattachements de
+    toute la bibliothèque à chaque ingestion.
+
+    Coût : quelques dizaines d'articles confrontés aux motifs existants,
+    quelques millisecondes. Rien à voir avec un recalcul complet, qui
+    reconfronte des milliers de titres.
+    """
+    articles = (
+        db.query(Article.id, Article.title).filter(Article.magazine_id == magazine_id).all()
+    )
+    if not articles:
+        return {"magazine_id": magazine_id, "articles": 0, "rattachements": 0}
+
+    # Purge ciblée : un retraitement du sommaire remplace les articles, et les
+    # liens des anciens deviendraient orphelins.
+    ids = [aid for aid, _ in articles]
+    db.execute(subtheme_articles.delete().where(subtheme_articles.c.article_id.in_(ids)))
+
+    liens: list[dict] = []
+    for sous_theme in db.query(Subtheme).all():
+        motifs = motifs_des_mots_cles(sous_theme.keywords)
+        if not motifs:
+            continue
+        for article_id in articles_correspondants(motifs, articles):
+            liens.append({"subtheme_id": sous_theme.id, "article_id": article_id})
+
+    if liens:
+        db.execute(subtheme_articles.insert(), liens)
+    db.commit()
+
+    return {
+        "magazine_id": magazine_id,
+        "articles": len(articles),
+        "rattachements": len(liens),
+    }
+
+
+def articles_orphelins(db: Session, limite_mots: int = 40, limite_exemples: int = 30) -> dict:
+    """Articles qu'aucune sous-thématique n'attrape, et mots les plus fréquents.
+
+    Sert à enrichir la taxonomie SANS appel à un modèle : si « photovoltaïque »
+    revient quarante fois parmi les orphelins et qu'aucun mot-clé ne le couvre,
+    le diagnostic ne demande aucune IA.
+
+    Les mots de moins de quatre lettres et les mots vides les plus courants
+    sont écartés : sans ce filtre, la liste ne remonterait que « pour », « avec »
+    et « dans ».
+    """
+    rattaches = select(subtheme_articles.c.article_id)
+    orphelins = (
+        db.query(Article.id, Article.title)
+        .filter(Article.id.notin_(rattaches))
+        .all()
+    )
+
+    frequences: dict[str, int] = {}
+    for _, titre in orphelins:
+        # Dédoublonnage par titre : un mot répété dans le même titre ne compte
+        # qu'une fois, sinon un titre bavard fausserait le classement.
+        for mot in set(_MOT_RE.findall(normaliser(titre))):
+            if len(mot) < 4 or mot in _MOTS_VIDES:
+                continue
+            frequences[mot] = frequences.get(mot, 0) + 1
+
+    tries = sorted(frequences.items(), key=lambda kv: kv[1], reverse=True)[:limite_mots]
+
+    total_articles = db.query(func.count(Article.id)).scalar() or 0
+    return {
+        "articles_total": total_articles,
+        "articles_orphelins": len(orphelins),
+        "mots_frequents": [{"mot": m, "occurrences": n} for m, n in tries],
+        "exemples": [t for _, t in orphelins[:limite_exemples]],
     }

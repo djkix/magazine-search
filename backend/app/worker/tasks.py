@@ -15,6 +15,7 @@ from app.services.meili import ensure_index_configured, index_page, index_pages
 from app.services.progress import clear_magazine_progress, set_magazine_progress
 from app.services.sommaire_ocr import diagnostiquer_absence_de_sommaire, extract_articles_from_ocr
 from app.services.theme_batch import assign_themes_batch
+from app.services.import_sous_thematiques import rattacher_magazine
 from app.services.themes_des_tags import fusionner_themes
 from app.worker.ocr import detect_language, ensure_text_layer, extract_pages, get_page_count, render_cover_thumbnail
 
@@ -116,6 +117,25 @@ def extract_and_store_articles(db, magazine: Magazine) -> None:
             # indiscernables en base, ce qui rend le défaut invisible.
             magazine.toc_error_message = diagnostiquer_absence_de_sommaire(pages)
         db.commit()
+
+        # Les articles tout juste extraits rejoignent les sous-thématiques
+        # existantes, par simple correspondance des mots-clés déjà en base.
+        # Aucun appel à un modèle, quelques millisecondes — c'est ce qui rend
+        # la navigation par sujet vivante sans intervention manuelle.
+        #
+        # Enveloppé : un échec ici ne doit pas faire passer le sommaire en
+        # erreur alors qu'il a été extrait correctement.
+        try:
+            bilan = rattacher_magazine(db, magazine.id)
+            if bilan["rattachements"]:
+                logger.info(
+                    "Magazine %s : %s article(s) rattaché(s) à une sous-thématique",
+                    magazine.id,
+                    bilan["rattachements"],
+                )
+        except Exception:  # noqa: BLE001 - le sommaire, lui, est bien enregistré
+            db.rollback()
+            logger.exception("Rattachement aux sous-thématiques échoué pour %s", magazine.id)
     except Exception as exc:  # noqa: BLE001 - non-fatal, reported on the magazine row
         db.rollback()
         magazine = db.get(Magazine, magazine.id)

@@ -131,6 +131,16 @@ export interface SubthemeCollectionGroup {
   articles: SubthemeArticle[];
 }
 
+// Articles qu'aucune sous-thématique n'attrape, et mots qui y reviennent.
+// Sert à enrichir la taxonomie sans appel à un modèle : un terme fréquent
+// parmi les orphelins et absent des mots-clés se repère à l'œil.
+export interface Orphans {
+  articles_total: number;
+  articles_orphelins: number;
+  mots_frequents: { mot: string; occurrences: number }[];
+  exemples: string[];
+}
+
 // Volumétrie du corpus à soumettre au modèle externe. Affichée avant le
 // téléchargement : c'est elle qui dit si l'export tiendra dans une seule
 // invite ou s'il faudra le livrer en plusieurs fois.
