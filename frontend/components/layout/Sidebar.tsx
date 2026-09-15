@@ -112,6 +112,12 @@ export default function Sidebar({
           <Icon name="logout" />
           {!replie && "Déconnexion"}
         </button>
+
+        {!replie && process.env.NEXT_PUBLIC_APP_VERSION && (
+          <p className="mt-2 px-3 font-mono text-[10px] text-foreground-muted">
+            v{process.env.NEXT_PUBLIC_APP_VERSION}
+          </p>
+        )}
       </div>
     </aside>
   );
