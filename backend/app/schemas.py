@@ -283,6 +283,24 @@ class SubthemeCollectionGroupOut(BaseModel):
     articles: list[SubthemeArticleOut]
 
 
+class OrphanWordOut(BaseModel):
+    mot: str
+    occurrences: int
+
+
+class OrphansOut(BaseModel):
+    """Articles qu'aucune sous-thématique n'attrape, et mots qui y reviennent.
+
+    Sert à enrichir la taxonomie sans appel à un modèle : un terme fréquent
+    parmi les orphelins et absent des mots-clés se repère à l'œil.
+    """
+
+    articles_total: int
+    articles_orphelins: int
+    mots_frequents: list[OrphanWordOut]
+    exemples: list[str]
+
+
 class CorpusExportOut(BaseModel):
     """Volumétrie du corpus à soumettre au modèle externe.
 

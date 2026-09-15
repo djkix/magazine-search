@@ -5,11 +5,32 @@ import Link from "next/link";
 import { api, ApiError, redirectToLogin } from "@/lib/api";
 import type {
   Subtheme,
+  SubthemeArticle,
   SubthemeCollectionGroup,
   TaxonomyTheme,
 } from "@/lib/types";
 import PageContainer from "@/components/layout/PageContainer";
 import Icon from "@/components/ui/Icon";
+
+// Référence d'un article : « Avril 2019 · n°64 ».
+//
+// L'année vient de publication_date, issue_month_label ne portant que le mois
+// (« Avril ») — sans elle, deux numéros d'avril à dix ans d'écart étaient
+// indiscernables dans la liste.
+//
+// Chaque élément est facultatif : un numéro sans date ni numérotation retombe
+// sur le titre du magazine plutôt que d'afficher une chaîne vide.
+function reference(a: SubthemeArticle): string {
+  const annee = a.publication_date ? new Date(a.publication_date).getFullYear() : null;
+  const anneeValide = annee !== null && !Number.isNaN(annee);
+
+  const periode = [a.issue_month_label, anneeValide ? String(annee) : null]
+    .filter(Boolean)
+    .join(" ");
+  const numero = a.issue_number ? `n°${a.issue_number}` : null;
+
+  return [periode || null, numero].filter(Boolean).join(" · ") || a.magazine_title;
+}
 
 export default function ThemesPage() {
   const [themes, setThemes] = useState<TaxonomyTheme[] | null>(null);
@@ -174,9 +195,16 @@ export default function ThemesPage() {
               <div className="space-y-6">
                 {groupes?.map((g) => (
                   <div key={g.collection_id ?? "sans-collection"}>
-                    <p className="mb-2 font-mono text-xs uppercase tracking-wider text-foreground-muted">
-                      {g.collection_name} · {g.article_count}
-                    </p>
+                    {/* « 212 » seul se lisait comme un nombre de numéros
+                        alors que ce sont des articles : l'unité est écrite. */}
+                    <div className="mb-2 flex items-baseline gap-2 border-l-2 border-primary pl-3">
+                      <h3 className="font-serif text-base font-semibold text-foreground">
+                        {g.collection_name}
+                      </h3>
+                      <span className="font-mono text-xs text-foreground-muted">
+                        {g.article_count} article{g.article_count > 1 ? "s" : ""}
+                      </span>
+                    </div>
                     <div className="divide-y divide-outline-variant overflow-hidden rounded-xl border border-outline-variant">
                       {g.articles.map((a) => (
                         <Link
@@ -196,8 +224,7 @@ export default function ThemesPage() {
                             {a.title}
                           </span>
                           <span className="shrink-0 truncate text-xs text-foreground-muted">
-                            {a.issue_number ? `n°${a.issue_number}` : a.magazine_title}
-                            {a.issue_month_label ? ` · ${a.issue_month_label}` : ""}
+                            {reference(a)}
                           </span>
                           <span className="shrink-0 font-mono text-xs text-foreground-muted">
                             p.{a.start_page}

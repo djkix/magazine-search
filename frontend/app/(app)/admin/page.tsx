@@ -6,6 +6,7 @@ import { api, ApiError, fileUrl } from "@/lib/api";
 import type {
   AdminStats,
   Magazine,
+  Orphans,
   RetryFailedResponse,
   ScanStatusResponse,
   ScanTriggerResponse,
@@ -54,6 +55,8 @@ export default function AdminDashboardPage() {
   const [deduplicatingArticles, setDeduplicatingArticles] = useState(false);
   const [dedupeMessage, setDedupeMessage] = useState<string | null>(null);
   const [corpus, setCorpus] = useState<CorpusExport | null>(null);
+  const [orphans, setOrphans] = useState<Orphans | null>(null);
+  const [orphansOuverts, setOrphansOuverts] = useState(false);
   // Le fichier est conservé après la simulation : appliquer, c'est le
   // renvoyer tel quel avec le drapeau d'écriture, sans redemander à l'utilisateur
   // de le sélectionner une seconde fois.
@@ -325,6 +328,21 @@ export default function AdminDashboardPage() {
   // Un seul chemin pour la simulation et pour l'écriture : c'est le même
   // appel, au drapeau près. Deux fonctions distinctes auraient pu diverger,
   // et l'aperçu ne refléterait plus ce qui sera réellement écrit.
+  // Chargé à la demande, pas au montage : le calcul parcourt tous les articles
+  // de la bibliothèque et compte les mots de chaque titre orphelin. Inutile de
+  // l'imposer à chaque ouverture du tableau de bord.
+  async function basculerOrphans() {
+    const ouvrir = !orphansOuverts;
+    setOrphansOuverts(ouvrir);
+    if (!ouvrir || orphans) return;
+    try {
+      setOrphans(await api.get<Orphans>("/admin/themes/subthemes/orphans"));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erreur");
+      setOrphansOuverts(false);
+    }
+  }
+
   async function envoyerImport(fichier: File, appliquer: boolean) {
     setImportRunning(true);
     setImportError(null);
@@ -558,6 +576,70 @@ export default function AdminDashboardPage() {
             collections sans article extrait sont omises.
           </p>
         )}
+
+        <div className="border-t border-outline-variant pt-4">
+          <button
+            type="button"
+            onClick={basculerOrphans}
+            className="flex items-center gap-1 text-sm text-foreground-muted transition hover:text-foreground"
+          >
+            <Icon name={orphansOuverts ? "expand_less" : "expand_more"} className="text-base" />
+            Articles non rattachés
+          </button>
+
+          {orphansOuverts && orphans === null && (
+            <p className="mt-2 text-sm text-foreground-muted">Analyse du corpus…</p>
+          )}
+
+          {orphansOuverts && orphans && (
+            <div className="mt-3 space-y-3">
+              <p className="text-sm text-foreground-muted">
+                <span className="font-mono text-foreground">
+                  {orphans.articles_orphelins.toLocaleString("fr-FR")}
+                </span>{" "}
+                article(s) sur {orphans.articles_total.toLocaleString("fr-FR")} ne sont rattachés à
+                aucune sous-thématique.
+              </p>
+
+              {/* Le levier gratuit : un terme qui revient souvent ici et
+                  qu'aucun mot-clé ne couvre se complète à la main, sans
+                  repasser par un modèle. */}
+              {orphans.mots_frequents.length > 0 && (
+                <div>
+                  <p className="mb-2 font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
+                    Mots les plus fréquents parmi eux
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {orphans.mots_frequents.map((m) => (
+                      <span
+                        key={m.mot}
+                        className="rounded-full bg-surface-hover px-2.5 py-1 text-xs text-foreground"
+                      >
+                        {m.mot}{" "}
+                        <span className="font-mono text-foreground-muted">{m.occurrences}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {orphans.exemples.length > 0 && (
+                <div>
+                  <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
+                    Exemples de titres
+                  </p>
+                  <ul className="space-y-0.5 text-xs text-foreground-muted">
+                    {orphans.exemples.map((t, i) => (
+                      <li key={i} className="truncate">
+                        {t}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         <div className="space-y-3 border-t border-outline-variant pt-4">
           <div>

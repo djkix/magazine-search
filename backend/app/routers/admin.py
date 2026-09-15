@@ -22,6 +22,7 @@ from app.schemas import (
     LogEntry,
     MagazineOut,
     MagazineProgressResponse,
+    OrphansOut,
     PasswordReset,
     RetryFailedResponse,
     ScanStatusResponse,
@@ -36,7 +37,12 @@ from app.schemas import (
 )
 from app.security import hash_password
 from app.services.export_thematiques import charge_utile, nom_de_fichier, resume
-from app.services.import_sous_thematiques import ImportInvalide, importer, recalculer_tout
+from app.services.import_sous_thematiques import (
+    ImportInvalide,
+    articles_orphelins,
+    importer,
+    recalculer_tout,
+)
 from app.services.themes_des_tags import propager
 from app.services.logs import read_logs
 from app.services.progress import get_magazine_progress
@@ -686,6 +692,17 @@ async def import_subthemes(
         return importer(db, charge, appliquer)
     except ImportInvalide as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.get("/themes/subthemes/orphans", response_model=OrphansOut)
+def subtheme_orphans(db: Session = Depends(get_db)):
+    """Articles rattachés à aucune sous-thématique, et mots qui y dominent.
+
+    Gratuit et instantané : aucun modèle n'intervient. Un terme qui revient
+    cinquante fois parmi les orphelins et qu'aucun mot-clé ne couvre se voit
+    à l'œil — il suffit alors de compléter la taxonomie.
+    """
+    return OrphansOut(**articles_orphelins(db))
 
 
 @router.post("/themes/subthemes/recompute")
