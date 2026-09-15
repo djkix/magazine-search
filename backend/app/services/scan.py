@@ -23,7 +23,6 @@ from app.worker.tasks import (
     extract_and_store_articles,
     handle_process_magazine_failure,
     process_magazine,
-    process_pending_theme_batch,
     reindex_magazine,
 )
 
@@ -329,7 +328,7 @@ def backfill_collections(db: Session) -> tuple[list[int], int]:
         # Gemini) and ones worth refreshing after a parser improvement.
         if magazine.scan_status == ScanStatus.done:
             extract_and_store_articles(db, magazine)
-            ingestion_queue.enqueue(process_pending_theme_batch, job_timeout="15m")
+            # Voir tasks.py : plus de thémage Gemini automatique.
             resommaired_count += 1
 
     db.commit()

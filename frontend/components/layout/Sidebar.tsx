@@ -26,9 +26,34 @@ export default function Sidebar({
   onBasculer: () => void;
 }) {
   const pathname = usePathname();
-  const items = user.is_admin
-    ? [...NAV_ITEMS, { href: "/admin", label: "Admin", icon: "admin_panel_settings" }]
-    : NAV_ITEMS;
+
+  // L'administration ne figure plus dans la navigation du haut : celle-ci
+  // reste dediee a la consultation. L'acces passe desormais par le bloc
+  // utilisateur en pied de barre, ou le role « Admin » est deja affiche.
+  const items = NAV_ITEMS;
+
+  const surAdmin = pathname.startsWith("/admin");
+
+  // Extrait du JSX pour etre rendu soit dans un lien (administrateur), soit
+  // dans un simple conteneur (compte standard), sans dupliquer le balisage.
+  const blocUtilisateur = (
+    <>
+      <div
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/20 font-mono text-xs text-primary-light"
+        title={replie ? user.display_name : undefined}
+      >
+        {user.display_name.slice(0, 2).toUpperCase()}
+      </div>
+      {!replie && (
+        <div className="min-w-0">
+          <p className="truncate text-sm text-foreground">{user.display_name}</p>
+          <p className="truncate font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
+            {user.is_admin ? "Admin" : "Standard"}
+          </p>
+        </div>
+      )}
+    </>
+  );
 
   return (
     <aside
@@ -85,22 +110,22 @@ export default function Sidebar({
           {!replie && "Replier"}
         </button>
 
-        <div className={`mb-2 flex items-center ${replie ? "justify-center" : "gap-3"}`}>
-          <div
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/20 font-mono text-xs text-primary-light"
-            title={replie ? user.display_name : undefined}
+        {user.is_admin ? (
+          <Link
+            href="/admin"
+            title={replie ? "Administration" : undefined}
+            aria-current={surAdmin ? "page" : undefined}
+            className={`mb-2 flex items-center rounded-xl py-1.5 transition hover:bg-surface-hover ${
+              replie ? "justify-center" : "gap-3 px-2"
+            } ${surAdmin ? "bg-surface-hover" : ""}`}
           >
-            {user.display_name.slice(0, 2).toUpperCase()}
+            {blocUtilisateur}
+          </Link>
+        ) : (
+          <div className={`mb-2 flex items-center ${replie ? "justify-center" : "gap-3"}`}>
+            {blocUtilisateur}
           </div>
-          {!replie && (
-            <div className="min-w-0">
-              <p className="truncate text-sm text-foreground">{user.display_name}</p>
-              <p className="truncate font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
-                {user.is_admin ? "Admin" : "Standard"}
-              </p>
-            </div>
-          )}
-        </div>
+        )}
 
         <button
           onClick={onLogout}

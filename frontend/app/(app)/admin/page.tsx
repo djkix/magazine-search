@@ -486,13 +486,15 @@ export default function AdminDashboardPage() {
           active={statusFilter === "no_sommaire"}
           onClick={() => toggleStatusFilter("no_sommaire")}
         />
-        {/* Thematisation Gemini. Pas de onClick : il n'existe pas de filtre
-            correspondant dans la liste des magazines. */}
-        <StatCard icon="label" label="Thématisés" value={stats?.themed} />
+        {/* Couverture de la taxonomie, comptee en ARTICLES et non en numeros :
+            c'est le grain auquel les sous-thematiques sont rattachees. Pas de
+            onClick, il n'existe pas de filtre correspondant dans la liste des
+            magazines. */}
+        <StatCard icon="label" label="Articles rattachés" value={stats?.articles_rattaches} />
         <StatCard
           icon="pending"
-          label="Thématiques à faire"
-          value={stats?.pending_themes}
+          label="Sans sous-thématique"
+          value={stats ? stats.articles_total - stats.articles_rattaches : undefined}
           accent="text-orange-400"
         />
       </div>

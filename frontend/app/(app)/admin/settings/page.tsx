@@ -385,70 +385,13 @@ export default function AdminSettingsPage() {
           </Button>
         </div>
 
-        <div className="space-y-3 border-t border-outline-variant pt-4">
-          <div>
-            <p className="text-sm font-medium text-foreground">Propager les tags de sujet</p>
-            <p className="mt-1 text-xs text-foreground-muted">
-              Attache la thématique correspondante à tous les numéros des collections portant un tag
-              de sujet. Gratuit et instantané : aucun appel à Gemini. Les numéros restent dans la
-              file de thématisation, le modèle viendra affiner ensuite.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={() => propagateTags(false)} disabled={propagating} variant="secondary">
-              {propagating ? "Analyse..." : "Simuler"}
-            </Button>
-            {propagateReport && !propagateReport.applique && propagateReport.total_ajoutes > 0 && (
-              <Button onClick={() => propagateTags(true)} disabled={propagating}>
-                Appliquer
-              </Button>
-            )}
-          </div>
-
-          {propagateReport && (
-            <div className="space-y-2 rounded-lg border border-outline-variant bg-surface/40 p-3">
-              {propagateReport.tags_sujets === 0 ? (
-                <p className="text-sm text-foreground-muted">
-                  Aucun tag n&apos;est marqué comme sujet. Cliquez sur « format » à côté d&apos;un tag
-                  pour le basculer en « sujet ».
-                </p>
-              ) : (
-                <>
-                  <table className="w-full text-sm">
-                    <thead className="text-left font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
-                      <tr>
-                        <th className="py-1">Tag</th>
-                        <th className="py-1">Numéros</th>
-                        <th className="py-1">À rattacher</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {propagateReport.details.map((d) => (
-                        <tr key={d.tag}>
-                          <td className="py-1 text-foreground">{d.tag}</td>
-                          <td className="py-1 font-mono text-xs text-foreground-muted">
-                            {d.numeros_concernes}
-                          </td>
-                          <td className="py-1 font-mono text-xs text-foreground-muted">
-                            {d.rattachements_ajoutes}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <p className="text-sm text-foreground-muted">
-                    {propagateReport.applique
-                      ? `${propagateReport.total_ajoutes} rattachement(s) effectué(s).`
-                      : propagateReport.total_ajoutes === 0
-                        ? "Tout est déjà à jour, rien à rattacher."
-                        : `${propagateReport.total_ajoutes} rattachement(s) seraient ajoutés. Rien n'est encore écrit.`}
-                  </p>
-                </>
-              )}
-            </div>
-          )}
-        </div>
+        {/* « Propager les tags de sujet » a ete retire de l'interface.
+            Il attachait la thematique homonyme aux numeros des collections
+            portant un tag de sujet, pour alimenter le themage par numero
+            que la taxonomie par article a remplace. Aucun tag n'est
+            d'ailleurs marque comme sujet aujourd'hui, la commande etait
+            donc sans effet. L'endpoint POST /admin/tags/propagate existe
+            toujours : le bloc est restaurable tel quel. */}
       </div>
 
       <div className="space-y-3 rounded-xl border border-outline-variant bg-surface/60 p-6">
@@ -544,10 +487,10 @@ export default function AdminSettingsPage() {
             <Icon name="sync" className={reindexing ? "animate-spin" : ""} />
             {reindexing ? "Lancement..." : "Réindexer tous les magazines"}
           </Button>
-          <Button onClick={regenerateThemes} disabled={regeneratingThemes} variant="secondary">
-            <Icon name="sell" className={regeneratingThemes ? "animate-spin" : ""} />
-            {regeneratingThemes ? "Lancement..." : "Régénérer les thématiques"}
-          </Button>
+          {/* « Régénérer les thématiques » a été retiré de l'interface : il
+              relançait le thémage Gemini par numéro, que la taxonomie par
+              article a remplacé. L'endpoint POST /admin/themes/regenerate-all
+              existe toujours, la commande est donc restaurable telle quelle. */}
         </div>
       </div>
     </div>
