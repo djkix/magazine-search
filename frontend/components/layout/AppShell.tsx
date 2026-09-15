@@ -64,20 +64,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <UserContext.Provider value={user}>
-      <div className="min-h-screen bg-background">
-        <Sidebar user={user} onLogout={handleLogout} replie={replie} onBasculer={basculerSidebar} />
-        {!isViewer && <BottomNav user={user} />}
-        {/* La marge du contenu suit la largeur de la barre : sans cela, replier
-            laisserait une bande vide de 12 rem à gauche. La transition est la
-            même que celle de la barre, pour que les deux bougent ensemble. */}
-        <main
-          className={`transition-[padding] duration-200 ${replie ? "lg:pl-16" : "lg:pl-64"} ${
-            isViewer ? "" : "pb-20 lg:pb-0"
-          }`}
-        >
-          {children}
-        </main>
-      </div>
+      <SidebarContext.Provider value={replie}>
+        <div className="min-h-screen bg-background">
+          <Sidebar user={user} onLogout={handleLogout} replie={replie} onBasculer={basculerSidebar} />
+          {!isViewer && <BottomNav user={user} />}
+          {/* La marge du contenu suit la largeur de la barre : sans cela, replier
+              laisserait une bande vide de 12 rem à gauche. La transition est la
+              même que celle de la barre, pour que les deux bougent ensemble. */}
+          <main
+            className={`transition-[padding] duration-200 ${replie ? "lg:pl-16" : "lg:pl-64"} ${
+              isViewer ? "" : "pb-20 lg:pb-0"
+            }`}
+          >
+            {children}
+          </main>
+        </div>
+      </SidebarContext.Provider>
     </UserContext.Provider>
   );
 }
