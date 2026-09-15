@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.30.2](https://github.com/djkix/magazine-search/compare/v0.30.1...v0.30.2) (2026-09-15)
+
+
+### Bug Fixes
+
+* **interface:** coller le contenu a gauche quand la barre est repliee ([dcbb006](https://github.com/djkix/magazine-search/commit/dcbb0060d3f728e030f52764a7f7888ca60e0eff))
+* **interface:** importer SidebarContext, oublié dans le commit précédent ([277af7c](https://github.com/djkix/magazine-search/commit/277af7c32349d8cb563865f7f45d1abc090af10c))
+
 ## [0.30.1](https://github.com/djkix/magazine-search/compare/v0.30.0...v0.30.1) (2026-09-15)
 
 
