@@ -189,12 +189,28 @@ def get_page(magazine_id: int, page_number: int, db: Session = Depends(get_db)):
     return page
 
 
+# La couverture est reecrite au meme emplacement a chaque retraitement OCR
+# (tasks.py reaffecte cover_thumbnail_path) : pas d'immutable, sinon une
+# vignette perimee resterait affichee indefiniment. Un jour de cache, puis
+# revalidation via le ETag/Last-Modified que FileResponse pose deja.
+CACHE_COUVERTURE = "private, max-age=86400"
+
+# Le PDF est lourd et relu page apres page : le garder une heure evite de le
+# retelecharger a chaque reouverture du lecteur. Duree courte car un
+# retraitement OCR le remplace au meme emplacement.
+CACHE_PDF = "private, max-age=3600"
+
+
 @router.get("/{magazine_id}/cover")
 def get_cover(magazine_id: int, db: Session = Depends(get_db)):
     magazine = _get_magazine_or_404(magazine_id, db)
     if not magazine.cover_thumbnail_path or not Path(magazine.cover_thumbnail_path).exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cover not available")
-    return FileResponse(magazine.cover_thumbnail_path, media_type="image/png")
+    return FileResponse(
+        magazine.cover_thumbnail_path,
+        media_type="image/png",
+        headers={"Cache-Control": CACHE_COUVERTURE},
+    )
 
 
 @router.get("/{magazine_id}/file")
@@ -208,6 +224,7 @@ def view_file(magazine_id: int, db: Session = Depends(get_db)):
         media_type="application/pdf",
         filename=magazine.filename,
         content_disposition_type="inline",
+        headers={"Cache-Control": CACHE_PDF},
     )
 
 
