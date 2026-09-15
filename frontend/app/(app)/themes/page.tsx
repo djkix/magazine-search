@@ -128,7 +128,11 @@ export default function ThemesPage() {
                     : "text-foreground-muted hover:bg-surface-hover hover:text-foreground"
                 }`}
               >
-                <span className="min-w-0 truncate">{t.name}</span>
+                {/* Pas de `truncate` ici : une thématique de niveau 1 est un
+                    repère de navigation, la couper la rend indevinable. Le
+                    retour à la ligne garantit l'affichage complet quelle que
+                    soit la longueur du libellé. */}
+                <span className="min-w-0 break-words">{t.name}</span>
                 <span className="shrink-0 rounded-full bg-surface-hover px-2 py-0.5 font-mono text-xs text-foreground-muted">
                   {t.article_count}
                 </span>
