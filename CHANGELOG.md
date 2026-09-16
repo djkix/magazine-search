@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.30.4](https://github.com/djkix/magazine-search/compare/v0.30.3...v0.30.4) (2026-09-16)
+
+
+### Bug Fixes
+
+* **sommaire:** ecarter les noms de fichiers de maquette des titres ([bacdcc6](https://github.com/djkix/magazine-search/commit/bacdcc6a9882309a4e2ce0c548d530509b79b1bc))
+* **themes:** figer la largeur des colonnes de reference et de page ([83f55ae](https://github.com/djkix/magazine-search/commit/83f55ae6b3186a5fc2e44b7b4fb200b99409008f))
+
 ## [0.30.3](https://github.com/djkix/magazine-search/compare/v0.30.2...v0.30.3) (2026-09-15)
 
 
