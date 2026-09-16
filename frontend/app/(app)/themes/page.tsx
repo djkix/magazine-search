@@ -227,10 +227,17 @@ export default function ThemesPage() {
                           >
                             {a.title}
                           </span>
-                          <span className="shrink-0 truncate text-xs text-foreground-muted">
+                          {/* Largeurs FIXES et non dictees par le contenu : en
+                              `shrink-0` seul, chaque reference un peu plus longue
+                              (« Septembre 2019 · n°191 » contre « Mai 2018 · n°10 »)
+                              repoussait le numero de page, et la colonne de droite
+                              ondulait d'une ligne a l'autre. `tabular-nums` fige en
+                              plus la chasse des chiffres, sans quoi « p.11 » et
+                              « p.88 » n'occupent pas la meme largeur. */}
+                          <span className="w-36 shrink-0 truncate text-right text-xs text-foreground-muted sm:w-44">
                             {reference(a)}
                           </span>
-                          <span className="shrink-0 font-mono text-xs text-foreground-muted">
+                          <span className="w-12 shrink-0 text-right font-mono text-xs tabular-nums text-foreground-muted sm:w-14">
                             p.{a.start_page}
                           </span>
                         </Link>
