@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Article, Collection, Magazine, Subtheme, Theme, subtheme_articles
-from app.schemas import CollectionSummary, LibraryOverview, MagazineThemeOut, SubthemeOut, TagOut
+from app.models import Article, Collection, Magazine, Subtheme, subtheme_articles
+from app.schemas import CollectionSummary, LibraryOverview, SubthemeOut, TagOut
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
@@ -53,19 +53,10 @@ def library_overview(db: Session = Depends(get_db)):
     )
 
 
-@router.get("/{collection_id}/themes", response_model=list[MagazineThemeOut])
-def get_collection_themes(collection_id: int, db: Session = Depends(get_db)):
-    """Themes assigned (at indexing time) to any magazine in this
-    collection, each with how many of the collection's magazines carry it."""
-    rows = (
-        db.query(Theme.id, Theme.name, func.count(Magazine.id.distinct()))
-        .join(Theme.magazines)
-        .filter(Magazine.collection_id == collection_id)
-        .group_by(Theme.id, Theme.name)
-        .order_by(func.count(Magazine.id.distinct()).desc(), Theme.name)
-        .all()
-    )
-    return [MagazineThemeOut(id=theme_id, name=name, magazine_count=count) for theme_id, name, count in rows]
+# « GET /collections/{id}/themes » a été retiré en même temps que son jumeau
+# « GET /api/themes » : il comptait les NUMÉROS portant une étiquette Gemini,
+# table qui n'est plus alimentée. La vue « Par thématique » d'une collection
+# s'appuie désormais sur /collections/{id}/subthemes, juste en dessous.
 
 
 @router.get("/{collection_id}/subthemes", response_model=list[SubthemeOut])

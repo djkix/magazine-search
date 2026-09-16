@@ -230,21 +230,19 @@ class ArticleUpdate(BaseModel):
         return _valider_plage_de_pages(self)
 
 
-# ---- Magazine themes ----
+# ---- Thématiques ----
 
-
-class MagazineThemeOut(BaseModel):
-    id: int
-    name: str
-    magazine_count: int
+# MagazineThemeOut a été retiré avec les deux endpoints qui l'utilisaient
+# (GET /api/themes et GET /collections/{id}/themes) : il décrivait un comptage
+# par NUMÉRO, hérité du thémage Gemini dont la table n'est plus alimentée.
 
 
 class TaxonomyThemeOut(BaseModel):
     """Niveau 1 de la taxonomie : une thématique ayant des sous-thématiques.
 
-    Distincte de MagazineThemeOut, qui compte les NUMÉROS portant une
-    étiquette posée par Gemini. Ici on compte les ARTICLES rattachés par
-    mots-clés, ce qui n'est ni la même granularité ni la même source.
+    Le comptage porte sur les ARTICLES rattachés par mots-clés. L'ancien
+    comptage par NUMÉRO, hérité des étiquettes posées par Gemini, a été
+    retiré avec ses endpoints.
     """
 
     id: int

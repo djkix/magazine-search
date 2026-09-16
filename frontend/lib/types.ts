@@ -66,12 +66,6 @@ export interface ArticleWithMagazine extends Article {
   magazine_collection_name: string | null;
 }
 
-export interface MagazineTheme {
-  id: number;
-  name: string;
-  magazine_count: number;
-}
-
 export interface SubthemeReportLine {
   // Thématique de rattachement — la taxonomie étant désormais globale, un
   // compte rendu couvre plusieurs thématiques à la fois.
@@ -95,9 +89,9 @@ export interface SubthemeImportReport {
   entrees_ignorees: string[];
 }
 
-// Niveau 1 de la taxonomie. À ne pas confondre avec MagazineTheme, qui compte
-// les NUMÉROS portant une étiquette posée par Gemini : ici on compte les
-// ARTICLES rattachés par mots-clés.
+// Niveau 1 de la taxonomie. Le comptage porte sur les ARTICLES rattachés par
+// mots-clés ; l'ancien comptage par NUMÉRO, hérité des étiquettes Gemini, a
+// été retiré avec ses endpoints.
 export interface TaxonomyTheme {
   id: number;
   name: string;
