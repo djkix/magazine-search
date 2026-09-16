@@ -188,12 +188,12 @@ que vous avez choisie : « Système D » porte « Bricolage », et cela vaut pou
 199 numéros, sans exception et sans consommer de quota. Gemini, lui, infère
 numéro par numéro — plus fin, mais plus incertain.
 
-Les deux se cumulent. Mais le vocabulaire des tags mélange des **sujets**
+Les deux se cumulent. Mais le vocabulaire des tags mélangeait des **sujets**
 (« Bricolage », « Santé ») et des **formats éditoriaux** (« Test », « Tutoriel »,
-« Guide achat »), et propager les seconds donnerait une navigation par sujet où
-« Test » écraserait tout. Dans les réglages, chaque tag porte donc une bascule
-*sujet* / *format* : seuls les sujets sont propagés. Tout est en *format* par
-défaut — rien ne se propage tant que vous n'avez pas choisi.
+« Guide achat »), et propager les seconds aurait donné une navigation par sujet
+où « Test » écraserait tout. D'où la distinction *sujet* / *format* portée par
+chaque tag — devenue sans objet depuis le retrait de la propagation, voir
+ci-dessous.
 
 > **Le thémage par numéro n'est plus actif.** Il reposait sur des appels à
 > Gemini, dont le quota gratuit (20 requêtes par jour) rendait l'opération
@@ -207,9 +207,10 @@ défaut — rien ne se propage tant que vous n'avez pas choisi.
 > (`POST /admin/themes/regenerate-all`, `POST /admin/tags/propagate`) existent
 > toujours : rien n'a été supprimé en base, et les écrans sont restaurables.
 >
-> La bascule *sujet* / *format* de chaque tag subsiste mais n'a plus de
-> consommateur : les tags servent aujourd'hui à **filtrer la recherche**, tous
-> types confondus.
+> La bascule *sujet* / *format* de chaque tag n'a plus de consommateur et a
+> été retirée de l'interface des réglages ; le champ subsiste en base et dans
+> l'API. Les tags servent aujourd'hui à **filtrer la recherche**, tous types
+> confondus.
 
 Le tableau de bord mesure désormais la couverture de la taxonomie au niveau de
 l'**article** et non du numéro : *Articles rattachés* et *Sans sous-thématique*.

@@ -21,9 +21,11 @@ export type IssueType = "normal" | "hs" | "sp";
 export interface Tag {
   id: number;
   name: string;
-  // Vrai pour un tag de sujet (« Bricolage »), propagé en thématique sur les
-  // numéros de ses collections. Faux pour un format éditorial (« Test »),
-  // qui n'a rien à faire dans une navigation par sujet.
+  // Distinguait un tag de sujet (« Bricolage ») d'un format éditorial
+  // (« Test »), pour ne propager que les premiers vers le thémage par numéro.
+  // Cette propagation ayant été retirée, le champ n'a plus de consommateur :
+  // tous les tags sont proposés comme filtres de recherche. Conservé parce
+  // que l'API le renvoie toujours et que la colonne existe en base.
   is_subject: boolean;
 }
 

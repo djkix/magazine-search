@@ -83,18 +83,6 @@ export default function AdminSettingsPage() {
     }
   }
 
-  // Bascule sujet / format. Le nom est renvoyé tel quel : l'API exige le
-  // champ, et l'omettre effacerait le libellé.
-  async function toggleTagSubject(tag: Tag) {
-    setTagError(null);
-    try {
-      await api.patch(`/admin/tags/${tag.id}`, { name: tag.name, is_subject: !tag.is_subject });
-      loadTags();
-    } catch (err) {
-      setTagError(err instanceof ApiError ? err.message : "Erreur");
-    }
-  }
-
   async function deleteTag(id: number) {
     if (!window.confirm("Supprimer ce tag ? Les collections associées ne le porteront plus.")) return;
     await api.delete(`/admin/tags/${id}`);
@@ -288,24 +276,12 @@ export default function AdminSettingsPage() {
               ) : (
                 <span className="min-w-0 flex-1 truncate text-sm text-foreground">{t.name}</span>
               )}
-              {/* Toujours visible, contrairement aux actions : c'est un état,
-                  pas une commande — le masquer hors survol rendrait invisible
-                  ce qui se propage et ce qui ne se propage pas. */}
-              <button
-                onClick={() => toggleTagSubject(t)}
-                title={
-                  t.is_subject
-                    ? "Sujet : propagé en thématique sur les numéros de ses collections"
-                    : "Format éditorial : non propagé"
-                }
-                className={`shrink-0 rounded-full px-2 py-0.5 font-mono text-[10px] transition ${
-                  t.is_subject
-                    ? "bg-primary/20 text-primary-light"
-                    : "bg-surface-hover text-foreground-muted hover:text-foreground"
-                }`}
-              >
-                {t.is_subject ? "sujet" : "format"}
-              </button>
+              {/* La bascule sujet / format a été retirée : elle ne servait
+                  qu'à décider ce que « Propager les tags de sujet » diffusait
+                  vers le thémage par numéro, commande elle-même retirée. Tous
+                  les tags sont aujourd'hui proposés comme filtres de
+                  recherche, sans distinction de nature. Le champ is_subject
+                  subsiste en base et dans l'API. */}
               <span className="hidden shrink-0 gap-2 group-hover:flex">
                 {editingTagId === t.id ? (
                   <button onClick={() => saveTag(t.id)} className="text-primary-light hover:underline">
