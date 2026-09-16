@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Article, Collection, IssueType, Magazine, Page, ScanStatus, collection_tags, theme_magazines
+from app.models import Article, Collection, IssueType, Magazine, Page, ScanStatus, collection_tags
 from app.schemas import ArticleOut, MagazineOut, PageOut, TagOut
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
@@ -43,7 +43,6 @@ def _apply_magazine_filters(
     query,
     tag_id: int | None,
     collection_id: int | None,
-    theme_id: int | None,
     unassigned: bool,
     year: int | None,
     issue_type: IssueType | None = None,
@@ -59,10 +58,6 @@ def _apply_magazine_filters(
             query.join(Collection, Collection.id == Magazine.collection_id)
             .join(collection_tags, collection_tags.c.collection_id == Collection.id)
             .filter(collection_tags.c.tag_id == tag_id)
-        )
-    if theme_id is not None:
-        query = query.join(theme_magazines, theme_magazines.c.magazine_id == Magazine.id).filter(
-            theme_magazines.c.theme_id == theme_id
         )
     if year is not None:
         query = query.filter(func.extract("year", Magazine.publication_date) == year)
@@ -83,7 +78,6 @@ def _apply_magazine_filters(
 def count_magazines(
     tag_id: int | None = Query(None, description="Restrict to magazines whose collection carries this tag"),
     collection_id: int | None = Query(None, description="Restrict to magazines in this collection"),
-    theme_id: int | None = Query(None, description="Restrict to magazines assigned this theme"),
     unassigned: bool = Query(False, description="Restrict to magazines with no collection assigned"),
     year: int | None = Query(None, description="Restrict to magazines published in this year"),
     issue_type: IssueType | None = Query(None, description="Restrict to magazines of this issue type"),
@@ -92,7 +86,7 @@ def count_magazines(
     db: Session = Depends(get_db),
 ):
     query = _apply_magazine_filters(
-        db.query(Magazine.id), tag_id, collection_id, theme_id, unassigned, year, issue_type, scan_status, has_sommaire
+        db.query(Magazine.id), tag_id, collection_id, unassigned, year, issue_type, scan_status, has_sommaire
     )
     return {"total": query.distinct().count()}
 
@@ -133,7 +127,6 @@ def list_magazines(
     sort: str = Query("date", pattern="^(date|added|updated)$"),
     tag_id: int | None = Query(None, description="Restrict to magazines whose collection carries this tag"),
     collection_id: int | None = Query(None, description="Restrict to magazines in this collection"),
-    theme_id: int | None = Query(None, description="Restrict to magazines assigned this theme"),
     unassigned: bool = Query(False, description="Restrict to magazines with no collection assigned"),
     year: int | None = Query(None, description="Restrict to magazines published in this year"),
     issue_type: IssueType | None = Query(None, description="Restrict to magazines of this issue type"),
@@ -149,7 +142,7 @@ def list_magazines(
         order = Magazine.publication_date.desc().nulls_last()
     query = db.query(Magazine, func.count(Page.id)).outerjoin(Page, Page.magazine_id == Magazine.id)
     query = _apply_magazine_filters(
-        query, tag_id, collection_id, theme_id, unassigned, year, issue_type, scan_status, has_sommaire
+        query, tag_id, collection_id, unassigned, year, issue_type, scan_status, has_sommaire
     )
     rows = query.group_by(Magazine.id).order_by(order, Magazine.title).offset(page * limit).limit(limit).all()
 

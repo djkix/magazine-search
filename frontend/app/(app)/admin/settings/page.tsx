@@ -20,17 +20,9 @@ export default function AdminSettingsPage() {
   const [editingTagId, setEditingTagId] = useState<number | null>(null);
   const [editingTagName, setEditingTagName] = useState("");
   const [tagError, setTagError] = useState<string | null>(null);
-  const [propagating, setPropagating] = useState(false);
-  const [propagateReport, setPropagateReport] = useState<{
-    applique: boolean;
-    tags_sujets: number;
-    total_ajoutes: number;
-    details: { tag: string; numeros_concernes: number; rattachements_ajoutes: number }[];
-  } | null>(null);
   const [reindexing, setReindexing] = useState(false);
   const [reindexMessage, setReindexMessage] = useState<string | null>(null);
   const [backfilling, setBackfilling] = useState(false);
-  const [regeneratingThemes, setRegeneratingThemes] = useState(false);
 
   const [collections, setCollections] = useState<Collection[]>([]);
   const [editingCollectionId, setEditingCollectionId] = useState<number | null>(null);
@@ -103,27 +95,6 @@ export default function AdminSettingsPage() {
     }
   }
 
-  // Simulation d'abord, application ensuite : la propagation touche les
-  // thématiques de milliers de numéros, et le compte rendu doit être lu avant.
-  async function propagateTags(appliquer: boolean) {
-    setPropagating(true);
-    setTagError(null);
-    try {
-      const data = await api.post<{
-        applique: boolean;
-        tags_sujets: number;
-        total_ajoutes: number;
-        details: { tag: string; numeros_concernes: number; rattachements_ajoutes: number }[];
-      }>(`/admin/tags/propagate?appliquer=${appliquer}`);
-      setPropagateReport(data);
-    } catch (err) {
-      setPropagateReport(null);
-      setTagError(err instanceof ApiError ? err.message : "Erreur");
-    } finally {
-      setPropagating(false);
-    }
-  }
-
   async function deleteTag(id: number) {
     if (!window.confirm("Supprimer ce tag ? Les collections associées ne le porteront plus.")) return;
     await api.delete(`/admin/tags/${id}`);
@@ -169,19 +140,6 @@ export default function AdminSettingsPage() {
       setTagError(err instanceof ApiError ? err.message : "Erreur");
     } finally {
       setReindexing(false);
-    }
-  }
-
-  async function regenerateThemes() {
-    setRegeneratingThemes(true);
-    setReindexMessage(null);
-    try {
-      const data = await api.post<{ enqueued: number }>("/admin/themes/regenerate-all");
-      setReindexMessage(`${data.enqueued} magazine(s) en cours de régénération des thématiques.`);
-    } catch (err) {
-      setTagError(err instanceof ApiError ? err.message : "Erreur");
-    } finally {
-      setRegeneratingThemes(false);
     }
   }
 
