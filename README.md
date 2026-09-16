@@ -370,6 +370,14 @@ manuellement avant de déployer.
 
 | Version | Date | Changement |
 | --- | --- | --- |
+| 0.30.2 | 2026-09-15 | Interface : coller le contenu à gauche quand la barre est repliée |
+| 0.30.1 | 2026-09-15 | OCR : normaliser via Ghostscript quand qpdf ne suffit pas |
+| 0.30.0 | 2026-09-15 | Navigation : barre latérale repliable, mise en cache des couvertures et PDF |
+| 0.29.0 | 2026-09-15 | Sous-thématiques : rattachement au fil de l'eau et écran des orphelins |
+| 0.28.1 | 2026-09-14 | Thématiques : passer les titres OCR à la ligne au lieu de les tronquer |
+| 0.28.0 | 2026-09-14 | Thématiques : navigation à trois écrans sur la taxonomie |
+| 0.27.1 | 2026-09-13 | Déploiement : supprimer la sauvegarde avant migration |
+| 0.27.0 | 2026-09-13 | Thématiques : propager les tags de sujet et tirer la file au hasard |
 | 0.26.0 | 2026-09-13 | Admin : déposer la réponse du modèle depuis le tableau de bord |
 | 0.25.1 | 2026-09-11 | Outils : rendre le paquet `app` importable depuis `tools/` |
 | 0.25.0 | 2026-09-11 | Sous-thématiques : socle de données et chaîne export/import |
