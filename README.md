@@ -76,6 +76,13 @@ conduite, colonnes, numéro avant ou après le titre, séparateur typographique.
 Quand rien n'est extrait, la raison est consignée et visible dans le
 backoffice : page introuvable, ou page trouvée mais illisible.
 
+Les magazines portent dans leur marge le nom du fichier de maquette qui a servi
+à les composer (« 607-sommaire.indd »). L'OCR le lit comme du texte ordinaire :
+le parseur l'écarte, et le retire lorsqu'il s'est collé à la fin d'un titre
+valide. Le filtre ne vise que ce motif précis — un critère de brièveté aurait
+supprimé des rubriques bien réelles comme « MIX » ou « Q&A », et un critère
+d'absence de voyelle aurait emporté les « GT3 RS » des magazines automobiles.
+
 **Thématiques**
 
 Navigation par sujet à deux niveaux (thématique puis sous-thématique),
