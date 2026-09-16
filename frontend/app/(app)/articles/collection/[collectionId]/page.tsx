@@ -354,7 +354,7 @@ export default function CollectionArticlesPage() {
                           <span className="min-w-0 truncate">
                             <TexteSurligne texte={article.title} terme={selectedTheme?.name} />
                           </span>
-                          <span className="shrink-0 font-mono text-xs text-foreground-muted">p.{article.start_page}</span>
+                          <span className="shrink-0 font-mono text-xs tabular-nums text-foreground-muted">p.{article.start_page}</span>
                         </Link>
                       </li>
                     ))}
@@ -419,7 +419,7 @@ export default function CollectionArticlesPage() {
                         <span className="min-w-0 truncate">
                           <TexteSurligne texte={article.title} terme={q} />
                         </span>
-                        <span className="shrink-0 font-mono text-xs text-foreground-muted">p.{article.start_page}</span>
+                        <span className="shrink-0 font-mono text-xs tabular-nums text-foreground-muted">p.{article.start_page}</span>
                       </Link>
                     </li>
                   ))}
@@ -535,7 +535,7 @@ export default function CollectionArticlesPage() {
                       className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-surface/60 hover:text-primary-light"
                     >
                       <span className="min-w-0 truncate">{article.title}</span>
-                      <span className="shrink-0 font-mono text-xs text-foreground-muted">
+                      <span className="shrink-0 font-mono text-xs tabular-nums text-foreground-muted">
                         p.{article.start_page}
                         {article.end_page && article.end_page !== article.start_page ? `–${article.end_page}` : ""}
                       </span>
