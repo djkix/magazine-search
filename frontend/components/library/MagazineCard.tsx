@@ -24,10 +24,18 @@ export default function MagazineCard({
     <>
       <div className="relative aspect-[3/4] w-full overflow-hidden rounded-lg border border-outline-variant bg-surface-hover">
         {magazine.cover_thumbnail_path ? (
+          // `lazy` : la bibliotheque affiche des centaines de vignettes, dont
+          // la plupart hors ecran. Sans cet attribut le navigateur les reclame
+          // toutes des le premier rendu, sature ses connexions et retarde
+          // celles qu'on regarde vraiment.
+          // `async` : le decodage ne bloque plus le fil principal, donc le
+          // defilement reste fluide pendant l'arrivee des images.
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={fileUrl(`/magazines/${magazine.id}/cover`)}
             alt={magazine.title}
+            loading="lazy"
+            decoding="async"
             className="h-full w-full object-cover"
           />
         ) : (

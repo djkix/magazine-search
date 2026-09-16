@@ -1,7 +1,9 @@
+import re
+from collections.abc import Iterator
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -193,43 +195,133 @@ CACHE_COUVERTURE = "private, max-age=86400"
 # retraitement OCR le remplace au meme emplacement.
 CACHE_PDF = "private, max-age=3600"
 
+# Starlette 0.38 ne gere pas l'en-tete Range sur FileResponse (verifie sur
+# l'image deployee). Consequence : chaque ouverture du lecteur telechargeait
+# le PDF entier — 36 Mo pour un Computer Music — pour afficher une seule page,
+# et arriver page 87 depuis un resultat de recherche imposait de rapatrier
+# tout le reste. pdf.js sait ne demander que les octets utiles, mais seulement
+# si le serveur annonce « Accept-Ranges ».
+#
+# On ne traite qu'UNE plage par requete. C'est ce qu'emet pdf.js, et repondre
+# au cas general (plages multiples en multipart/byteranges) couterait bien
+# plus a ecrire et a maintenir que ce que ca rapporterait ici.
+_PLAGE_RE = re.compile(r"^bytes=(?P<debut>\d*)-(?P<fin>\d*)$")
+
+# 64 Kio : assez grand pour ne pas multiplier les allers-retours disque, assez
+# petit pour ne pas charger une plage entiere en memoire quand pdf.js en
+# demande une grosse.
+TAILLE_MORCEAU = 64 * 1024
+
+
+def _lire_plage(chemin: Path, debut: int, longueur: int) -> Iterator[bytes]:
+    """Rend le contenu du fichier par morceaux, sans le charger en entier."""
+    with chemin.open("rb") as fichier:
+        fichier.seek(debut)
+        restant = longueur
+        while restant > 0:
+            morceau = fichier.read(min(TAILLE_MORCEAU, restant))
+            if not morceau:
+                break
+            restant -= len(morceau)
+            yield morceau
+
+
+def _servir_pdf(chemin: Path, nom: str, disposition: str, requete: Request, cache: str | None):
+    """Sert un PDF en honorant l'en-tete Range quand le client en envoie un.
+
+    Sans en-tete Range, ou avec un en-tete qu'on ne sait pas lire, on retombe
+    sur la reponse complete habituelle — mais en annoncant « Accept-Ranges »,
+    sans quoi le client ne tenterait jamais de requete partielle.
+    """
+    taille = chemin.stat().st_size
+    entetes = {"Accept-Ranges": "bytes"}
+    if cache:
+        entetes["Cache-Control"] = cache
+
+    brut = requete.headers.get("range")
+    correspondance = _PLAGE_RE.match(brut.strip()) if brut else None
+    if correspondance is None:
+        return FileResponse(
+            chemin,
+            media_type="application/pdf",
+            filename=nom,
+            content_disposition_type=disposition,
+            headers=entetes,
+        )
+
+    debut_txt, fin_txt = correspondance.group("debut"), correspondance.group("fin")
+    if not debut_txt and not fin_txt:
+        # « bytes=- » ne designe rien : on sert tout plutot que d'echouer.
+        return FileResponse(
+            chemin,
+            media_type="application/pdf",
+            filename=nom,
+            content_disposition_type=disposition,
+            headers=entetes,
+        )
+
+    if not debut_txt:
+        # Forme suffixe « bytes=-500 » : les 500 derniers octets.
+        longueur = min(int(fin_txt), taille)
+        debut, fin = taille - longueur, taille - 1
+    else:
+        debut = int(debut_txt)
+        fin = min(int(fin_txt), taille - 1) if fin_txt else taille - 1
+
+    if debut >= taille or debut > fin:
+        # 416 obligatoire : renvoyer 200 ferait croire au client que sa plage
+        # a ete servie, et pdf.js interpreterait le fichier de travers.
+        return Response(
+            status_code=status.HTTP_416_REQUESTED_RANGE_NOT_SATISFIABLE,
+            headers={**entetes, "Content-Range": f"bytes */{taille}"},
+        )
+
+    longueur = fin - debut + 1
+    return StreamingResponse(
+        _lire_plage(chemin, debut, longueur),
+        status_code=status.HTTP_206_PARTIAL_CONTENT,
+        media_type="application/pdf",
+        headers={
+            **entetes,
+            "Content-Range": f"bytes {debut}-{fin}/{taille}",
+            "Content-Length": str(longueur),
+            "Content-Disposition": f'{disposition}; filename="{nom}"',
+        },
+    )
+
 
 @router.get("/{magazine_id}/cover")
 def get_cover(magazine_id: int, db: Session = Depends(get_db)):
     magazine = _get_magazine_or_404(magazine_id, db)
     if not magazine.cover_thumbnail_path or not Path(magazine.cover_thumbnail_path).exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cover not available")
+    # Le type MIME suit l'extension reelle du fichier : les vignettes produites
+    # avant la bascule vers WebP sont encore en PNG sur le disque, et les
+    # annoncer en image/webp les rendrait indechiffrables pour le navigateur.
+    chemin = Path(magazine.cover_thumbnail_path)
     return FileResponse(
-        magazine.cover_thumbnail_path,
-        media_type="image/png",
+        chemin,
+        media_type="image/webp" if chemin.suffix.lower() == ".webp" else "image/png",
         headers={"Cache-Control": CACHE_COUVERTURE},
     )
 
 
 @router.get("/{magazine_id}/file")
-def view_file(magazine_id: int, db: Session = Depends(get_db)):
+def view_file(magazine_id: int, requete: Request, db: Session = Depends(get_db)):
     magazine = _get_magazine_or_404(magazine_id, db)
     pdf_path = _resolve_pdf_path(magazine)
     if not pdf_path.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PDF file not available")
-    return FileResponse(
-        pdf_path,
-        media_type="application/pdf",
-        filename=magazine.filename,
-        content_disposition_type="inline",
-        headers={"Cache-Control": CACHE_PDF},
-    )
+    return _servir_pdf(pdf_path, magazine.filename, "inline", requete, CACHE_PDF)
 
 
 @router.get("/{magazine_id}/download")
-def download_file(magazine_id: int, db: Session = Depends(get_db)):
+def download_file(magazine_id: int, requete: Request, db: Session = Depends(get_db)):
     magazine = _get_magazine_or_404(magazine_id, db)
     pdf_path = _resolve_pdf_path(magazine)
     if not pdf_path.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PDF file not available")
-    return FileResponse(
-        pdf_path,
-        media_type="application/pdf",
-        filename=magazine.filename,
-        content_disposition_type="attachment",
-    )
+    # Pas de Cache-Control ici : un telechargement est un geste ponctuel. En
+    # revanche il beneficie aussi des plages, donc il devient reprenable apres
+    # une coupure.
+    return _servir_pdf(pdf_path, magazine.filename, "attachment", requete, None)

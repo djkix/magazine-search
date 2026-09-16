@@ -366,7 +366,10 @@ def process_magazine(magazine_id: int) -> None:
 
         cover_dir = Path(settings.covers_dir)
         cover_dir.mkdir(parents=True, exist_ok=True)
-        cover_path = cover_dir / f"{magazine.id}.png"
+        # .webp depuis la bascule d'encodage. Les vignettes deja produites en
+        # .png restent servies telles quelles : l'endpoint choisit son type MIME
+        # d'apres l'extension reelle, et le chemin est stocke en base.
+        cover_path = cover_dir / f"{magazine.id}.webp"
         render_cover_thumbnail(processed_path, cover_path)
         magazine.cover_thumbnail_path = str(cover_path)
 

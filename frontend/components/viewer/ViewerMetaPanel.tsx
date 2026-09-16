@@ -182,7 +182,7 @@ export default function ViewerMetaPanel({
               className="group flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-surface-hover"
             >
               <button onClick={() => onGoToPage(article.start_page)} className="min-w-0 flex-1 truncate text-left text-foreground">
-                <span className="mr-2 font-mono text-[10px] text-foreground-muted">p.{article.start_page}</span>
+                <span className="mr-2 font-mono text-[10px] tabular-nums text-foreground-muted">p.{article.start_page}</span>
                 {article.title}
               </button>
               {user.is_admin && (

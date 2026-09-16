@@ -6,6 +6,7 @@ from pathlib import Path
 
 import fitz  # PyMuPDF
 from langdetect import DetectorFactory, LangDetectException, detect_langs
+from PIL import Image
 
 from app.config import get_settings
 
@@ -13,6 +14,12 @@ settings = get_settings()
 logger = logging.getLogger("worker.ocr")
 
 DetectorFactory.seed = 0  # deterministic langdetect results
+
+# 80 est le compromis usuel pour une image photographique : en dessous, les
+# aplats de couleur des couvertures montrent des artefacts visibles a la
+# taille d'affichage ; au-dessus, le poids remonte sans gain perceptible sur
+# une vignette de 600 px de large.
+QUALITE_WEBP = 80
 
 MIN_NATIVE_TEXT_CHARS = 20
 MIN_TEXT_CHARS_FOR_LANG_DETECT = 20
@@ -607,8 +614,17 @@ def render_cover_thumbnail(pdf_path: Path, output_path: Path, max_width: int = 6
         # Plafonné à 1 : au-delà, on rendrait la page plus grande que sa taille
         # native pour la réduire ensuite, sans gain de qualité.
         zoom = min(max_width / largeur, 1.0)
-        pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
-        pix.save(str(output_path))
+        # alpha=False : une couverture est opaque, et la couche alpha ferait
+        # passer le pixmap en RGBA pour rien.
+        pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
+        # Encodage WebP et non PNG : sur une photo de couverture, le PNG est
+        # sans perte et pese 5 a 10 fois plus lourd a rendu visuellement
+        # identique. La bibliotheque affiche des centaines de vignettes d'un
+        # coup, c'est la son principal cout de chargement.
+        #
+        # PyMuPDF ne sait pas ecrire de WebP : on passe par Pillow.
+        image = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+        image.save(output_path, format="WEBP", quality=QUALITE_WEBP, method=4)
     finally:
         doc.close()
 
