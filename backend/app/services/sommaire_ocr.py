@@ -293,6 +293,44 @@ def _find_sommaire_pages(pages: list[Page], boilerplate: set[str]) -> set[int]:
     return _etendre_a_la_page_suivante({best_page}, pages, boilerplate)
 
 
+# Les magazines portent dans leur marge le nom du fichier de maquette
+# (« 607-sommaire.indd », « HS_COUV_v3.indd »). L'OCR le lit comme du texte
+# ordinaire ; le parseur, qui travaille ligne a ligne, le retient seul comme
+# titre ou — plus insidieux — le colle a la fin d'un titre valide.
+#
+# Mesure sur le corpus avant correctif : 13 cas sur 13 546 articles, dont 3
+# titres legitimes abimes par agglutination. Le motif vise DONC uniquement le
+# nom de fichier. Deux criteres plus larges ont ete essayes puis rejetes sur
+# preuve : l'absence de voyelle attrape « GT3 RS » et « GT2 RS », la brievete
+# attrape « MIX » et « Q&A » — tous de vrais titres.
+_FICHIER_MAQUETTE_RE = re.compile(
+    r"\s*\S*\.(?:indd|pdf|jpe?g|png|tiff?|eps|psd|ai|qxd)\s*$",
+    re.IGNORECASE,
+)
+
+# En dessous de ce seuil, ce qui reste apres retrait du nom de fichier n'est
+# pas un titre mais un reliquat de maquette : « Couv-B35_OK », « couv fr ».
+# Au-dessus, c'est un vrai titre qu'on a sauve : « Les fraudes perdurent
+# GRAND TEST ● LABO ». Le seuil ne s'applique QU'AUX titres touches par le
+# motif ci-dessus, jamais aux autres — un titre court et legitime comme
+# « MIX » n'est donc jamais concerne.
+MIN_RELIQUAT_APRES_MAQUETTE = 15
+
+
+def _nettoyer_titre(titre: str) -> str:
+    """Retire un nom de fichier de maquette colle au titre.
+
+    Rend une chaine vide quand il ne subsiste rien d'exploitable : les trois
+    appelants traitent deja un titre vide comme une entree a ignorer.
+    """
+    nettoye = _FICHIER_MAQUETTE_RE.sub("", titre)
+    if nettoye == titre:
+        # Aucun nom de fichier : on ne touche a rien, seuil compris.
+        return titre
+    nettoye = nettoye.strip(" .·…-–—:")
+    return nettoye if len(nettoye) >= MIN_RELIQUAT_APRES_MAQUETTE else ""
+
+
 def _parse_entries(text: str, boilerplate: set[str]) -> list[dict]:
     """Runs the pattern-matching state machine over one page's text and
     returns whatever entries it finds. Pulled out of extract_articles_from_ocr
@@ -314,7 +352,7 @@ def _parse_entries(text: str, boilerplate: set[str]) -> list[dict]:
     def flush_leading_entry() -> None:
         nonlocal pending_page, pending_title_lines
         if pending_page is not None and pending_title_lines:
-            title = " ".join(pending_title_lines).strip()
+            title = _nettoyer_titre(" ".join(pending_title_lines).strip())
             if title:
                 articles.append({"title": title, "start_page": pending_page})
         pending_page = None
@@ -331,7 +369,7 @@ def _parse_entries(text: str, boilerplate: set[str]) -> list[dict]:
         if m_trailing:
             flush_leading_entry()
             title_part = m_trailing.group("title").strip(" .·…")
-            title = " ".join([*generic_pending, title_part]).strip()
+            title = _nettoyer_titre(" ".join([*generic_pending, title_part]).strip())
             generic_pending.clear()
             try:
                 start_page = int(m_trailing.group("page"))
@@ -363,7 +401,7 @@ def _parse_entries(text: str, boilerplate: set[str]) -> list[dict]:
                 # A trailing-style title was accumulating with no page
                 # number yet - this bare number closes it (its badge
                 # landed on its own line instead of after dots).
-                title = " ".join(generic_pending).strip()
+                title = _nettoyer_titre(" ".join(generic_pending).strip())
                 generic_pending.clear()
                 if title and 1 <= page_number <= 999:
                     articles.append({"title": title, "start_page": page_number})
