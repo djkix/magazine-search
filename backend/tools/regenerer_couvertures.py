@@ -91,6 +91,10 @@ def main() -> int:
                 continue
 
             nouveau = ancien.with_suffix(".webp")
+            # Relevé AVANT toute écriture : en mode --appliquer l'ancien PNG est
+            # supprimé plus bas, et le mesurer après donnait invariablement 0 —
+            # le récapitulatif de gain ne s'affichait donc jamais.
+            taille_avant = ancien.stat().st_size
             try:
                 if args.appliquer:
                     render_cover_thumbnail(pdf, nouveau)
@@ -109,7 +113,7 @@ def main() -> int:
                     poids_apres += temoin.stat().st_size
                     temoin.unlink(missing_ok=True)
 
-                poids_avant += ancien.stat().st_size if ancien.exists() else 0
+                poids_avant += taille_avant
                 convertis += 1
             except Exception as exc:  # noqa: BLE001 - on continue le lot
                 db.rollback()
