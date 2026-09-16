@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.5](https://github.com/djkix/magazine-search/compare/v0.30.4...v0.30.5) (2026-09-16)
+
+
+### Performance Improvements
+
+* **lecteur:** servir les PDF par plages et alleger les vignettes ([bc39d2f](https://github.com/djkix/magazine-search/commit/bc39d2fd3653d1c387e99bd27664beed38abe93a))
+
 ## [0.30.4](https://github.com/djkix/magazine-search/compare/v0.30.3...v0.30.4) (2026-09-16)
 
 
