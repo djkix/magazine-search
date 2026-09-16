@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.6](https://github.com/djkix/magazine-search/compare/v0.30.5...v0.30.6) (2026-09-16)
+
+
+### Bug Fixes
+
+* **outils:** mesurer la taille avant de supprimer l'ancienne vignette ([62c38e1](https://github.com/djkix/magazine-search/commit/62c38e19e5520abc56586822e04049d6abd2ddc8))
+
 ## [0.30.5](https://github.com/djkix/magazine-search/compare/v0.30.4...v0.30.5) (2026-09-16)
 
 
