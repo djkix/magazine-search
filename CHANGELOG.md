@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.31.0](https://github.com/djkix/magazine-search/compare/v0.30.7...v0.31.0) (2026-09-17)
+
+
+### Features
+
+* **thematiques:** exporter les orphelins depuis l'administration ([d0b905b](https://github.com/djkix/magazine-search/commit/d0b905b222bfbd2dd5364cf3a4446d203ad7d7c7))
+
 ## [0.30.7](https://github.com/djkix/magazine-search/compare/v0.30.6...v0.30.7) (2026-09-17)
 
 
