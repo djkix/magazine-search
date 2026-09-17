@@ -300,6 +300,26 @@ que de la reconstruire. Soumettre les 13 500 titres déjà classés pour
 n'obtenir que des ajouts noierait le signal. La consigne est intégrée au
 fichier, comme pour l'export complet.
 
+La consigne embarquée énonce trois contraintes, qui ne sont pas des
+précautions de style mais le reflet exact du code de rattachement :
+
+| Contrainte | Pourquoi |
+| --- | --- |
+| Lister **chaque forme** d'un mot-clé | La correspondance ne tolère qu'un `s` ou un `x` final. `mix` n'attrape pas `mixing`, `master` n'attrape pas `mastering`. |
+| Renvoyer la liste **complète** des mots-clés d'une sous-thématique reprise | L'import **remplace** la liste, il ne la fusionne pas : omettre un ancien mot-clé détacherait les articles qu'il retenait. |
+| Éviter les mots trop larges | `test` ou `guide` attraperaient des centaines d'articles sans rapport et rendraient la navigation inutilisable. |
+
+La deuxième est la plus coûteuse à découvrir soi-même : elle ne provoque
+aucune erreur, seulement des articles qui disparaissent silencieusement d'une
+sous-thématique.
+
+**Déposer la réponse.** Le champ attend un **fichier** `.json` (2 Mo maximum),
+pas un copier-coller. Enregistrez la réponse du modèle telle quelle, en
+retirant l'habillage <code>```json</code> s'il en a mis — ce cas précis est
+détecté et signalé plutôt que de produire une erreur incompréhensible. Les
+scripts ou explications que certains modèles ajoutent spontanément n'ont
+aucune utilité ici : seul le JSON compte.
+
 ### Consulter les journaux
 
 La page de logs filtre par niveau et par composant. Le fichier de sauvegarde
