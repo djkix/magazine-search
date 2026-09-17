@@ -13,7 +13,7 @@ from app.services.gemini_quota import GeminiQuotaExceeded
 from app.services.issue_parser import extract_issue_number_from_cover_text, extract_year_from_cover_text
 from app.services.meili import ensure_index_configured, index_page, index_pages
 from app.services.progress import clear_magazine_progress, set_magazine_progress
-from app.services.sommaire_ocr import diagnostiquer_absence_de_sommaire, extract_articles_from_ocr
+from app.services.sommaire_ocr import analyser_absence_de_sommaire, extract_articles_from_ocr
 from app.services.theme_batch import assign_themes_batch
 from app.services.import_sous_thematiques import rattacher_magazine
 from app.services.themes_des_tags import fusionner_themes
@@ -110,12 +110,20 @@ def extract_and_store_articles(db, magazine: Magazine) -> None:
         if entries:
             magazine.toc_error_message = None
         else:
-            # Le statut reste « done » : l'extraction s'est déroulée sans
-            # erreur, et certains numéros n'ont réellement pas de sommaire.
-            # Mais on consigne POURQUOI rien n'a été trouvé — sans cette
-            # trace, un sommaire illisible et un numéro qui n'en a pas sont
-            # indiscernables en base, ce qui rend le défaut invisible.
-            magazine.toc_error_message = diagnostiquer_absence_de_sommaire(pages)
+            # Aucune entrée : reste à savoir si c'est un numéro sans sommaire
+            # ou un sommaire qu'on n'a pas su lire. Les deux appellent des
+            # actions opposées, et les confondre rend le second invisible.
+            message, pages_sommaire = analyser_absence_de_sommaire(pages)
+            magazine.toc_error_message = message
+            if pages_sommaire:
+                # Une page de sommaire a bien été repérée et n'a rien donné :
+                # c'est un échec de lecture, pas une absence. Le laisser en
+                # « done » était un faux succès — plus insidieux qu'une erreur
+                # franche, puisque rien ne le signalait dans l'interface.
+                magazine.toc_status = OcrStatus.failed
+            # Sans page repérée, on garde « done » : un numéro peut
+            # légitimement ne pas comporter de sommaire, et le marquer en
+            # échec ferait remonter du bruit qu'aucune action ne résoudrait.
         db.commit()
 
         # Les articles tout juste extraits rejoignent les sous-thématiques

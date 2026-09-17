@@ -435,7 +435,7 @@ RAISON_AUCUNE_PAGE = "Aucune page de sommaire n'a été identifiée dans ce num�
 RAISON_PAGE_ILLISIBLE = "Sommaire détecté (page {pages}) mais aucune entrée n'a pu en être lue."
 
 
-def diagnostiquer_absence_de_sommaire(pages: list[Page]) -> str:
+def analyser_absence_de_sommaire(pages: list[Page]) -> tuple[str, list[int]]:
     """Explique pourquoi `extract_articles_from_ocr` n'a rien renvoyé.
 
     Sans cela, un numéro dont le sommaire n'a pas pu être lu est
@@ -447,12 +447,18 @@ def diagnostiquer_absence_de_sommaire(pages: list[Page]) -> str:
     Distingue donc les deux modes d'échec :
       - aucune page de sommaire repérée  -> la détection est en cause ;
       - page repérée mais vide d'entrées -> les motifs de mise en page le sont.
+
+    Rend le message ET la liste des pages repérées. L'appelant a besoin des
+    deux : le libellé pour l'afficher, la liste pour décider du STATUT. Les
+    séparer plutôt que de déduire le second en comparant le premier à une
+    constante : un libellé est fait pour être relu et reformulé, s'en servir
+    comme valeur de décision casserait au premier ajustement de formulation.
     """
     boilerplate = _find_boilerplate_templates(pages)
     trouvees = sorted(_find_sommaire_pages(pages, boilerplate))
     if not trouvees:
-        return RAISON_AUCUNE_PAGE
-    return RAISON_PAGE_ILLISIBLE.format(pages=", ".join(str(p) for p in trouvees))
+        return RAISON_AUCUNE_PAGE, []
+    return RAISON_PAGE_ILLISIBLE.format(pages=", ".join(str(p) for p in trouvees)), trouvees
 
 
 def extract_articles_from_ocr(pages: list[Page], pdf_path: Path | None = None) -> list[dict]:
