@@ -184,6 +184,19 @@ change pas, seul le parseur du sommaire évolue. La seconde n'est utile que si l
 logique de décision OCR elle-même a changé, et demande une confirmation
 explicite.
 
+**Deux absences de sommaire, qui ne se valent pas.** Un numéro peut n'en
+comporter aucun : c'est légitime, il reste marqué *terminé*. Mais lorsque la
+page de sommaire a bien été localisée et qu'aucune entrée n'a pu en être lue,
+c'est un échec de lecture, et le numéro est marqué *en échec*. Auparavant les
+deux passaient pour des succès, ce qui rendait le second invisible : la
+bibliothèque affichait 675 numéros « terminés » dont une partie n'avait
+simplement jamais pu être exploitée.
+
+Certaines maquettes resteront hors de portée. Les mensuels qui composent leurs
+numéros de page en gros caractères décoratifs — la presse musicale anglophone
+notamment — ne laissent aucun chiffre dans le texte reconnu, et aucun parseur
+ne peut rattacher un titre à une page qui n'y figure pas.
+
 ### Gérer les thématiques
 
 Les thématiques sont attribuées automatiquement après l'extraction d'un
