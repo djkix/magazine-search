@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.31.1](https://github.com/djkix/magazine-search/compare/v0.31.0...v0.31.1) (2026-09-17)
+
+
+### Bug Fixes
+
+* **thematiques:** nommer les fichiers par leur sens, aller et retour ([fd451f3](https://github.com/djkix/magazine-search/commit/fd451f39feb790bd74fc7717adbb5306d126ef4c))
+
 ## [0.31.0](https://github.com/djkix/magazine-search/compare/v0.30.7...v0.31.0) (2026-09-17)
 
 
