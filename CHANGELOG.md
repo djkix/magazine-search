@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.7](https://github.com/djkix/magazine-search/compare/v0.30.6...v0.30.7) (2026-09-17)
+
+
+### Bug Fixes
+
+* **sommaire:** signaler comme echec une page trouvee mais illisible ([93adf29](https://github.com/djkix/magazine-search/commit/93adf2971fd0bb94b57c28842b4d74272f9cd372))
+
 ## [0.30.6](https://github.com/djkix/magazine-search/compare/v0.30.5...v0.30.6) (2026-09-16)
 
 
