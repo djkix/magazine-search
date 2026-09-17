@@ -22,6 +22,7 @@ from app.schemas import (
     LogEntry,
     MagazineOut,
     MagazineProgressResponse,
+    OrphansExportOut,
     OrphansOut,
     PasswordReset,
     RetryFailedResponse,
@@ -36,6 +37,9 @@ from app.schemas import (
     UserUpdate,
 )
 from app.security import hash_password
+from app.services.export_orphelins import charge_utile as charge_utile_orphelins
+from app.services.export_orphelins import nom_de_fichier as nom_de_fichier_orphelins
+from app.services.export_orphelins import resume as resume_orphelins
 from app.services.export_thematiques import charge_utile, nom_de_fichier, resume
 from app.services.import_sous_thematiques import (
     ImportInvalide,
@@ -648,6 +652,36 @@ def download_corpus_export(db: Session = Depends(get_db)):
         content=json.dumps(charge, ensure_ascii=False, indent=2),
         media_type="application/json",
         headers={"Content-Disposition": 'attachment; filename="%s"' % nom_de_fichier()},
+    )
+
+
+@router.get("/themes/orphans/export", response_model=OrphansExportOut)
+def orphans_export_summary(db: Session = Depends(get_db)):
+    """Volumétrie des orphelins, sans charger les titres.
+
+    Distincte de celle du corpus complet : c'est le volume À CLASSER qui
+    décide s'il faudra plusieurs envois, pas celui de la bibliothèque.
+    """
+    return OrphansExportOut(**resume_orphelins(db))
+
+
+@router.get("/themes/orphans/export/file")
+def download_orphans_export(db: Session = Depends(get_db)):
+    """Les articles non rattachés, avec la taxonomie déjà en place.
+
+    Le corpus complet sert à bâtir une taxonomie de zéro ; celui-ci sert à
+    l'étendre. Soumettre les 13 500 titres pour n'obtenir que des ajouts noie
+    le signal et consomme du contexte pour rien.
+
+    La taxonomie existante accompagne les orphelins : sans elle, le modèle
+    recrée sous un nom voisin ce qui existe déjà. La consigne est incluse,
+    avec les trois contraintes réelles du code d'import.
+    """
+    charge = charge_utile_orphelins(db)
+    return Response(
+        content=json.dumps(charge, ensure_ascii=False, indent=2),
+        media_type="application/json",
+        headers={"Content-Disposition": 'attachment; filename="%s"' % nom_de_fichier_orphelins()},
     )
 
 

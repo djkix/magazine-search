@@ -603,6 +603,20 @@ export default function AdminDashboardPage() {
                 aucune sous-thématique.
               </p>
 
+              {/* Export distinct de celui du corpus complet : celui-ci ne
+                  contient que les orphelins, accompagnés de la taxonomie déjà
+                  en place. Le modèle l'ÉTEND au lieu de la reconstruire, et on
+                  ne lui fait pas relire 13 500 titres déjà classés. */}
+              {orphans.articles_orphelins > 0 && (
+                <a
+                  href={fileUrl("/admin/themes/orphans/export/file")}
+                  className="inline-block rounded-xl border border-outline-variant px-3 py-2 text-sm text-foreground-muted transition hover:bg-surface-hover hover:text-foreground"
+                >
+                  <Icon name="download" className="mr-1 align-middle text-base" />
+                  Télécharger les orphelins pour un modèle
+                </a>
+              )}
+
               {/* Le levier gratuit : un terme qui revient souvent ici et
                   qu'aucun mot-clé ne couvre se complète à la main, sans
                   repasser par un modèle. */}

@@ -310,6 +310,22 @@ class CorpusExportOut(BaseModel):
     collections: int
 
 
+class OrphansExportOut(BaseModel):
+    """Volumétrie de l'export des articles non rattachés.
+
+    Distincte de CorpusExportOut : ce qui décide du découpage en plusieurs
+    envois, c'est le volume RESTANT À CLASSER, pas la taille de la
+    bibliothèque. `titres_uniques` est inférieur à `articles_orphelins`, les
+    rubriques récurrentes étant dédupliquées avant export.
+    """
+
+    articles_total: int
+    articles_orphelins: int
+    titres_uniques: int
+    collections: int
+    caracteres_titres: int
+
+
 # ---- Scan ----
 
 
