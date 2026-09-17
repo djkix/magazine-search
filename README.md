@@ -293,6 +293,13 @@ rattachés** et les mots les plus fréquents parmi eux : un terme qui revient
 souvent et qu'aucun mot-clé ne couvre encore se repère à l'œil, sans appel à
 un modèle — de quoi compléter la taxonomie au fil de l'eau.
 
+Un bouton dédié permet aussi de **télécharger ces orphelins** pour un modèle,
+distinct de l'export complet : il ne contient que ce qui reste à classer,
+accompagné de la taxonomie déjà en place pour que le modèle l'étende plutôt
+que de la reconstruire. Soumettre les 13 500 titres déjà classés pour
+n'obtenir que des ajouts noierait le signal. La consigne est intégrée au
+fichier, comme pour l'export complet.
+
 ### Consulter les journaux
 
 La page de logs filtre par niveau et par composant. Le fichier de sauvegarde
