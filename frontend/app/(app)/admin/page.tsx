@@ -554,17 +554,23 @@ export default function AdminDashboardPage() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-foreground">Sous-thématiques</h2>
+            {/* Le parcours courant est celui des orphelins, plus bas : on
+                n'enrichit que ce qui reste a classer. Cet export-ci rejoue
+                TOUT depuis zero et ecrase la taxonomie existante — utile une
+                seule fois, au demarrage. Le dire ici evite de telecharger 13
+                500 titres en croyant faire un complement. */}
             <p className="mt-1 text-sm text-foreground-muted">
-              Téléchargez le corpus complet, soumettez-le à un modèle de langage, puis
-              réinjectez sa réponse. La consigne est incluse dans le fichier.
+              Pour enrichir la taxonomie au quotidien, utilisez les{" "}
+              <strong className="text-foreground">articles non rattachés</strong> ci-dessous.
             </p>
           </div>
           <a
             href={fileUrl("/admin/themes/export/file")}
-            className="shrink-0 rounded-xl border border-outline-variant px-3 py-2 text-sm text-foreground-muted transition hover:bg-surface-hover hover:text-foreground"
+            title="Corpus entier, pour reconstruire la taxonomie depuis zéro"
+            className="shrink-0 rounded-xl border border-outline-variant px-3 py-2 text-xs text-foreground-muted transition hover:bg-surface-hover hover:text-foreground"
           >
             <Icon name="folder_zip" className="mr-1 align-middle text-base" />
-            Tout télécharger
+            Corpus entier (repartir de zéro)
           </a>
         </div>
 
@@ -613,7 +619,7 @@ export default function AdminDashboardPage() {
                   className="inline-block rounded-xl border border-outline-variant px-3 py-2 text-sm text-foreground-muted transition hover:bg-surface-hover hover:text-foreground"
                 >
                   <Icon name="download" className="mr-1 align-middle text-base" />
-                  Télécharger les orphelins pour un modèle
+                  1. Télécharger <span className="font-mono">pour-l-IA.json</span>
                 </a>
               )}
 
@@ -659,9 +665,12 @@ export default function AdminDashboardPage() {
 
         <div className="space-y-3 border-t border-outline-variant pt-4">
           <div>
-            <h3 className="text-sm font-semibold text-foreground">Réinjecter la réponse du modèle</h3>
+            <h3 className="text-sm font-semibold text-foreground">
+              2. Déposer <span className="font-mono">reponse-de-l-IA.json</span>
+            </h3>
             <p className="mt-1 text-sm text-foreground-muted">
-              Déposez le JSON obtenu. Rien n&apos;est écrit tant que vous n&apos;avez pas confirmé.
+              Le fichier que l&apos;IA vous a rendu. Rien n&apos;est écrit tant que vous n&apos;avez pas
+              confirmé.
             </p>
           </div>
 

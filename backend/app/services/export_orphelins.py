@@ -56,10 +56,13 @@ CONSIGNE_ORPHELINS = (
     "thématiques et sous-thématiques que tu crées ou modifies : l'import est "
     "cumulatif, ce que tu omets reste en place.\n"
     "\n"
-    "Réponds UNIQUEMENT par un objet JSON de cette forme, sans commentaire "
-    "ni texte autour :\n"
+    "CE QUE TU DOIS RENDRE : un seul fichier, nommé « reponse-de-l-IA.json », "
+    "contenant UNIQUEMENT l'objet JSON ci-dessous. Pas de script, pas "
+    "d'explication, pas de bloc de code autour, pas de texte avant ou après. "
+    "Ce fichier sera déposé tel quel dans l'application.\n"
+    "\n"
     '{"thematiques": [{"nom": "Alimentation", "sous_thematiques": '
-    '[{"nom": "Legumes", "mots_cles": ["legume", "potager", "jardinage"]}]}]}'
+    '[{"nom": "Legumes", "mots_cles": ["legume", "legumes", "potager"]}]}]}'
 )
 
 
@@ -158,5 +161,14 @@ def resume(db: Session) -> dict:
 
 
 def nom_de_fichier() -> str:
-    """Nom du fichier téléchargé. Sans caractère à échapper dans un en-tête."""
-    return "taxonomie_orphelins.json"
+    """Nom du fichier téléchargé.
+
+    « pour-l-IA » et non « taxonomie_orphelins » : le nom doit dire le SENS du
+    fichier, pas son contenu. Avec deux exports dont les noms commençaient
+    tous deux par « taxonomie », et un fichier de retour sans nom impose, il
+    était impossible de distinguer ce qu'on envoie de ce qu'on réimporte.
+
+    La consigne demande au modèle d'appeler sa réponse « reponse-de-l-IA.json ».
+    Les deux noms se lisent alors comme un aller et un retour.
+    """
+    return "pour-l-IA.json"
