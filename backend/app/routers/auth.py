@@ -7,8 +7,9 @@ from app.database import get_db
 from app.deps import COOKIE_NAME, get_current_user
 from app.models import User
 from app.rate_limit import limiter
-from app.schemas import LoginRequest, LoginResponse, UserOut
+from app.schemas import GoogleLoginRequest, LoginRequest, LoginResponse, UserOut
 from app.security import create_access_token, hash_password, verify_password
+from app.services.google_auth import GoogleAuthInvalide, authentifier_ou_creer
 
 router = APIRouter()
 settings = get_settings()
@@ -35,6 +36,26 @@ def login(request: Request, response: Response, payload: LoginRequest, db: Sessi
 
     user.last_login = func.now()
     db.commit()
+
+    token = create_access_token(subject=user.email, password_hash=user.password_hash)
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=token,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+        max_age=settings.jwt_expire_minutes * 60,
+    )
+    return LoginResponse()
+
+
+@router.post("/auth/google", response_model=LoginResponse)
+@limiter.limit(settings.login_rate_limit)
+def google_login(request: Request, response: Response, payload: GoogleLoginRequest, db: Session = Depends(get_db)):
+    try:
+        user = authentifier_ou_creer(db, payload.credential)
+    except GoogleAuthInvalide as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
 
     token = create_access_token(subject=user.email, password_hash=user.password_hash)
     response.set_cookie(
