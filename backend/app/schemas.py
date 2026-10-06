@@ -37,6 +37,13 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class GoogleLoginRequest(BaseModel):
+    # Nom du champ aligné sur celui que la bibliothèque JS de Google
+    # (Google Identity Services) renvoie elle-même dans son callback
+    # ({credential, select_by}), pour que le frontend n'ait rien à renommer.
+    credential: str
+
+
 class LoginResponse(BaseModel):
     """Réponse de /login : le jeton n'est PAS renvoyé dans le corps.
 

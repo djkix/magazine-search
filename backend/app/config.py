@@ -73,6 +73,12 @@ class Settings(BaseSettings):
     admin_bootstrap_email: str = ""
     admin_bootstrap_password: str = ""
 
+    # Identifiant client OAuth Google (PAS un secret : c'est l'identifiant
+    # public déclaré côté Google Cloud Console). Laissé vide, la connexion
+    # Google est simplement indisponible : l'audience "" ne correspond
+    # jamais à aucun jeton, sans qu'il faille de code spécial.
+    google_client_id: str = ""
+
     @field_validator("jwt_secret_key")
     @classmethod
     def _valider_jwt_secret(cls, v: str) -> str:

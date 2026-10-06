@@ -6,6 +6,7 @@ import { api, ApiError } from "@/lib/api";
 import Icon from "@/components/ui/Icon";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
+import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -61,12 +62,23 @@ export default function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
         />
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
-
         <Button type="submit" disabled={loading} className="w-full">
           {loading ? "Connexion..." : "Se connecter"}
         </Button>
       </form>
+
+      {/* Partagée entre les deux méthodes de connexion : placée ni dans le
+          formulaire ni collée au bouton Google, pour ne pas sembler propre à
+          l'une ou l'autre selon laquelle a échoué. */}
+      {error && <p className="mt-4 text-center text-sm text-red-400">{error}</p>}
+
+      <div className="my-6 flex items-center gap-3">
+        <div className="h-px flex-1 bg-outline-variant" />
+        <span className="font-mono text-xs uppercase tracking-wider text-foreground-muted">ou</span>
+        <div className="h-px flex-1 bg-outline-variant" />
+      </div>
+
+      <GoogleSignInButton onSuccess={() => router.push("/")} onError={setError} />
 
       <p className="mt-6 text-center text-xs text-foreground-muted">
         Compte oublié ou perdu ? Contactez l&apos;administrateur : les accès sont gérés manuellement.

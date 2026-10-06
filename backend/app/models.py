@@ -62,6 +62,12 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Identifiant de sujet stable renvoyé par Google ("sub"), conservé pour
+    # mémoire une fois qu'une connexion via Google a eu lieu. Le rattachement
+    # d'un login Google à un compte se fait par EMAIL, pas par cette colonne :
+    # un compte créé à la main par un administrateur et un login Google
+    # ultérieur avec le même email doivent fusionner sur la même ligne.
+    google_sub: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, nullable=True)
 
 
 class Magazine(Base):

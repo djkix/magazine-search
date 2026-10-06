@@ -99,6 +99,21 @@ filtrables et gestion des comptes.
 
 ## Utilisation
 
+### Se connecter
+
+Par email et mot de passe, un compte créé manuellement par l'administrateur
+depuis `/admin` — c'est le fonctionnement par défaut, sans rien à configurer.
+
+Si `GOOGLE_CLIENT_ID` est renseigné (voir Configuration), un bouton « Se
+connecter avec Google » apparaît aussi sur la page de connexion. **N'importe
+quel compte Google peut alors créer un accès et consulter toute la
+bibliothèque** — il n'y a pas de liste blanche d'emails ni de validation par
+l'administrateur : à n'activer que si l'application n'est pas exposée sur
+Internet sans contrôle d'accès en amont, ou si son contenu n'est pas sensible.
+Un compte créé à la main dont l'email correspond à un compte Google fusionne
+automatiquement avec lui au premier login Google — aucun doublon. Désactiver
+un compte depuis `/admin` bloque sa connexion par les deux méthodes à la fois.
+
 ### Rechercher
 
 Saisissez vos termes dans la barre de recherche. La recherche porte sur tout le
@@ -356,6 +371,7 @@ Générer une valeur : `openssl rand -hex 32`.
 | `LOG_TIMEZONE` | Fuseau des horodatages des journaux (défaut : `Europe/Paris`). Sans lui, un conteneur Docker journalise en UTC. |
 | `MIGRATION_FAILURE_DELAY_SECONDS` | Pause avant de sortir en erreur quand une migration échoue (défaut : 30), pour éviter une boucle de redémarrage trop serrée. |
 | `ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PASSWORD` | Compte créé au premier démarrage si aucun admin n'existe. À vider ensuite. |
+| `GOOGLE_CLIENT_ID` / `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Même valeur dans les deux (ID client OAuth Google, pas un secret). Laissées vides, la connexion Google est simplement absente de l'interface. Voir *Se connecter*. |
 
 ## Sauvegarde et restauration
 
