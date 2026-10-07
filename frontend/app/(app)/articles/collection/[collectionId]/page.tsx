@@ -19,6 +19,7 @@ import { useUser } from "@/components/layout/UserContext";
 import PageContainer from "@/components/layout/PageContainer";
 import Icon from "@/components/ui/Icon";
 import TexteSurligne from "@/components/ui/TexteSurligne";
+import ShareArticleButton from "@/components/articles/ShareArticleButton";
 
 const PAGE_SIZE_OPTIONS = ["10", "20", "50", "all"] as const;
 type PageSizeOption = (typeof PAGE_SIZE_OPTIONS)[number];
@@ -529,10 +530,10 @@ export default function CollectionArticlesPage() {
               </div>
               <ul className="divide-y divide-outline-variant">
                 {articles.map((article) => (
-                  <li key={article.id}>
+                  <li key={article.id} className="group flex items-center gap-2 px-4 hover:bg-surface/60">
                     <Link
                       href={`/viewer/${magazine.id}/${article.start_page}`}
-                      className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-surface/60 hover:text-primary-light"
+                      className="flex min-w-0 flex-1 items-center justify-between gap-3 py-2.5 text-sm text-foreground hover:text-primary-light"
                     >
                       <span className="min-w-0 truncate">{article.title}</span>
                       <span className="shrink-0 font-mono text-xs tabular-nums text-foreground-muted">
@@ -540,6 +541,7 @@ export default function CollectionArticlesPage() {
                         {article.end_page && article.end_page !== article.start_page ? `–${article.end_page}` : ""}
                       </span>
                     </Link>
+                    <ShareArticleButton articleId={article.id} className="hidden shrink-0 group-hover:block" />
                   </li>
                 ))}
                 {articles.length === 0 && magazine.toc_status === "done" && (

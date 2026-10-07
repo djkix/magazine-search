@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const PUBLIC_PATHS = ["/login"];
+// /login redirige un utilisateur deja connecte vers / : rester sur l'ecran
+// de connexion une fois authentifie n'aurait aucun sens.
+const PUBLIC_REDIRECT_IF_AUTHENTICATED = ["/login"];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hasSession = request.cookies.has("session");
 
-  if (PUBLIC_PATHS.includes(pathname)) {
+  // Lien de partage : accessible sans compte, et un utilisateur deja
+  // connecte doit pouvoir l'ouvrir normalement — pas de redirection vers /
+  // comme pour /login, ce serait une vraie regression pour quelqu'un qui
+  // recoit son propre lien alors qu'il est connecte sur un autre onglet.
+  if (pathname.startsWith("/partage/")) {
+    return NextResponse.next();
+  }
+
+  if (PUBLIC_REDIRECT_IF_AUTHENTICATED.includes(pathname)) {
     if (hasSession) {
       return NextResponse.redirect(new URL("/", request.url));
     }

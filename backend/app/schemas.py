@@ -223,6 +223,18 @@ class ArticleWithMagazine(ArticleOut):
     magazine_collection_name: str | None = None
 
 
+class ArticleShareOut(BaseModel):
+    token: str
+
+
+class PartageOut(BaseModel):
+    article_title: str
+    magazine_title: str
+    collection_name: str | None
+    start_page: int
+    end_page: int | None
+
+
 class ArticleCreate(BaseModel):
     title: str = Field(min_length=1, max_length=500)
     start_page: int = Field(ge=1)

@@ -11,6 +11,12 @@ interface PdfViewerProps {
   highlightWords: WordBox[];
   onPageCount?: (count: number) => void;
   onVisiblePageChange?: (page: number) => void;
+  // Par defaut false : le lecteur authentifie precharge le reste du
+  // document en tache de fond une fois les pages visibles rendues (confort
+  // pour qui va continuer a lire). Sur la page de partage, on le desactive :
+  // seules les pages reellement consultees doivent jamais etre demandees au
+  // serveur, jamais le magazine entier.
+  disableAutoFetch?: boolean;
 }
 
 interface PageSize {
@@ -120,6 +126,7 @@ export default function PdfViewer({
   highlightWords,
   onPageCount,
   onVisiblePageChange,
+  disableAutoFetch = false,
 }: PdfViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const pageNodesRef = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -148,7 +155,7 @@ export default function PdfViewer({
         // rendered) instead of downloading the whole file - these PDFs can be
         // 30-75MB, which made the viewer wait for a full download before
         // showing even the first page, especially painful on mobile networks.
-        const loadedDoc = await pdfjsLib.getDocument({ url: fileUrl, withCredentials: true }).promise;
+        const loadedDoc = await pdfjsLib.getDocument({ url: fileUrl, withCredentials: true, disableAutoFetch }).promise;
         if (cancelled) return;
         setDoc(loadedDoc);
         setNumPages(loadedDoc.numPages);

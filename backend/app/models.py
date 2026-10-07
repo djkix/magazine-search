@@ -156,6 +156,11 @@ class Article(Base):
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     start_page: Mapped[int] = mapped_column(Integer, nullable=False)
     end_page: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Jeton de partage public : nul tant que l'article n'a jamais été
+    # partagé, genere a la demande au premier clic sur "Partager". Pas de
+    # table separee : sans expiration ni revocation, il n'y a rien de plus
+    # a tracer qu'un champ sur la ligne existante.
+    share_token: Mapped[str | None] = mapped_column(String(43), unique=True, index=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     magazine: Mapped["Magazine"] = relationship("Magazine", back_populates="articles")
