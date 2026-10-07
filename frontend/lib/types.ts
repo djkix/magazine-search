@@ -173,18 +173,6 @@ export interface LibraryOverview {
   unassigned_cover_magazine_id: number | null;
 }
 
-export interface GeminiModelOption {
-  id: string;
-  label: string;
-}
-
-export interface GeminiSettings {
-  model: string;
-  available_models: GeminiModelOption[];
-  daily_request_limit: number | null;
-  rpm_limit: number | null;
-  requests_used_today: number;
-}
 
 export interface Page {
   id: number;

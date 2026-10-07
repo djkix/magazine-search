@@ -2,19 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
-import type { Collection, GeminiSettings, Tag } from "@/lib/types";
+import type { Collection, Tag } from "@/lib/types";
 import Button from "@/components/ui/Button";
 import Icon from "@/components/ui/Icon";
 
 export default function AdminSettingsPage() {
-  const [settings, setSettings] = useState<GeminiSettings | null>(null);
-  const [selected, setSelected] = useState("");
-  const [dailyLimit, setDailyLimit] = useState("");
-  const [rpmLimit, setRpmLimit] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
-
   const [tags, setTags] = useState<Tag[]>([]);
   const [newTag, setNewTag] = useState("");
   const [editingTagId, setEditingTagId] = useState<number | null>(null);
@@ -28,18 +20,6 @@ export default function AdminSettingsPage() {
   const [editingCollectionId, setEditingCollectionId] = useState<number | null>(null);
   const [editingCollectionName, setEditingCollectionName] = useState("");
   const [collectionError, setCollectionError] = useState<string | null>(null);
-
-  function load() {
-    api
-      .get<GeminiSettings>("/admin/settings/gemini")
-      .then((data) => {
-        setSettings(data);
-        setSelected(data.model);
-        setDailyLimit(data.daily_request_limit ? String(data.daily_request_limit) : "");
-        setRpmLimit(data.rpm_limit ? String(data.rpm_limit) : "");
-      })
-      .catch((err) => setError(err instanceof ApiError ? err.message : "Erreur"));
-  }
 
   function loadTags() {
     api
@@ -55,7 +35,6 @@ export default function AdminSettingsPage() {
       .catch((err) => setCollectionError(err instanceof ApiError ? err.message : "Erreur"));
   }
 
-  useEffect(load, []);
   useEffect(loadTags, []);
   useEffect(loadCollections, []);
 
@@ -144,112 +123,10 @@ export default function AdminSettingsPage() {
     }
   }
 
-  async function save() {
-    setSaving(true);
-    setError(null);
-    setSaved(false);
-    try {
-      const data = await api.put<GeminiSettings>("/admin/settings/gemini", {
-        model: selected,
-        daily_request_limit: dailyLimit.trim() ? Number(dailyLimit) : null,
-        rpm_limit: rpmLimit.trim() ? Number(rpmLimit) : null,
-      });
-      setSettings(data);
-      setDailyLimit(data.daily_request_limit ? String(data.daily_request_limit) : "");
-      setRpmLimit(data.rpm_limit ? String(data.rpm_limit) : "");
-      setSaved(true);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Erreur");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const isCustom = settings ? !settings.available_models.some((m) => m.id === selected) : false;
 
   return (
     <div className="max-w-xl space-y-6">
       <h1 className="text-xl font-semibold text-foreground">Réglages</h1>
-
-      <div className="space-y-3 rounded-xl border border-outline-variant bg-surface/60 p-6">
-        <div>
-          <p className="text-sm font-medium text-foreground">Modèle Gemini (regroupement des thématiques)</p>
-          <p className="mt-1 text-xs text-foreground-muted">
-            Le sommaire (titre + page de chaque article) est extrait localement depuis l&apos;OCR, sans Gemini.
-            Gemini n&apos;est utilisé que pour regrouper plusieurs magazines sous des thématiques communes.
-          </p>
-        </div>
-
-        {error && <p className="text-sm text-red-400">{error}</p>}
-        {saved && <p className="text-sm text-emerald-400">Modèle enregistré.</p>}
-
-        {settings && (
-          <>
-            <select
-              value={isCustom ? "__custom__" : selected}
-              onChange={(e) => setSelected(e.target.value === "__custom__" ? "" : e.target.value)}
-              className="w-full rounded-lg border border-outline-variant bg-background px-3 py-2 text-sm text-foreground"
-            >
-              {settings.available_models.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label}
-                </option>
-              ))}
-              <option value="__custom__">Autre (identifiant personnalisé)...</option>
-            </select>
-
-            {(isCustom || selected === "") && (
-              <input
-                value={selected}
-                onChange={(e) => setSelected(e.target.value)}
-                placeholder="ex: gemini-3.1-pro"
-                className="w-full rounded-lg border border-outline-variant bg-background px-3 py-2 text-sm text-foreground"
-              />
-            )}
-
-            <p className="font-mono text-xs text-foreground-muted">
-              Consommé aujourd'hui pour <span className="text-foreground">{settings.model}</span> :{" "}
-              <span className="text-primary-light">
-                {settings.requests_used_today}
-                {settings.daily_request_limit ? ` / ${settings.daily_request_limit}` : ""}
-              </span>{" "}
-              requête(s)
-            </p>
-
-            <div>
-              <label className="text-xs text-foreground-muted">
-                Quota Gemini (requêtes/jour, tous types confondus) — laisser vide si illimité (facturation activée)
-              </label>
-              <input
-                type="number"
-                min={0}
-                value={dailyLimit}
-                onChange={(e) => setDailyLimit(e.target.value)}
-                placeholder="20"
-                className="mt-1 w-full rounded-lg border border-outline-variant bg-background px-3 py-2 text-sm text-foreground"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs text-foreground-muted">
-                Limite Gemini (requêtes/minute) — dépassée, l'app patiente au lieu d'insister ; laisser vide si illimité
-              </label>
-              <input
-                type="number"
-                min={0}
-                value={rpmLimit}
-                onChange={(e) => setRpmLimit(e.target.value)}
-                placeholder="5"
-                className="mt-1 w-full rounded-lg border border-outline-variant bg-background px-3 py-2 text-sm text-foreground"
-              />
-            </div>
-
-            <Button onClick={save} disabled={saving || !selected}>
-              {saving ? "Enregistrement..." : "Enregistrer"}
-            </Button>
-          </>
-        )}
-      </div>
 
       <div className="space-y-3 rounded-xl border border-outline-variant bg-surface/60 p-6">
         <div>
@@ -319,13 +196,11 @@ export default function AdminSettingsPage() {
           </Button>
         </div>
 
-        {/* « Propager les tags de sujet » a ete retire de l'interface.
-            Il attachait la thematique homonyme aux numeros des collections
-            portant un tag de sujet, pour alimenter le themage par numero
-            que la taxonomie par article a remplace. Aucun tag n'est
-            d'ailleurs marque comme sujet aujourd'hui, la commande etait
-            donc sans effet. L'endpoint POST /admin/tags/propagate existe
-            toujours : le bloc est restaurable tel quel. */}
+        {/* « Propager les tags de sujet » attachait la thematique homonyme
+            aux numeros des collections portant un tag de sujet, pour
+            alimenter le themage par numero. Ce themage ayant ete retire
+            (voir README, section Gerer les thematiques), la commande et son
+            endpoint ont ete supprimes avec lui - plus rien ne les consomme. */}
       </div>
 
       <div className="space-y-3 rounded-xl border border-outline-variant bg-surface/60 p-6">
@@ -421,10 +296,10 @@ export default function AdminSettingsPage() {
             <Icon name="sync" className={reindexing ? "animate-spin" : ""} />
             {reindexing ? "Lancement..." : "Réindexer tous les magazines"}
           </Button>
-          {/* « Régénérer les thématiques » a été retiré de l'interface : il
-              relançait le thémage Gemini par numéro, que la taxonomie par
-              article a remplacé. L'endpoint POST /admin/themes/regenerate-all
-              existe toujours, la commande est donc restaurable telle quelle. */}
+          {/* « Régénérer les thématiques » relançait le thémage Gemini par
+              numéro, remplacé par la taxonomie par article. Le thémage ayant
+              été retiré (voir README), la commande et son endpoint ont été
+              supprimés avec lui. */}
         </div>
       </div>
     </div>

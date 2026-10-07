@@ -243,38 +243,13 @@ ne peut rattacher un titre à une page qui n'y figure pas.
 
 ### Gérer les thématiques
 
-Les thématiques sont attribuées automatiquement après l'extraction d'un
-sommaire. Un numéro sans sommaire n'est pas concerné : le modèle a besoin de la
-liste des articles pour travailler.
-
-**Deux sources, complémentaires.** Un tag posé sur une collection est une donnée
-que vous avez choisie : « Système D » porte « Bricolage », et cela vaut pour ses
-199 numéros, sans exception et sans consommer de quota. Gemini, lui, infère
-numéro par numéro — plus fin, mais plus incertain.
-
-Les deux se cumulent. Mais le vocabulaire des tags mélangeait des **sujets**
-(« Bricolage », « Santé ») et des **formats éditoriaux** (« Test », « Tutoriel »,
-« Guide achat »), et propager les seconds aurait donné une navigation par sujet
-où « Test » écraserait tout. D'où la distinction *sujet* / *format* portée par
-chaque tag — devenue sans objet depuis le retrait de la propagation, voir
-ci-dessous.
-
-> **Le thémage par numéro n'est plus actif.** Il reposait sur des appels à
-> Gemini, dont le quota gratuit (20 requêtes par jour) rendait l'opération
-> irréaliste à l'échelle de la bibliothèque. La navigation par sujet passe
-> désormais par la **taxonomie par article** décrite plus bas, construite hors
-> ligne puis importée.
->
-> Concrètement : plus aucun enfilement automatique à l'ingestion ni à la
-> ré-extraction des sommaires, et deux commandes retirées de l'interface —
-> *Régénérer les thématiques* et *Propager les tags de sujet*. Leurs endpoints
-> (`POST /admin/themes/regenerate-all`, `POST /admin/tags/propagate`) existent
-> toujours : rien n'a été supprimé en base, et les écrans sont restaurables.
->
-> La bascule *sujet* / *format* de chaque tag n'a plus de consommateur et a
-> été retirée de l'interface des réglages ; le champ subsiste en base et dans
-> l'API. Les tags servent aujourd'hui à **filtrer la recherche**, tous types
-> confondus.
+> **Le thémage par numéro via Gemini a été retiré**, pas seulement désactivé :
+> le quota gratuit (20 requêtes par jour) rendait l'opération irréaliste à
+> l'échelle de la bibliothèque, et plus aucun écran n'y faisait appel. La
+> navigation par sujet repose désormais entièrement sur la **taxonomie par
+> article** ci-dessous, construite hors ligne puis importée — gratuite et
+> rejouable à volonté. Les tags servent aujourd'hui à **filtrer la
+> recherche**, sans distinction de nature.
 
 Le tableau de bord mesure désormais la couverture de la taxonomie au niveau de
 l'**article** et non du numéro : *Articles rattachés* et *Sans sous-thématique*.
@@ -394,9 +369,7 @@ Générer une valeur : `openssl rand -hex 32`.
 | `NAS_MOUNT_PATH` | Chemin hôte du partage, monté en lecture seule. |
 | `FRONTEND_PORT` | Seul port publié ; c'est lui que le reverse proxy atteint. |
 | `IMAGE_TAG` | Version déployée. Préférer un tag précis à `latest` en production. |
-| `GEMINI_API_KEY` | Sans clé, les thématiques sont ignorées ; recherche et OCR fonctionnent normalement. |
 | `OCR_TIMEOUT_SECONDS` | Délai maximum d'`ocrmypdf` (défaut : 1500). |
-| `GEMINI_TIMEOUT_SECONDS` | Délai maximum d'un appel à l'API Gemini (défaut : 120). Sans borne, une connexion suspendue immobilise le worker. |
 | `LOG_TIMEZONE` | Fuseau des horodatages des journaux (défaut : `Europe/Paris`). Sans lui, un conteneur Docker journalise en UTC. |
 | `MIGRATION_FAILURE_DELAY_SECONDS` | Pause avant de sortir en erreur quand une migration échoue (défaut : 30), pour éviter une boucle de redémarrage trop serrée. |
 | `ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PASSWORD` | Compte créé au premier démarrage si aucun admin n'existe. À vider ensuite. |
@@ -455,7 +428,7 @@ manuellement avant de déployer.
 | File d'attente | RQ (Redis Queue) |
 | Recherche | Meilisearch |
 | OCR | `ocrmypdf` / Tesseract (`fra+eng`) |
-| Thématiques | API Google Gemini (`google-genai`) |
+| Thématiques | Correspondance de mots-clés locale, sans appel à un modèle |
 | Visionneuse | `pdf.js` |
 | Déploiement | Docker Compose, images publiées sur GHCR |
 

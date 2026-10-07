@@ -1,5 +1,3 @@
-import secrets
-
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
@@ -7,6 +5,7 @@ from app.database import get_db
 from app.deps import get_current_user
 from app.models import Article, Collection, Magazine
 from app.schemas import ArticleWithMagazine, ShareOut
+from app.services.partage import obtenir_ou_creer_token_partage
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
@@ -84,12 +83,6 @@ def list_articles(
     ]
 
 
-# 32 octets -> 43 caracteres en base64 URL-safe : meme generation que pour
-# les secrets applicatifs (voir google_auth.py), largement hors de portee
-# d'une attaque par force brute sur l'URL.
-TAILLE_TOKEN_OCTETS = 32
-
-
 @router.post("/{article_id}/share", response_model=ShareOut)
 def share_article(article_id: int, db: Session = Depends(get_db)):
     """Cree ou retrouve le lien de partage public d'un article.
@@ -102,18 +95,4 @@ def share_article(article_id: int, db: Session = Depends(get_db)):
     if not article:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found")
 
-    if not article.share_token:
-        # Mise a jour conditionnee a WHERE share_token IS NULL plutot qu'une
-        # simple affectation : deux clics presque simultanes generent chacun
-        # un jeton different, mais un seul des deux UPDATE peut matcher la
-        # ligne (l'autre la trouve deja non-nulle). On relit ensuite la
-        # valeur reellement persistee, jamais celle generee localement, pour
-        # que les deux appels renvoient le meme lien plutot que l'un des deux
-        # ne pointe vers un jeton immediatement ecrase.
-        db.query(Article).filter(Article.id == article_id, Article.share_token.is_(None)).update(
-            {"share_token": secrets.token_urlsafe(TAILLE_TOKEN_OCTETS)}
-        )
-        db.commit()
-        db.refresh(article)
-
-    return ShareOut(token=article.share_token)
+    return ShareOut(token=obtenir_ou_creer_token_partage(db, Article, article))

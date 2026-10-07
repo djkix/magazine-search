@@ -3,20 +3,14 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sqlalchemy import func
-
 from app.config import get_settings
 from app.database import SessionLocal
-from app.models import Article, Magazine, OcrStatus, Page, PageLanguage, ScanStatus, Theme, theme_magazines
-from app.queue import ingestion_queue
-from app.services.gemini_quota import GeminiQuotaExceeded
+from app.models import Article, Magazine, OcrStatus, Page, PageLanguage, ScanStatus
 from app.services.issue_parser import extract_issue_number_from_cover_text, extract_year_from_cover_text
 from app.services.meili import ensure_index_configured, index_page, index_pages
 from app.services.progress import clear_magazine_progress, set_magazine_progress
 from app.services.sommaire_ocr import analyser_absence_de_sommaire, extract_articles_from_ocr
-from app.services.theme_batch import assign_themes_batch
 from app.services.import_sous_thematiques import rattacher_magazine
-from app.services.themes_des_tags import fusionner_themes
 from app.worker.ocr import detect_language, ensure_text_layer, extract_pages, get_page_count, render_cover_thumbnail
 
 logger = logging.getLogger("worker.tasks")
@@ -35,36 +29,6 @@ def message_erreur_affichable(exc: BaseException, longueur_max: int = 300) -> st
     texte = re.sub(r"/(?:[^/\s]+/)+", "", texte)
     return texte[:longueur_max]
 settings = get_settings()
-
-# Keeps the batch's combined prompt a reasonable size while still cutting
-# Gemini requests roughly by this factor compared to one request per
-# magazine - see process_pending_theme_batch.
-# Nombre de numéros regroupés dans un même appel Gemini.
-#
-# Compromis à trois termes :
-#   - plus le lot est grand, moins il faut d'appels (à 30, une bibliothèque de
-#     1500 numéros demande ~50 requêtes au lieu de ~190) ;
-#   - mais la réponse grossit d'autant : ~30 jetons par numéro, et une réponse
-#     tronquée fait échouer TOUT le lot, le JSON devenant illisible ;
-#   - et un lot plus gros, c'est une reprise plus grossière après incident.
-#
-# Valeur calée sur une MESURE, pas sur une estimation : relevé AI Studio du
-# 8 septembre 2026 — ~31 000 jetons de sortie pour ~20 requêtes en lots de 8,
-# soit environ 190 jetons de sortie par numéro (le modèle est nettement plus
-# bavard que la seule structure JSON ne le laisse supposer).
-#
-# À 20 par lot : ~3 900 jetons de sortie, soit la moitié d'une limite de 8K.
-# À 30, on montait à ~5 800, trop près du plafond pour un mode de défaillance
-# aussi brutal : une réponse tronquée rend le JSON illisible et fait perdre
-# TOUT le lot, pas seulement les derniers numéros.
-#
-# 20 conserve l'essentiel du gain — 2,5 fois moins d'appels qu'avec 8 — tout
-# en gardant une marge réelle. À réévaluer si la mesure change.
-THEME_BATCH_SIZE = 20
-# Nombre de tentatives consécutives sur échec transitoire avant d'abandonner
-# la série. Borné pour qu'une panne durable (Gemini injoignable, clé révoquée)
-# ne fasse pas boucler la file indéfiniment.
-MAX_THEME_BATCH_RETRIES = 3
 
 
 def extract_and_store_articles(db, magazine: Magazine) -> None:
@@ -152,145 +116,6 @@ def extract_and_store_articles(db, magazine: Magazine) -> None:
             magazine.toc_error_message = message_erreur_affichable(exc)
             db.commit()
         logger.exception("Sommaire extraction failed for magazine %s", magazine.id)
-
-
-def process_pending_theme_batch(consecutive_failures: int = 0) -> None:
-    """Clusters up to THEME_BATCH_SIZE already-sommaire'd magazines with no
-    themes yet into shared themes, in a single Gemini request covering all
-    of them (see assign_themes_batch) rather than one request per magazine -
-    this is the only remaining Gemini call in the ingestion pipeline now
-    that sommaire extraction is done locally.
-
-    Enqueued once after every OCR completion; safe to invoke repeatedly -
-    it's a no-op once nothing is pending. During a bulk scan, many of these
-    calls pile up in the queue behind the (much slower) process_magazine
-    OCR jobs, so by the time the first one actually runs, most or all of
-    that batch's magazines already have no themes yet - naturally
-    coalescing a large backlog into a handful of requests instead of one
-    per magazine.
-
-    Pending is tracked via `themed_at` (set below for every magazine in the
-    batch, whether or not Gemini found it a theme) rather than "has no
-    theme_magazines row" - a magazine Gemini can't theme (e.g. too few
-    articles) would otherwise never get excluded, so it kept being
-    resubmitted, and re-billed against the daily quota, every single time
-    any other magazine's OCR completed and re-enqueued this job."""
-    db = SessionLocal()
-    try:
-        pending = (
-            db.query(Magazine)
-            .filter(
-                Magazine.scan_status == ScanStatus.done,
-                Magazine.toc_status == OcrStatus.done,
-                Magazine.themed_at.is_(None),
-            )
-            # Tirage aléatoire, et non par identifiant croissant. L'ordre
-            # d'insertion au scan n'est pas une priorité : il condamnait les
-            # collections scannées tard à passer en dernier. « Système D »
-            # comptait 1 043 numéros devant lui, soit près de trois jours de
-            # quota, pour 197 numéros pourtant tous dotés d'un sommaire.
-            #
-            # Le tirage répartit la progression sur toute la bibliothèque.
-            # Aucun risque de famine : themed_at exclut définitivement ce qui
-            # a été traité, un numéro ne peut donc pas être tiré indéfiniment.
-            .order_by(func.random())
-            .limit(THEME_BATCH_SIZE)
-            .all()
-        )
-        if not pending:
-            return
-
-        magazine_ids = [m.id for m in pending]
-        magazines_with_articles = [
-            (m, db.query(Article).filter(Article.magazine_id == m.id).order_by(Article.start_page).all())
-            for m in pending
-        ]
-
-        try:
-            results = assign_themes_batch(db, magazines_with_articles)
-        except GeminiQuotaExceeded as exc:
-            # Quota journalier épuisé : réessayer immédiatement ne ferait que
-            # brûler la file sans jamais aboutir. On s'arrête proprement.
-            # Aucune donnée n'est perdue : les thèmes existants ont été
-            # conservés, et themed_at marque déjà ce qui a été traité — un
-            # nouveau clic sur « régénérer » reprend exactement où l'on s'est
-            # arrêté, sans repartir de zéro.
-            logger.warning(
-                "Quota Gemini épuisé, arrêt de la série de thèmes (%s). "
-                "Relancer la régénération une fois le quota renouvelé.",
-                exc,
-            )
-            return
-        except Exception:  # noqa: BLE001 - échec transitoire : on réessaie
-            if consecutive_failures + 1 >= MAX_THEME_BATCH_RETRIES:
-                logger.exception(
-                    "Attribution des thèmes en échec %d fois de suite pour %s, "
-                    "abandon de la série. Relancer manuellement.",
-                    consecutive_failures + 1,
-                    magazine_ids,
-                )
-                return
-            # Sans ce ré-enfilement, un incident ponctuel interrompait
-            # définitivement la série : le reste de la bibliothèque restait
-            # sans thèmes, sans que rien ne le signale.
-            logger.exception(
-                "Attribution des thèmes en échec pour %s, nouvelle tentative (%d/%d)",
-                magazine_ids,
-                consecutive_failures + 1,
-                MAX_THEME_BATCH_RETRIES,
-            )
-            ingestion_queue.enqueue(
-                process_pending_theme_batch,
-                consecutive_failures + 1,
-                job_timeout="15m",
-            )
-            return
-
-        for magazine, _articles in magazines_with_articles:
-            theme_names = results.get(magazine.id)
-            magazine = db.get(Magazine, magazine.id)
-            magazine.themed_at = func.now()
-            if not theme_names:
-                db.commit()
-                continue
-            themes = []
-            seen_ids = set()
-            for name in theme_names:
-                theme = db.query(Theme).filter(func.lower(Theme.name) == name.lower()).first()
-                if theme is None:
-                    theme = Theme(name=name)
-                    db.add(theme)
-                    db.flush()
-                if theme.id not in seen_ids:
-                    seen_ids.add(theme.id)
-                    themes.append(theme)
-            # Fusion, et non affectation : une affectation directe effacerait
-            # les thèmes hérités des tags de sujet de la collection. Un numéro
-            # de « Système D » aurait perdu « Bricolage » au premier passage
-            # du modèle, sans que rien ne le signale.
-            magazine.themes = fusionner_themes(db, magazine, themes)
-            db.commit()
-
-        # A bulk "regenerate all" sweep resets themed_at for far more than
-        # THEME_BATCH_SIZE magazines at once, with nothing else left to
-        # naturally re-trigger this job the way a fresh OCR completion
-        # does - so it has to re-enqueue itself to keep draining the
-        # backlog THEME_BATCH_SIZE at a time (respecting the same quota/RPM
-        # throttling each time) instead of silently leaving the rest at 0
-        # themes.
-        still_pending = (
-            db.query(Magazine.id)
-            .filter(
-                Magazine.scan_status == ScanStatus.done,
-                Magazine.toc_status == OcrStatus.done,
-                Magazine.themed_at.is_(None),
-            )
-            .first()
-        )
-        if still_pending:
-            ingestion_queue.enqueue(process_pending_theme_batch, job_timeout="15m")
-    finally:
-        db.close()
 
 
 def recover_orphaned_processing_magazines() -> list[int]:

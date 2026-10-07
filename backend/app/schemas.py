@@ -387,25 +387,6 @@ class LogEntry(BaseModel):
     component: str
 
 
-class GeminiModelOption(BaseModel):
-    id: str
-    label: str
-
-
-class GeminiSettingsResponse(BaseModel):
-    model: str
-    available_models: list[GeminiModelOption]
-    daily_request_limit: int | None
-    rpm_limit: int | None
-    requests_used_today: int
-
-
-class GeminiSettingsUpdate(BaseModel):
-    model: str
-    daily_request_limit: int | None = None
-    rpm_limit: int | None = None
-
-
 class AdminStatsResponse(BaseModel):
     total: int
     done: int

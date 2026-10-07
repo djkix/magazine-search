@@ -18,12 +18,9 @@ Pillow==10.4.0
 ocrmypdf==16.4.3
 pikepdf==9.11.0
 langdetect==1.0.9
-google-genai==2.20.0
 PyJWT==2.9.0
 # Verifie les jetons d'identite Google (signature, audience, expiration) pour
-# la connexion "Se connecter avec Google". Version alignee sur la borne basse
-# exigee par google-genai (>=2.56.0), deja present ci-dessus, pour eviter un
-# conflit de resolution entre les deux dependances.
+# la connexion "Se connecter avec Google".
 google-auth==2.56.0
 passlib[argon2]==1.7.4
 argon2-cffi==23.1.0
