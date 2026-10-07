@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import Article, Collection, Magazine
-from app.schemas import ArticleShareOut, ArticleWithMagazine
+from app.schemas import ArticleWithMagazine, ShareOut
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
@@ -90,7 +90,7 @@ def list_articles(
 TAILLE_TOKEN_OCTETS = 32
 
 
-@router.post("/{article_id}/share", response_model=ArticleShareOut)
+@router.post("/{article_id}/share", response_model=ShareOut)
 def share_article(article_id: int, db: Session = Depends(get_db)):
     """Cree ou retrouve le lien de partage public d'un article.
 
@@ -116,4 +116,4 @@ def share_article(article_id: int, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(article)
 
-    return ArticleShareOut(token=article.share_token)
+    return ShareOut(token=article.share_token)

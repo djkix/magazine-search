@@ -93,11 +93,11 @@ et rejouable à volonté. Fonctionnalité entièrement facultative.
 
 **Partage par lien**
 
-Un bouton « Partager » sur chaque article génère un lien public consultable
-sans compte, qui streame le magazine par plages HTTP (jamais un
-téléchargement complet). Le lien reste valide indéfiniment une fois créé.
-Fonctionnalité entièrement facultative, pensée pour une diffusion
-ponctuelle sur un canal privé.
+Un bouton « Partager » sur chaque article, et sur chaque couverture de
+numéro, génère un lien public consultable sans compte, qui streame le
+magazine par plages HTTP (jamais un téléchargement complet). Le lien reste
+valide indéfiniment une fois créé. Fonctionnalité entièrement facultative,
+pensée pour une diffusion ponctuelle sur un canal privé.
 
 **Administration**
 
@@ -166,20 +166,24 @@ y entraîner les vingt autres titres du même sommaire.
 Cette navigation reste vide tant qu'aucune taxonomie n'a été importée — voir
 *Gérer les thématiques* plus bas.
 
-### Partager un article
+### Partager un article ou un numéro
 
-Un bouton « Partager » apparaît au survol de chaque article, dans le panneau
-du lecteur comme dans la page « Sommaires » d'une collection. Il copie dans
-le presse-papiers un lien public, consultable **sans compte**, qui ouvre
-directement l'article concerné.
+Un bouton « Partager » apparaît au survol de chaque article (panneau du
+lecteur, page « Sommaires » d'une collection) et de chaque couverture
+affichée (bibliothèque, accueil). Il copie dans le presse-papiers un lien
+public, consultable **sans compte**, qui ouvre directement l'article ou le
+numéro concerné.
 
 Le lien streame le magazine par plages HTTP — comme le lecteur normal,
 jamais un téléchargement complet du fichier — pour une lecture rapide même
 sur un réseau mobile. **Il n'y a ni expiration ni révocation** : le lien
-reste valide tant que l'article existe, et donne accès au magazine entier
-qui le contient, pas seulement à ses propres pages. Pensé pour une
-diffusion ponctuelle sur un canal déjà privé (par exemple WhatsApp), pas
-pour un partage public à grande échelle.
+reste valide tant que l'article ou le numéro existe. Un lien d'article
+donne accès au magazine entier qui le contient, pas seulement à ses
+propres pages. Pensé pour une diffusion ponctuelle sur un canal déjà privé
+(par exemple WhatsApp), pas pour un partage public à grande échelle.
+
+Collé dans WhatsApp ou tout autre outil affichant un aperçu de lien, il
+montre le titre, le magazine/collection et la couverture du numéro.
 
 ### Organiser avec des tags
 

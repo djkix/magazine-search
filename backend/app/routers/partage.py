@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.models import Article, Magazine
-from app.schemas import PartageOut
-from app.services.pdf_streaming import CACHE_PDF, resoudre_chemin_pdf, servir_pdf
+from app.schemas import PartageMagazineOut, PartageOut
+from app.services.media_streaming import CACHE_PDF, resoudre_chemin_pdf, servir_couverture, servir_pdf
 
 # Delibere : AUCUNE Depends(get_current_user) sur ce routeur. C'est le seul
 # point d'entree de l'application accessible sans session — tout son interet
@@ -53,3 +53,42 @@ def partage_fichier(token: str, requete: Request, db: Session = Depends(get_db))
     if not pdf_path.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PDF file not available")
     return servir_pdf(pdf_path, magazine.filename, "inline", requete, CACHE_PDF)
+
+
+@router.get("/{token}/cover")
+def partage_couverture(token: str, db: Session = Depends(get_db)):
+    article = _get_article_ou_404(token, db)
+    return servir_couverture(article.magazine)
+
+
+def _get_magazine_ou_404(token: str, db: Session) -> Magazine:
+    magazine = (
+        db.query(Magazine).options(joinedload(Magazine.collection)).filter(Magazine.share_token == token).first()
+    )
+    if not magazine:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lien introuvable.")
+    return magazine
+
+
+@router.get("/magazine/{token}", response_model=PartageMagazineOut)
+def partage_magazine_metadonnees(token: str, db: Session = Depends(get_db)):
+    magazine = _get_magazine_ou_404(token, db)
+    return PartageMagazineOut(
+        magazine_title=magazine.title,
+        collection_name=magazine.collection.name if magazine.collection else None,
+    )
+
+
+@router.get("/magazine/{token}/file")
+def partage_magazine_fichier(token: str, requete: Request, db: Session = Depends(get_db)):
+    magazine = _get_magazine_ou_404(token, db)
+    pdf_path = resoudre_chemin_pdf(magazine)
+    if not pdf_path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PDF file not available")
+    return servir_pdf(pdf_path, magazine.filename, "inline", requete, CACHE_PDF)
+
+
+@router.get("/magazine/{token}/cover")
+def partage_magazine_couverture(token: str, db: Session = Depends(get_db)):
+    magazine = _get_magazine_ou_404(token, db)
+    return servir_couverture(magazine)

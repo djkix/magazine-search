@@ -223,7 +223,9 @@ class ArticleWithMagazine(ArticleOut):
     magazine_collection_name: str | None = None
 
 
-class ArticleShareOut(BaseModel):
+class ShareOut(BaseModel):
+    # Forme partagée par la création d'un partage d'article et d'un partage
+    # de numéro entier : les deux ne renvoient qu'un jeton.
     token: str
 
 
@@ -233,6 +235,11 @@ class PartageOut(BaseModel):
     collection_name: str | None
     start_page: int
     end_page: int | None
+
+
+class PartageMagazineOut(BaseModel):
+    magazine_title: str
+    collection_name: str | None
 
 
 class ArticleCreate(BaseModel):

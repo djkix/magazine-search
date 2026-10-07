@@ -6,7 +6,7 @@ import type { Article, Magazine } from "@/lib/types";
 import { useUser } from "@/components/layout/UserContext";
 import Icon from "@/components/ui/Icon";
 import Button from "@/components/ui/Button";
-import ShareArticleButton from "@/components/articles/ShareArticleButton";
+import ShareButton from "@/components/articles/ShareButton";
 
 function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} Ko`;
@@ -187,7 +187,7 @@ export default function ViewerMetaPanel({
                 {article.title}
               </button>
               <span className="hidden shrink-0 items-center gap-1 group-hover:flex">
-                <ShareArticleButton articleId={article.id} />
+                <ShareButton kind="article" id={article.id} />
                 {user.is_admin && (
                   <>
                     <button onClick={() => startEdit(article)} className="text-foreground-muted hover:text-foreground">

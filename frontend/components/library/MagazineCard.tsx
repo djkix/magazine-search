@@ -2,6 +2,7 @@ import Link from "next/link";
 import { fileUrl } from "@/lib/api";
 import type { Magazine } from "@/lib/types";
 import Icon from "@/components/ui/Icon";
+import ShareButton from "@/components/articles/ShareButton";
 
 const ISSUE_TYPE_LABEL: Record<Magazine["issue_type"], string | null> = {
   normal: null,
@@ -53,27 +54,36 @@ export default function MagazineCard({
         <p className="truncate font-serif text-sm font-semibold text-foreground">
           {magazine.collection_name ?? magazine.title}
         </p>
-        <p className="flex items-center gap-1 truncate font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
-          {year &&
-            (onYearClick ? (
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onYearClick(year);
-                }}
-                className="shrink-0 text-primary-light hover:underline"
-              >
-                {year}
-              </button>
-            ) : (
-              <span className="shrink-0 text-primary-light">{year}</span>
-            ))}
-          {year && (magazine.issue_number || magazine.issue_month) && <span>·</span>}
-          {magazine.issue_number && <span className="shrink-0">#{magazine.issue_number}</span>}
-          {magazine.issue_number && magazine.issue_month && <span>·</span>}
-          {magazine.issue_month && <span className="truncate">{magazine.issue_month}</span>}
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="flex min-w-0 items-center gap-1 truncate font-mono text-[10px] uppercase tracking-wider text-foreground-muted">
+            {year &&
+              (onYearClick ? (
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onYearClick(year);
+                  }}
+                  className="shrink-0 text-primary-light hover:underline"
+                >
+                  {year}
+                </button>
+              ) : (
+                <span className="shrink-0 text-primary-light">{year}</span>
+              ))}
+            {year && (magazine.issue_number || magazine.issue_month) && <span>·</span>}
+            {magazine.issue_number && <span className="shrink-0">#{magazine.issue_number}</span>}
+            {magazine.issue_number && magazine.issue_month && <span>·</span>}
+            {magazine.issue_month && <span className="truncate">{magazine.issue_month}</span>}
+          </p>
+          {magazine.cover_thumbnail_path && (
+            <ShareButton
+              kind="magazine"
+              id={magazine.id}
+              className="hidden shrink-0 group-hover:block"
+            />
+          )}
+        </div>
       </div>
     </>
   );

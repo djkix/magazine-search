@@ -117,6 +117,11 @@ class Magazine(Base):
         ForeignKey("collections.id", ondelete="SET NULL"), nullable=True
     )
 
+    # Jeton de partage public du numéro entier (distinct de celui d'Article,
+    # qui ne partage qu'un article précis) : nul tant que le numéro n'a
+    # jamais été partagé, généré à la demande au premier clic.
+    share_token: Mapped[str | None] = mapped_column(String(43), unique=True, index=True, nullable=True)
+
     pages: Mapped[list["Page"]] = relationship(
         "Page", back_populates="magazine", cascade="all, delete-orphan", order_by="Page.page_number"
     )
