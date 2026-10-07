@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.34.2](https://github.com/djkix/magazine-search/compare/v0.34.1...v0.34.2) (2026-10-07)
+
+
+### Bug Fixes
+
+* **partage:** masquer le bouton sur desktop, icône plus petite ([7cacbdd](https://github.com/djkix/magazine-search/commit/7cacbdd9dccdd307d84356ac2953bc545bbbfc8e))
+
 ## [0.34.1](https://github.com/djkix/magazine-search/compare/v0.34.0...v0.34.1) (2026-10-07)
 
 
