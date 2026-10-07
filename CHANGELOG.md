@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.34.1](https://github.com/djkix/magazine-search/compare/v0.34.0...v0.34.1) (2026-10-07)
+
+
+### Bug Fixes
+
+* **partage:** rendre le bouton atteignable sur mobile, partage natif ([702f2a5](https://github.com/djkix/magazine-search/commit/702f2a5f918d6860c567782ec70e991331f37423))
+
 ## [0.34.0](https://github.com/djkix/magazine-search/compare/v0.33.0...v0.34.0) (2026-10-07)
 
 
