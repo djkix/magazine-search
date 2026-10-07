@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import Icon from "@/components/ui/Icon";
@@ -14,6 +14,19 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [googleClientId, setGoogleClientId] = useState("");
+
+  useEffect(() => {
+    // Lu depuis le backend, pas depuis NEXT_PUBLIC_GOOGLE_CLIENT_ID : cette
+    // image frontend est construite une seule fois par la CI et partagée par
+    // tous les self-hosters, une variable NEXT_PUBLIC_* y serait figée pour
+    // tout le monde alors que cet identifiant est propre à chaque
+    // déploiement. Échec silencieux : pas de bouton plutôt qu'une erreur.
+    api
+      .get<{ client_id: string }>("/auth/google/client-id")
+      .then((d) => setGoogleClientId(d.client_id))
+      .catch(() => setGoogleClientId(""));
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -72,13 +85,20 @@ export default function LoginPage() {
           l'une ou l'autre selon laquelle a échoué. */}
       {error && <p className="mt-4 text-center text-sm text-red-400">{error}</p>}
 
-      <div className="my-6 flex items-center gap-3">
-        <div className="h-px flex-1 bg-outline-variant" />
-        <span className="font-mono text-xs uppercase tracking-wider text-foreground-muted">ou</span>
-        <div className="h-px flex-1 bg-outline-variant" />
-      </div>
+      {/* Même condition que celle qui fait retourner `null` à
+          GoogleSignInButton : sans elle, le séparateur "ou" s'affichait
+          tout seul, sans rien à séparer, chez qui n'a pas configuré Google. */}
+      {googleClientId && (
+        <>
+          <div className="my-6 flex items-center gap-3">
+            <div className="h-px flex-1 bg-outline-variant" />
+            <span className="font-mono text-xs uppercase tracking-wider text-foreground-muted">ou</span>
+            <div className="h-px flex-1 bg-outline-variant" />
+          </div>
 
-      <GoogleSignInButton onSuccess={() => router.push("/")} onError={setError} />
+          <GoogleSignInButton clientId={googleClientId} onSuccess={() => router.push("/")} onError={setError} />
+        </>
+      )}
 
       <p className="mt-6 text-center text-xs text-foreground-muted">
         Compte oublié ou perdu ? Contactez l&apos;administrateur : les accès sont gérés manuellement.

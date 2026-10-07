@@ -37,6 +37,12 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class GoogleClientIdOut(BaseModel):
+    # Chaîne vide quand GOOGLE_CLIENT_ID n'est pas configuré : le frontend
+    # s'en sert pour masquer le bouton plutôt que d'afficher une erreur.
+    client_id: str
+
+
 class GoogleLoginRequest(BaseModel):
     # Nom du champ aligné sur celui que la bibliothèque JS de Google
     # (Google Identity Services) renvoie elle-même dans son callback

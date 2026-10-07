@@ -7,7 +7,7 @@ from app.database import get_db
 from app.deps import COOKIE_NAME, get_current_user
 from app.models import User
 from app.rate_limit import limiter
-from app.schemas import GoogleLoginRequest, LoginRequest, LoginResponse, UserOut
+from app.schemas import GoogleClientIdOut, GoogleLoginRequest, LoginRequest, LoginResponse, UserOut
 from app.security import create_access_token, hash_password, verify_password
 from app.services.google_auth import GoogleAuthInvalide, authentifier_ou_creer
 
@@ -47,6 +47,20 @@ def login(request: Request, response: Response, payload: LoginRequest, db: Sessi
         max_age=settings.jwt_expire_minutes * 60,
     )
     return LoginResponse()
+
+
+@router.get("/auth/google/client-id", response_model=GoogleClientIdOut)
+def google_client_id():
+    """Expose GOOGLE_CLIENT_ID au frontend, lu depuis l'environnement réel du
+    conteneur à chaque requête.
+
+    Nécessaire car ce projet distribue une image frontend déjà construite une
+    fois par la CI et partagée par tous les self-hosters : une variable
+    NEXT_PUBLIC_* y serait figée pour tout le monde au moment du build, alors
+    que cet identifiant est propre à chaque déploiement. Route publique, sans
+    authentification : elle doit être lisible avant même la connexion.
+    """
+    return GoogleClientIdOut(client_id=settings.google_client_id)
 
 
 @router.post("/auth/google", response_model=LoginResponse)

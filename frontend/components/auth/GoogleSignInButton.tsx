@@ -5,12 +5,16 @@ import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 
 interface GoogleSignInButtonProps {
+  // Fourni par la page appelante (lu depuis GET /auth/google/client-id) :
+  // NEXT_PUBLIC_GOOGLE_CLIENT_ID ne peut pas fonctionner ici, Next.js le
+  // fige au build d'une image Docker déjà construite une fois pour tous
+  // les self-hosters, alors que cet identifiant est propre à chacun.
+  clientId: string;
   onSuccess: () => void;
   onError: (message: string) => void;
 }
 
-export default function GoogleSignInButton({ onSuccess, onError }: GoogleSignInButtonProps) {
-  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+export default function GoogleSignInButton({ clientId, onSuccess, onError }: GoogleSignInButtonProps) {
   const buttonRef = useRef<HTMLDivElement>(null);
   const [scriptLoaded, setScriptLoaded] = useState(false);
 
