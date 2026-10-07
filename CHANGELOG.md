@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.33.0](https://github.com/djkix/magazine-search/compare/v0.32.1...v0.33.0) (2026-10-07)
+
+
+### Features
+
+* **partage:** partager un article par lien public ([8d4ef16](https://github.com/djkix/magazine-search/commit/8d4ef16ae952cfd4e726eef3ef0ee1fe02d7d1ff))
+
 ## [0.32.1](https://github.com/djkix/magazine-search/compare/v0.32.0...v0.32.1) (2026-10-07)
 
 
