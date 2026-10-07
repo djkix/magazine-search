@@ -186,17 +186,21 @@ export default function ViewerMetaPanel({
                 <span className="mr-2 font-mono text-[10px] tabular-nums text-foreground-muted">p.{article.start_page}</span>
                 {article.title}
               </button>
-              <span className="hidden shrink-0 items-center gap-1 group-hover:flex">
-                <ShareButton kind="article" id={article.id} />
+              <span className="flex shrink-0 items-center gap-1">
+                {/* Toujours visible en dessous de `lg` (seuil mobile déjà
+                    utilisé ailleurs dans l'app) : un écran tactile n'a pas de
+                    survol, le bouton serait sinon inatteignable sur mobile.
+                    Révélé au survol seulement à partir du bureau. */}
+                <ShareButton kind="article" id={article.id} className="block lg:hidden lg:group-hover:block" />
                 {user.is_admin && (
-                  <>
+                  <span className="hidden items-center gap-1 group-hover:flex">
                     <button onClick={() => startEdit(article)} className="text-foreground-muted hover:text-foreground">
                       <Icon name="edit" className="text-sm" />
                     </button>
                     <button onClick={() => deleteArticle(article.id)} className="text-foreground-muted hover:text-red-400">
                       <Icon name="delete" className="text-sm" />
                     </button>
-                  </>
+                  </span>
                 )}
               </span>
             </li>

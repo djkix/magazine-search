@@ -46,8 +46,25 @@ export default function ShareButton({
       return;
     }
 
+    const url = `${window.location.origin}${urlPrefix}/${token}`;
+
+    // Sur mobile, navigator.share ouvre le sélecteur natif du système
+    // (WhatsApp, Messages, Mail...) : c'est exactement ce qu'on veut, plutôt
+    // que de copier le lien et obliger à aller le coller soi-même ailleurs.
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ url });
+        return;
+      } catch (err) {
+        // L'utilisateur a fermé le sélecteur sans choisir d'app : un choix
+        // délibéré, pas un échec à signaler. Toute autre erreur retombe sur
+        // la copie presse-papiers ci-dessous.
+        if (err instanceof DOMException && err.name === "AbortError") return;
+      }
+    }
+
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}${urlPrefix}/${token}`);
+      await navigator.clipboard.writeText(url);
       setEtat("copie");
     } catch {
       // Le lien existe bel et bien côté serveur, seule la copie automatique

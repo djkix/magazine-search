@@ -168,10 +168,13 @@ Cette navigation reste vide tant qu'aucune taxonomie n'a été importée — voi
 
 ### Partager un article ou un numéro
 
-Un bouton « Partager » apparaît au survol de chaque article (panneau du
-lecteur, page « Sommaires » d'une collection) et de chaque couverture
-affichée (bibliothèque, accueil). Il copie dans le presse-papiers un lien
-public, consultable **sans compte**, qui ouvre directement l'article ou le
+Un bouton « Partager » apparaît sur chaque article (panneau du lecteur,
+page « Sommaires » d'une collection) et chaque couverture affichée
+(bibliothèque, accueil) — au survol sur ordinateur, en permanence sur
+mobile où il n'y a pas de survol. Sur téléphone, il ouvre directement le
+sélecteur de partage du système (WhatsApp, Messages...) ; sur ordinateur,
+il copie le lien dans le presse-papiers. Dans les deux cas, le lien est
+public, consultable **sans compte**, et ouvre directement l'article ou le
 numéro concerné.
 
 Le lien streame le magazine par plages HTTP — comme le lecteur normal,

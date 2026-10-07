@@ -44,7 +44,7 @@ export default function CollectionCard({
           {count !== 1 ? "s" : ""}
         </Link>
         {coverMagazineId && (
-          <ShareButton kind="magazine" id={coverMagazineId} className="hidden shrink-0 group-hover:block" />
+          <ShareButton kind="magazine" id={coverMagazineId} className="block shrink-0 lg:hidden lg:group-hover:block" />
         )}
       </div>
     </div>
