@@ -91,6 +91,14 @@ de langage sans contrainte de quota nomme les regroupements, le rattachement
 lui-même est calculé localement par correspondance de mots-clés, donc gratuit
 et rejouable à volonté. Fonctionnalité entièrement facultative.
 
+**Partage par lien**
+
+Un bouton « Partager » sur chaque article génère un lien public consultable
+sans compte, qui streame le magazine par plages HTTP (jamais un
+téléchargement complet). Le lien reste valide indéfiniment une fois créé.
+Fonctionnalité entièrement facultative, pensée pour une diffusion
+ponctuelle sur un canal privé.
+
 **Administration**
 
 Tableau de bord auto-rafraîchi, compteurs cliquables par statut, progression
@@ -157,6 +165,21 @@ y entraîner les vingt autres titres du même sommaire.
 
 Cette navigation reste vide tant qu'aucune taxonomie n'a été importée — voir
 *Gérer les thématiques* plus bas.
+
+### Partager un article
+
+Un bouton « Partager » apparaît au survol de chaque article, dans le panneau
+du lecteur comme dans la page « Sommaires » d'une collection. Il copie dans
+le presse-papiers un lien public, consultable **sans compte**, qui ouvre
+directement l'article concerné.
+
+Le lien streame le magazine par plages HTTP — comme le lecteur normal,
+jamais un téléchargement complet du fichier — pour une lecture rapide même
+sur un réseau mobile. **Il n'y a ni expiration ni révocation** : le lien
+reste valide tant que l'article existe, et donne accès au magazine entier
+qui le contient, pas seulement à ses propres pages. Pensé pour une
+diffusion ponctuelle sur un canal déjà privé (par exemple WhatsApp), pas
+pour un partage public à grande échelle.
 
 ### Organiser avec des tags
 

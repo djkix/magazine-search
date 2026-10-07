@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, Query
+import secrets
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import Article, Collection, Magazine
-from app.schemas import ArticleWithMagazine
+from app.schemas import ArticleShareOut, ArticleWithMagazine
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
@@ -80,3 +82,38 @@ def list_articles(
             magazine_collection_name,
         ) in rows
     ]
+
+
+# 32 octets -> 43 caracteres en base64 URL-safe : meme generation que pour
+# les secrets applicatifs (voir google_auth.py), largement hors de portee
+# d'une attaque par force brute sur l'URL.
+TAILLE_TOKEN_OCTETS = 32
+
+
+@router.post("/{article_id}/share", response_model=ArticleShareOut)
+def share_article(article_id: int, db: Session = Depends(get_db)):
+    """Cree ou retrouve le lien de partage public d'un article.
+
+    Idempotent : rejouer l'appel sur un article deja partage renvoie le
+    meme token plutot que d'en generer un second — un seul lien valide par
+    article, jamais une liste qui grossit a chaque clic.
+    """
+    article = db.get(Article, article_id)
+    if not article:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found")
+
+    if not article.share_token:
+        # Mise a jour conditionnee a WHERE share_token IS NULL plutot qu'une
+        # simple affectation : deux clics presque simultanes generent chacun
+        # un jeton different, mais un seul des deux UPDATE peut matcher la
+        # ligne (l'autre la trouve deja non-nulle). On relit ensuite la
+        # valeur reellement persistee, jamais celle generee localement, pour
+        # que les deux appels renvoient le meme lien plutot que l'un des deux
+        # ne pointe vers un jeton immediatement ecrase.
+        db.query(Article).filter(Article.id == article_id, Article.share_token.is_(None)).update(
+            {"share_token": secrets.token_urlsafe(TAILLE_TOKEN_OCTETS)}
+        )
+        db.commit()
+        db.refresh(article)
+
+    return ArticleShareOut(token=article.share_token)

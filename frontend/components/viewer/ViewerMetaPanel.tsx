@@ -6,6 +6,7 @@ import type { Article, Magazine } from "@/lib/types";
 import { useUser } from "@/components/layout/UserContext";
 import Icon from "@/components/ui/Icon";
 import Button from "@/components/ui/Button";
+import ShareArticleButton from "@/components/articles/ShareArticleButton";
 
 function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} Ko`;
@@ -185,16 +186,19 @@ export default function ViewerMetaPanel({
                 <span className="mr-2 font-mono text-[10px] tabular-nums text-foreground-muted">p.{article.start_page}</span>
                 {article.title}
               </button>
-              {user.is_admin && (
-                <span className="hidden shrink-0 gap-1 group-hover:flex">
-                  <button onClick={() => startEdit(article)} className="text-foreground-muted hover:text-foreground">
-                    <Icon name="edit" className="text-sm" />
-                  </button>
-                  <button onClick={() => deleteArticle(article.id)} className="text-foreground-muted hover:text-red-400">
-                    <Icon name="delete" className="text-sm" />
-                  </button>
-                </span>
-              )}
+              <span className="hidden shrink-0 items-center gap-1 group-hover:flex">
+                <ShareArticleButton articleId={article.id} />
+                {user.is_admin && (
+                  <>
+                    <button onClick={() => startEdit(article)} className="text-foreground-muted hover:text-foreground">
+                      <Icon name="edit" className="text-sm" />
+                    </button>
+                    <button onClick={() => deleteArticle(article.id)} className="text-foreground-muted hover:text-red-400">
+                      <Icon name="delete" className="text-sm" />
+                    </button>
+                  </>
+                )}
+              </span>
             </li>
           ))}
           {articles?.length === 0 && magazine.toc_status === "done" && (
