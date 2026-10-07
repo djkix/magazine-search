@@ -93,10 +93,11 @@ et rejouable à volonté. Fonctionnalité entièrement facultative.
 
 **Partage par lien**
 
-Un bouton « Partager » sur chaque article, et sur chaque couverture de
-numéro, génère un lien public consultable sans compte, qui streame le
-magazine par plages HTTP (jamais un téléchargement complet). Le lien reste
-valide indéfiniment une fois créé. Fonctionnalité entièrement facultative,
+Un bouton « Partager », visible uniquement sur mobile, sur chaque article
+et chaque couverture de numéro, génère un lien public consultable sans
+compte, qui streame le magazine par plages HTTP (jamais un téléchargement
+complet). Le lien reste valide indéfiniment une fois créé. Fonctionnalité
+entièrement facultative,
 pensée pour une diffusion ponctuelle sur un canal privé.
 
 **Administration**
@@ -170,12 +171,10 @@ Cette navigation reste vide tant qu'aucune taxonomie n'a été importée — voi
 
 Un bouton « Partager » apparaît sur chaque article (panneau du lecteur,
 page « Sommaires » d'une collection) et chaque couverture affichée
-(bibliothèque, accueil) — au survol sur ordinateur, en permanence sur
-mobile où il n'y a pas de survol. Sur téléphone, il ouvre directement le
-sélecteur de partage du système (WhatsApp, Messages...) ; sur ordinateur,
-il copie le lien dans le presse-papiers. Dans les deux cas, le lien est
-public, consultable **sans compte**, et ouvre directement l'article ou le
-numéro concerné.
+(bibliothèque, accueil) — **uniquement sur mobile**, pas sur la version web.
+Il ouvre directement le sélecteur de partage du système (WhatsApp,
+Messages...) et donne un lien public, consultable **sans compte**, qui
+ouvre directement l'article ou le numéro concerné.
 
 Le lien streame le magazine par plages HTTP — comme le lecteur normal,
 jamais un téléchargement complet du fichier — pour une lecture rapide même

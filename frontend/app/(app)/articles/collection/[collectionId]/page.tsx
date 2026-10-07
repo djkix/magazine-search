@@ -541,7 +541,7 @@ export default function CollectionArticlesPage() {
                         {article.end_page && article.end_page !== article.start_page ? `–${article.end_page}` : ""}
                       </span>
                     </Link>
-                    <ShareButton kind="article" id={article.id} className="block shrink-0 lg:hidden lg:group-hover:block" />
+                    <ShareButton kind="article" id={article.id} className="shrink-0 lg:hidden" />
                   </li>
                 ))}
                 {articles.length === 0 && magazine.toc_status === "done" && (

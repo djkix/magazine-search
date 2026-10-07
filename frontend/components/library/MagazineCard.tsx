@@ -80,7 +80,7 @@ export default function MagazineCard({
             <ShareButton
               kind="magazine"
               id={magazine.id}
-              className="block shrink-0 lg:hidden lg:group-hover:block"
+              className="shrink-0 lg:hidden"
             />
           )}
         </div>

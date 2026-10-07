@@ -78,7 +78,7 @@ export default function ShareButton({
 
   return (
     <button onClick={partager} title={titre} className={`text-foreground-muted hover:text-foreground ${className}`}>
-      <Icon name={icone} className="text-sm" />
+      <Icon name={icone} className="text-xs" />
     </button>
   );
 }

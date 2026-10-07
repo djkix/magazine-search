@@ -187,11 +187,12 @@ export default function ViewerMetaPanel({
                 {article.title}
               </button>
               <span className="flex shrink-0 items-center gap-1">
-                {/* Toujours visible en dessous de `lg` (seuil mobile déjà
-                    utilisé ailleurs dans l'app) : un écran tactile n'a pas de
-                    survol, le bouton serait sinon inatteignable sur mobile.
-                    Révélé au survol seulement à partir du bureau. */}
-                <ShareButton kind="article" id={article.id} className="block lg:hidden lg:group-hover:block" />
+                {/* Mobile uniquement (en dessous de `lg`, seuil déjà utilisé
+                    ailleurs dans l'app) : masqué entièrement sur desktop,
+                    jamais révélé au survol — son apparition/disparition au
+                    survol faisait recalculer la largeur du texte tronqué à
+                    côté, perçu comme un saut de mise en page. */}
+                <ShareButton kind="article" id={article.id} className="lg:hidden" />
                 {user.is_admin && (
                   <span className="hidden items-center gap-1 group-hover:flex">
                     <button onClick={() => startEdit(article)} className="text-foreground-muted hover:text-foreground">
