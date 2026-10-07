@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.34.0](https://github.com/djkix/magazine-search/compare/v0.33.0...v0.34.0) (2026-10-07)
+
+
+### Features
+
+* **partage:** partager un numéro entier, et aperçu Open Graph ([fd64684](https://github.com/djkix/magazine-search/commit/fd64684858e70c1c08fc39170f6ac06148378d65))
+
 ## [0.33.0](https://github.com/djkix/magazine-search/compare/v0.32.1...v0.33.0) (2026-10-07)
 
 
