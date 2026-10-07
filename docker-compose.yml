@@ -74,10 +74,9 @@ services:
     image: ghcr.io/djkix/magazine-search-frontend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     # Pas de « env_file: .env » ici : cela injectait TOUS les secrets du
-    # backend (JWT_SECRET_KEY, POSTGRES_PASSWORD, MEILI_MASTER_KEY,
-    # GEMINI_API_KEY) dans le conteneur Next.js, qui n'en a aucun besoin.
-    # Seules les quatre variables réellement lues par le frontend sont
-    # transmises.
+    # backend (JWT_SECRET_KEY, POSTGRES_PASSWORD, MEILI_MASTER_KEY) dans le
+    # conteneur Next.js, qui n'en a aucun besoin. Seules les quatre variables
+    # réellement lues par le frontend sont transmises.
     environment:
       TZ: ${TZ:-Europe/Paris}
       BACKEND_INTERNAL_URL: http://app-backend:8000

@@ -1,5 +1,3 @@
-import secrets
-
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -10,6 +8,7 @@ from app.deps import get_current_user
 from app.models import Article, Collection, IssueType, Magazine, Page, ScanStatus, collection_tags
 from app.schemas import ArticleOut, MagazineOut, PageOut, ShareOut, TagOut
 from app.services.media_streaming import CACHE_PDF, resoudre_chemin_pdf, servir_couverture, servir_pdf
+from app.services.partage import obtenir_ou_creer_token_partage
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 settings = get_settings()
@@ -163,30 +162,15 @@ def list_magazine_articles(magazine_id: int, db: Session = Depends(get_db)):
     return db.query(Article).filter(Article.magazine_id == magazine_id).order_by(Article.start_page).all()
 
 
-# 32 octets -> 43 caracteres en base64 URL-safe : meme generation que pour
-# le partage d'article (articles.py) et les secrets applicatifs.
-TAILLE_TOKEN_OCTETS = 32
-
-
 @router.post("/{magazine_id}/share", response_model=ShareOut)
 def share_magazine(magazine_id: int, db: Session = Depends(get_db)):
     """Cree ou retrouve le lien de partage public d'un numero entier.
 
     Complement au partage d'article (articles.py) : jeton distinct, meme
-    mecanisme. Idempotent et protege de la meme course entre deux clics
-    presque simultanes via une mise a jour conditionnee WHERE share_token
-    IS NULL - voir share_article pour le detail du raisonnement.
+    mecanisme (voir app.services.partage).
     """
     magazine = _get_magazine_or_404(magazine_id, db)
-
-    if not magazine.share_token:
-        db.query(Magazine).filter(Magazine.id == magazine_id, Magazine.share_token.is_(None)).update(
-            {"share_token": secrets.token_urlsafe(TAILLE_TOKEN_OCTETS)}
-        )
-        db.commit()
-        db.refresh(magazine)
-
-    return ShareOut(token=magazine.share_token)
+    return ShareOut(token=obtenir_ou_creer_token_partage(db, Magazine, magazine))
 
 
 @router.get("/{magazine_id}/pages/{page_number}", response_model=PageOut)

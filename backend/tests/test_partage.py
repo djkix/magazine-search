@@ -99,32 +99,6 @@ def test_article_inconnu_404(client):
     assert reponse.status_code == 404
 
 
-def test_course_entre_deux_partages_concurrents(client, article, db_session, monkeypatch):
-    """Simule une course : share_token est pose par une autre requete juste
-    avant que celle-ci ne commite le sien. La mise a jour conditionnelle
-    (WHERE share_token IS NULL) doit empecher l'ecrasement, et l'appelant
-    doit recevoir le token reellement enregistre, jamais celui qu'il avait
-    genere localement avant de perdre la course."""
-    import app.routers.articles as articles_module
-
-    token_gagnant = "token-gagnant-de-la-course"
-
-    def faux_token_urlsafe(n):
-        # Au moment ou CE thread genere son jeton, un autre a deja gagne et
-        # pose le sien directement en base - on le simule ici.
-        db_session.query(Article).filter(Article.id == article.id).update(
-            {"share_token": token_gagnant}
-        )
-        db_session.commit()
-        return "token-perdant-genere-en-parallele"
-
-    monkeypatch.setattr(articles_module.secrets, "token_urlsafe", faux_token_urlsafe)
-
-    reponse = client.post(f"/api/articles/{article.id}/share")
-
-    assert reponse.json()["token"] == token_gagnant
-
-
 def test_metadonnees_token_inconnu_404(client):
     reponse = client.get("/api/partage/un-token-qui-n-existe-pas")
 

@@ -17,8 +17,6 @@ from app.schemas import (
     CollectionOut,
     CollectionTagsUpdate,
     CollectionUpdate,
-    GeminiSettingsResponse,
-    GeminiSettingsUpdate,
     LogEntry,
     MagazineOut,
     MagazineProgressResponse,
@@ -45,24 +43,13 @@ from app.services.import_sous_thematiques import (
     ImportInvalide,
     articles_orphelins,
     importer,
-    recalculer_tout,
 )
-from app.services.themes_des_tags import propager
 from app.services.logs import read_logs
 from app.services.progress import get_magazine_progress
-from app.services.gemini_quota import (
-    get_gemini_daily_limit,
-    get_gemini_rpm_limit,
-    get_gemini_usage_today,
-    set_gemini_daily_limit,
-    set_gemini_rpm_limit,
-)
 from app.services.scan import get_latest_scan_job_id, get_scan_job_magazine_ids, run_collections_backfill, run_scan
-from app.services.toc import AVAILABLE_GEMINI_MODELS, get_gemini_model, set_gemini_model
 from app.worker.tasks import (
     handle_process_magazine_failure,
     process_magazine,
-    process_pending_theme_batch,
     reindex_magazine,
     retry_toc,
 )
@@ -466,36 +453,6 @@ def delete_article(article_id: int, db: Session = Depends(get_db)):
     db.commit()
 
 
-# ---- Settings ----
-
-
-@router.get("/settings/gemini", response_model=GeminiSettingsResponse)
-def get_gemini_settings(db: Session = Depends(get_db)):
-    model = get_gemini_model(db)
-    return GeminiSettingsResponse(
-        model=model,
-        available_models=AVAILABLE_GEMINI_MODELS,
-        daily_request_limit=get_gemini_daily_limit(db),
-        rpm_limit=get_gemini_rpm_limit(db),
-        requests_used_today=get_gemini_usage_today(model),
-    )
-
-
-@router.put("/settings/gemini", response_model=GeminiSettingsResponse)
-def update_gemini_settings(payload: GeminiSettingsUpdate, db: Session = Depends(get_db)):
-    set_gemini_model(db, payload.model)
-    set_gemini_daily_limit(db, payload.daily_request_limit)
-    set_gemini_rpm_limit(db, payload.rpm_limit)
-    model = get_gemini_model(db)
-    return GeminiSettingsResponse(
-        model=model,
-        available_models=AVAILABLE_GEMINI_MODELS,
-        daily_request_limit=get_gemini_daily_limit(db),
-        rpm_limit=get_gemini_rpm_limit(db),
-        requests_used_today=get_gemini_usage_today(model),
-    )
-
-
 # ---- Tags ----
 
 
@@ -736,74 +693,6 @@ def subtheme_orphans(db: Session = Depends(get_db)):
     à l'œil — il suffit alors de compléter la taxonomie.
     """
     return OrphansOut(**articles_orphelins(db))
-
-
-@router.post("/themes/subthemes/recompute")
-def recompute_subthemes(
-    appliquer: bool = Query(False, description="Écrire réellement ; simulation sinon"),
-    db: Session = Depends(get_db),
-):
-    """Rejoue le rattachement de toutes les sous-thématiques existantes.
-
-    Sans appel à un modèle : les mots-clés sont conservés en base. À lancer
-    après l'arrivée de nouveaux numéros, pour qu'ils rejoignent les
-    regroupements déjà définis.
-    """
-    return recalculer_tout(db, appliquer)
-
-
-@router.post("/tags/propagate")
-def propagate_subject_tags(
-    appliquer: bool = Query(False, description="Écrire réellement ; simulation sinon"),
-    db: Session = Depends(get_db),
-):
-    """Attache aux numéros les thématiques héritées des tags de sujet.
-
-    SIMULATION PAR DÉFAUT. Gratuit et instantané : aucun appel à un modèle,
-    le tag de collection est une donnée déjà curée par l'administrateur.
-
-    `themed_at` n'est pas renseigné : les numéros restent dans la file de
-    thématisation, et le modèle viendra affiner. Le tag fournit le socle, le
-    modèle l'enrichit.
-    """
-    return propager(db, appliquer)
-
-
-@router.post("/themes/regenerate-all")
-def regenerate_all_themes(db: Session = Depends(get_db)):
-    """Force-regenerate themes for every processed magazine, even ones that
-    already have some - unlike reindexing the search index, theme
-    assignment is otherwise only ever computed once per magazine, so a
-    magazine left at 0 themes by a past transient Gemini failure has no
-    other way to retry.
-
-    Resets themed_at (and clears any existing themes) so every magazine
-    looks "pending" again, then hands off to the same batched pipeline
-    used after ordinary OCR completion (process_pending_theme_batch,
-    THEME_BATCH_SIZE magazines per Gemini request) - not one job per
-    magazine, which would burn one full Gemini request per magazine and
-    could exhaust the whole day's quota from a single click on any
-    library past a couple of dozen magazines.
-    """
-    # Seul themed_at est remis à zéro : les thèmes existants sont CONSERVÉS
-    # jusqu'à ce qu'un lot les remplace effectivement.
-    #
-    # Auparavant, `magazine.themes = []` vidait toute la bibliothèque d'un
-    # coup, avant le moindre appel à Gemini. Un dépassement de quota en cours
-    # de série — inévitable au-delà de quelques dizaines de numéros — laissait
-    # donc la bibliothèque amputée, sans reprise automatique, et recliquer
-    # re-purgeait ce qui venait d'être régénéré.
-    #
-    # Désormais l'opération est idempotente et sans perte : chaque numéro
-    # garde ses thèmes actuels jusqu'à son remplacement, et une chaîne
-    # interrompue se reprend simplement en recliquant — themed_at marquant
-    # déjà ce qui a été traité.
-    magazines = db.query(Magazine).filter(Magazine.scan_status == ScanStatus.done).all()
-    for magazine in magazines:
-        magazine.themed_at = None
-    db.commit()
-    ingestion_queue.enqueue(process_pending_theme_batch, job_timeout="15m")
-    return {"enqueued": len(magazines)}
 
 
 @router.post("/collections/backfill")
