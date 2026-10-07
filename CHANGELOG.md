@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.1](https://github.com/djkix/magazine-search/compare/v0.32.0...v0.32.1) (2026-10-07)
+
+
+### Bug Fixes
+
+* **auth:** servir GOOGLE_CLIENT_ID au frontend depuis le backend ([d8c286c](https://github.com/djkix/magazine-search/commit/d8c286c04da9a747ad0e40cdeb3c4696e6e5dade))
+
 ## [0.32.0](https://github.com/djkix/magazine-search/compare/v0.31.1...v0.32.0) (2026-10-06)
 
 
