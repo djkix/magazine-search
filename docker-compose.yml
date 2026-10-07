@@ -83,7 +83,6 @@ services:
       BACKEND_INTERNAL_URL: http://app-backend:8000
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
       NEXT_PUBLIC_APP_VERSION: ${NEXT_PUBLIC_APP_VERSION:-}
-      NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     depends_on:

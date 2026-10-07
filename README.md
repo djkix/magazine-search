@@ -371,7 +371,7 @@ Générer une valeur : `openssl rand -hex 32`.
 | `LOG_TIMEZONE` | Fuseau des horodatages des journaux (défaut : `Europe/Paris`). Sans lui, un conteneur Docker journalise en UTC. |
 | `MIGRATION_FAILURE_DELAY_SECONDS` | Pause avant de sortir en erreur quand une migration échoue (défaut : 30), pour éviter une boucle de redémarrage trop serrée. |
 | `ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PASSWORD` | Compte créé au premier démarrage si aucun admin n'existe. À vider ensuite. |
-| `GOOGLE_CLIENT_ID` / `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Même valeur dans les deux (ID client OAuth Google, pas un secret). Laissées vides, la connexion Google est simplement absente de l'interface. Voir *Se connecter*. |
+| `GOOGLE_CLIENT_ID` | ID client OAuth Google (pas un secret). Laissée vide, la connexion Google est simplement absente de l'interface. Voir *Se connecter*. |
 
 ## Sauvegarde et restauration
 
