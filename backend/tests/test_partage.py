@@ -205,3 +205,26 @@ def test_fichier_introuvable_404(client, article):
     reponse = client.get(f"/api/partage/{token}/file")
 
     assert reponse.status_code == 404
+
+
+def test_couverture_servie_sans_authentification(client, article, db_session, tmp_path):
+    article.magazine.cover_thumbnail_path = str(tmp_path / f"{article.magazine_id}.webp")
+    db_session.commit()
+    (tmp_path / f"{article.magazine_id}.webp").write_bytes(b"RIFF....WEBP")
+
+    token = client.post(f"/api/articles/{article.id}/share").json()["token"]
+    app.dependency_overrides.pop(get_current_user, None)
+
+    reponse = client.get(f"/api/partage/{token}/cover")
+
+    assert reponse.status_code == 200
+    assert reponse.headers["content-type"] == "image/webp"
+
+
+def test_couverture_absente_404(client, article):
+    token = client.post(f"/api/articles/{article.id}/share").json()["token"]
+    app.dependency_overrides.pop(get_current_user, None)
+
+    reponse = client.get(f"/api/partage/{token}/cover")
+
+    assert reponse.status_code == 404

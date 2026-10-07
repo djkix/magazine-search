@@ -19,7 +19,7 @@ import { useUser } from "@/components/layout/UserContext";
 import PageContainer from "@/components/layout/PageContainer";
 import Icon from "@/components/ui/Icon";
 import TexteSurligne from "@/components/ui/TexteSurligne";
-import ShareArticleButton from "@/components/articles/ShareArticleButton";
+import ShareButton from "@/components/articles/ShareButton";
 
 const PAGE_SIZE_OPTIONS = ["10", "20", "50", "all"] as const;
 type PageSizeOption = (typeof PAGE_SIZE_OPTIONS)[number];
@@ -541,7 +541,7 @@ export default function CollectionArticlesPage() {
                         {article.end_page && article.end_page !== article.start_page ? `–${article.end_page}` : ""}
                       </span>
                     </Link>
-                    <ShareArticleButton articleId={article.id} className="hidden shrink-0 group-hover:block" />
+                    <ShareButton kind="article" id={article.id} className="hidden shrink-0 group-hover:block" />
                   </li>
                 ))}
                 {articles.length === 0 && magazine.toc_status === "done" && (

@@ -1,7 +1,6 @@
-from pathlib import Path
+import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from fastapi.responses import FileResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -9,8 +8,8 @@ from app.config import get_settings
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import Article, Collection, IssueType, Magazine, Page, ScanStatus, collection_tags
-from app.schemas import ArticleOut, MagazineOut, PageOut, TagOut
-from app.services.pdf_streaming import CACHE_PDF, resoudre_chemin_pdf, servir_pdf
+from app.schemas import ArticleOut, MagazineOut, PageOut, ShareOut, TagOut
+from app.services.media_streaming import CACHE_PDF, resoudre_chemin_pdf, servir_couverture, servir_pdf
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 settings = get_settings()
@@ -164,6 +163,32 @@ def list_magazine_articles(magazine_id: int, db: Session = Depends(get_db)):
     return db.query(Article).filter(Article.magazine_id == magazine_id).order_by(Article.start_page).all()
 
 
+# 32 octets -> 43 caracteres en base64 URL-safe : meme generation que pour
+# le partage d'article (articles.py) et les secrets applicatifs.
+TAILLE_TOKEN_OCTETS = 32
+
+
+@router.post("/{magazine_id}/share", response_model=ShareOut)
+def share_magazine(magazine_id: int, db: Session = Depends(get_db)):
+    """Cree ou retrouve le lien de partage public d'un numero entier.
+
+    Complement au partage d'article (articles.py) : jeton distinct, meme
+    mecanisme. Idempotent et protege de la meme course entre deux clics
+    presque simultanes via une mise a jour conditionnee WHERE share_token
+    IS NULL - voir share_article pour le detail du raisonnement.
+    """
+    magazine = _get_magazine_or_404(magazine_id, db)
+
+    if not magazine.share_token:
+        db.query(Magazine).filter(Magazine.id == magazine_id, Magazine.share_token.is_(None)).update(
+            {"share_token": secrets.token_urlsafe(TAILLE_TOKEN_OCTETS)}
+        )
+        db.commit()
+        db.refresh(magazine)
+
+    return ShareOut(token=magazine.share_token)
+
+
 @router.get("/{magazine_id}/pages/{page_number}", response_model=PageOut)
 def get_page(magazine_id: int, page_number: int, db: Session = Depends(get_db)):
     page = (
@@ -176,26 +201,10 @@ def get_page(magazine_id: int, page_number: int, db: Session = Depends(get_db)):
     return page
 
 
-# La couverture est reecrite au meme emplacement a chaque retraitement OCR
-# (tasks.py reaffecte cover_thumbnail_path) : pas d'immutable, sinon une
-# vignette perimee resterait affichee indefiniment. Un jour de cache, puis
-# revalidation via le ETag/Last-Modified que FileResponse pose deja.
-CACHE_COUVERTURE = "private, max-age=86400"
-
 @router.get("/{magazine_id}/cover")
 def get_cover(magazine_id: int, db: Session = Depends(get_db)):
     magazine = _get_magazine_or_404(magazine_id, db)
-    if not magazine.cover_thumbnail_path or not Path(magazine.cover_thumbnail_path).exists():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cover not available")
-    # Le type MIME suit l'extension reelle du fichier : les vignettes produites
-    # avant la bascule vers WebP sont encore en PNG sur le disque, et les
-    # annoncer en image/webp les rendrait indechiffrables pour le navigateur.
-    chemin = Path(magazine.cover_thumbnail_path)
-    return FileResponse(
-        chemin,
-        media_type="image/webp" if chemin.suffix.lower() == ".webp" else "image/png",
-        headers={"Cache-Control": CACHE_COUVERTURE},
-    )
+    return servir_couverture(magazine)
 
 
 @router.get("/{magazine_id}/file")

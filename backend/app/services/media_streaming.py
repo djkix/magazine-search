@@ -2,7 +2,7 @@ import re
 from collections.abc import Iterator
 from pathlib import Path
 
-from fastapi import Request, Response, status
+from fastapi import HTTPException, Request, Response, status
 from fastapi.responses import FileResponse, StreamingResponse
 
 from app.config import get_settings
@@ -16,6 +16,33 @@ def resoudre_chemin_pdf(magazine: Magazine) -> Path:
     if processed_path.exists():
         return processed_path
     return Path(settings.nas_mount_path) / magazine.file_path
+
+
+# La couverture est reecrite au meme emplacement a chaque retraitement OCR
+# (tasks.py reaffecte cover_thumbnail_path) : pas d'immutable, sinon une
+# vignette perimee resterait affichee indefiniment. Un jour de cache, puis
+# revalidation via le ETag/Last-Modified que FileResponse pose deja.
+CACHE_COUVERTURE = "private, max-age=86400"
+
+
+def servir_couverture(magazine: Magazine) -> FileResponse:
+    """Sert la vignette de couverture d'un magazine.
+
+    Partage par `/magazines/{id}/cover` et `/partage/{token}/cover` /
+    `/partage/magazine/{token}/cover` : meme logique quel que soit
+    l'appelant, authentifie ou public.
+    """
+    if not magazine.cover_thumbnail_path or not Path(magazine.cover_thumbnail_path).exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cover not available")
+    # Le type MIME suit l'extension reelle du fichier : les vignettes produites
+    # avant la bascule vers WebP sont encore en PNG sur le disque, et les
+    # annoncer en image/webp les rendrait indechiffrables pour le navigateur.
+    chemin = Path(magazine.cover_thumbnail_path)
+    return FileResponse(
+        chemin,
+        media_type="image/webp" if chemin.suffix.lower() == ".webp" else "image/png",
+        headers={"Cache-Control": CACHE_COUVERTURE},
+    )
 
 
 # Le PDF est lourd et relu page apres page : le garder une heure evite de le
