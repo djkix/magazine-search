@@ -100,6 +100,12 @@ complet). Le lien reste valide indéfiniment une fois créé. Fonctionnalité
 entièrement facultative,
 pensée pour une diffusion ponctuelle sur un canal privé.
 
+**Installable (PWA)**
+
+Icône et manifeste d'application web : « Ajouter à l'écran d'accueil » sur
+mobile, ou installation depuis la barre d'adresse sur desktop, pour ouvrir
+l'application comme une app à part entière.
+
 **Administration**
 
 Tableau de bord auto-rafraîchi, compteurs cliquables par statut, progression
