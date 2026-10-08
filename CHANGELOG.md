@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.35.0](https://github.com/djkix/magazine-search/compare/v0.34.2...v0.35.0) (2026-10-08)
+
+
+### Features
+
+* **admin:** signaler les nouvelles inscriptions sur le tableau de bord ([adb4bfe](https://github.com/djkix/magazine-search/commit/adb4bfe22a60d2a84aa53f6f9395002237184b22))
+
 ## [0.34.2](https://github.com/djkix/magazine-search/compare/v0.34.1...v0.34.2) (2026-10-07)
 
 
