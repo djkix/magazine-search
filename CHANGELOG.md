@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.36.0](https://github.com/djkix/magazine-search/compare/v0.35.0...v0.36.0) (2026-10-08)
+
+
+### Features
+
+* **pwa:** rendre l'application installable ([b528499](https://github.com/djkix/magazine-search/commit/b528499c17c856eeaedf9d2e16fae70b43345c13))
+
 ## [0.35.0](https://github.com/djkix/magazine-search/compare/v0.34.2...v0.35.0) (2026-10-08)
 
 
