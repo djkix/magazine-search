@@ -33,6 +33,10 @@ export function middleware(request: NextRequest) {
 export const config = {
   // /api/* is proxied straight to the backend (see next.config.js rewrites)
   // and has its own auth via the session cookie/JWT - this middleware's
-  // page-level redirect logic must never intercept it.
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  // page-level redirect logic must never intercept it. Le manifest et les
+  // icônes doivent rester accessibles sans session : un navigateur peut les
+  // requêter (prompt d'installation PWA) avant toute connexion.
+  matcher: [
+    "/((?!api|_next/static|_next/image|favicon.ico|manifest.webmanifest|icon.png|apple-icon.png|icons/).*)",
+  ],
 };
