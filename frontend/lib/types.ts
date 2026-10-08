@@ -247,5 +247,9 @@ export interface AdminStats {
    *  a faire se deduit par soustraction, pour eviter deux valeurs qui
    *  pourraient diverger. */
   articles_rattaches: number;
+  /** Comptes créés dans les 7 derniers jours (inscriptions Google incluses) :
+   *  seul moyen de les remarquer, l'application n'envoie aucune
+   *  notification. */
+  new_users_7j: number;
   recent: Magazine[];
 }

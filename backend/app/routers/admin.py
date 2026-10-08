@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy import distinct, func
@@ -342,6 +343,11 @@ def get_stats(db: Session = Depends(get_db)):
     articles_total = db.query(Article).count()
     articles_rattaches = db.query(subtheme_articles.c.article_id).distinct().count()
 
+    # Seul moyen de remarquer une inscription via Google : l'application
+    # n'envoie aucune notification (email, webhook...).
+    il_y_a_7_jours = datetime.now(timezone.utc) - timedelta(days=7)
+    new_users_7j = db.query(User).filter(User.created_at >= il_y_a_7_jours).count()
+
     return AdminStatsResponse(
         total=sum(counts.values()),
         done=count_of(ScanStatus.done),
@@ -350,6 +356,7 @@ def get_stats(db: Session = Depends(get_db)):
         pending=count_of(ScanStatus.detected, ScanStatus.stable, ScanStatus.queued),
         articles_total=articles_total,
         articles_rattaches=articles_rattaches,
+        new_users_7j=new_users_7j,
         recent=recent,
     )
 

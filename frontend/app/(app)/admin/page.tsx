@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { api, ApiError, fileUrl } from "@/lib/api";
 import type {
   AdminStats,
@@ -34,6 +35,7 @@ const STATUS_FILTER_LABEL: Record<Exclude<StatusFilter, null>, string> = {
 const PENDING_SCAN_STATUSES = "scan_status=detected&scan_status=stable&scan_status=queued";
 
 export default function AdminDashboardPage() {
+  const router = useRouter();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [scanJob, setScanJob] = useState<ScanStatusResponse | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -496,6 +498,16 @@ export default function AdminDashboardPage() {
           label="Sans sous-thématique"
           value={stats ? stats.articles_total - stats.articles_rattaches : undefined}
           accent="text-orange-400"
+        />
+        {/* Seul indicateur d'une inscription (Google comprise) : l'app
+            n'envoie aucune notification. Mène vers la liste des
+            utilisateurs, qui affiche la dernière connexion de chacun. */}
+        <StatCard
+          icon="person_add"
+          label="Nouveaux comptes (7j)"
+          value={stats?.new_users_7j}
+          accent={stats && stats.new_users_7j > 0 ? "text-primary-light" : "text-foreground"}
+          onClick={() => router.push("/admin/users")}
         />
       </div>
 
