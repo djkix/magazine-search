@@ -123,6 +123,11 @@ Un compte créé à la main dont l'email correspond à un compte Google fusionne
 automatiquement avec lui au premier login Google — aucun doublon. Désactiver
 un compte depuis `/admin` bloque sa connexion par les deux méthodes à la fois.
 
+L'application n'envoie aucune notification (email, webhook...) à la création
+d'un compte. Le tableau de bord admin affiche un compteur « Nouveaux comptes
+(7j) », qui mène à la liste des utilisateurs — c'est là qu'il faut regarder
+pour remarquer une inscription, Google comprise.
+
 ### Rechercher
 
 Saisissez vos termes dans la barre de recherche. La recherche porte sur tout le

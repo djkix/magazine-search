@@ -399,6 +399,9 @@ class AdminStatsResponse(BaseModel):
     # une occasion de divergence.
     articles_total: int
     articles_rattaches: int
+    # Signale les inscriptions via Google : seul moyen de les remarquer,
+    # l'application n'envoie aucune notification (email, webhook...).
+    new_users_7j: int
     recent: list[MagazineOut]
 
 
