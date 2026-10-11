@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.36.1](https://github.com/djkix/magazine-search/compare/v0.36.0...v0.36.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* **partage:** ne plus rediriger les fichiers statiques vers /login ([f00a4bf](https://github.com/djkix/magazine-search/commit/f00a4bf3821344aa20feae035206490c88da21f1))
+
 ## [0.36.0](https://github.com/djkix/magazine-search/compare/v0.35.0...v0.36.0) (2026-10-08)
 
 
