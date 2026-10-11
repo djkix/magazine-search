@@ -32,11 +32,12 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   // /api/* is proxied straight to the backend (see next.config.js rewrites)
-  // and has its own auth via the session cookie/JWT - this middleware's
-  // page-level redirect logic must never intercept it. Le manifest et les
-  // icônes doivent rester accessibles sans session : un navigateur peut les
-  // requêter (prompt d'installation PWA) avant toute connexion.
-  matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|manifest.webmanifest|icon.png|apple-icon.png|icons/).*)",
-  ],
+  // et a sa propre auth via le cookie de session / JWT - cette redirection
+  // ne doit jamais l'intercepter. Un chemin avec une extension (manifest,
+  // icônes, pdf.worker.min.mjs...) est un fichier statique de /public, pas
+  // une page : aucune de nos pages n'a de point dans son chemin, donc ce
+  // filtre couvre tout fichier public présent ou futur sans liste au cas
+  // par cas (bug vécu : pdf.worker.min.mjs redirigé vers /login pour un
+  // visiteur non connecté, cassant la lecture via un lien de partage).
+  matcher: ["/((?!api|_next/static|_next/image|.*\\..*).*)"],
 };
