@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.36.2](https://github.com/djkix/magazine-search/compare/v0.36.1...v0.36.2) (2026-10-15)
+
+
+### Bug Fixes
+
+* **viewer:** rendre les pages à la densité réelle de l'écran ([72e8cac](https://github.com/djkix/magazine-search/commit/72e8cac1b33a884b638d09be1deb9223d46df297))
+
 ## [0.36.1](https://github.com/djkix/magazine-search/compare/v0.36.0...v0.36.1) (2026-10-11)
 
 
