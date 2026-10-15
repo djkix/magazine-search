@@ -24,6 +24,9 @@ interface PageSize {
   height: number;
 }
 
+// Sous la limite de surface de canvas d'iOS Safari (16 777 216 pixels).
+const MAX_CANVAS_PIXELS = 16_000_000;
+
 function PdfPage({
   doc,
   pageNumber,
@@ -71,12 +74,28 @@ function PdfPage({
 
       const canvas = canvasRef.current;
       if (!canvas) return;
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
+      // Rendu à la densité réelle de l'écran : sans cela, le canvas est dessiné
+      // en pixels CSS puis agrandi par le navigateur (flou sur mobile). Le
+      // plafond évite de dépasser la limite de surface de canvas d'iOS.
+      const outputScale = Math.max(
+        1,
+        Math.min(
+          window.devicePixelRatio || 1,
+          Math.sqrt(MAX_CANVAS_PIXELS / (viewport.width * viewport.height))
+        )
+      );
+      canvas.width = Math.floor(viewport.width * outputScale);
+      canvas.height = Math.floor(viewport.height * outputScale);
+      canvas.style.width = `${viewport.width}px`;
+      canvas.style.height = `${viewport.height}px`;
       const context = canvas.getContext("2d");
       if (!context) return;
 
-      renderTask = page.render({ canvasContext: context, viewport });
+      renderTask = page.render({
+        canvasContext: context,
+        viewport,
+        transform: outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : undefined,
+      });
       await renderTask.promise;
       if (!cancelled) setSize({ width: viewport.width, height: viewport.height });
     }
