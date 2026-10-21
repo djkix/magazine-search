@@ -26,7 +26,9 @@ def main() -> None:
     # pool's references so a future checkout opens a brand new one instead.
     engine.dispose(close=False)
     worker = Worker([Queue("ingestion", connection=conn)], connection=conn)
-    worker.work()
+    # with_scheduler : exécute les jobs différés (reprise de la classification
+    # Gemini une fois le quota rétabli).
+    worker.work(with_scheduler=True)
 
 
 if __name__ == "__main__":

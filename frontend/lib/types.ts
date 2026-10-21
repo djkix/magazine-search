@@ -253,3 +253,13 @@ export interface AdminStats {
   new_users_7j: number;
   recent: Magazine[];
 }
+
+/** État de la classification automatique des nouveaux articles par Gemini. */
+export interface ClassificationStatus {
+  actif: boolean;
+  modele: string;
+  en_attente: number;
+  requetes_aujourdhui: number;
+  limite_jour: number;
+  pause: { raison: string; jusqua: string } | null;
+}

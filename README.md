@@ -89,7 +89,9 @@ Navigation par sujet à deux niveaux (thématique puis sous-thématique),
 rattachée aux **articles**. La taxonomie se construit hors ligne — un modèle
 de langage sans contrainte de quota nomme les regroupements, le rattachement
 lui-même est calculé localement par correspondance de mots-clés, donc gratuit
-et rejouable à volonté. Fonctionnalité entièrement facultative.
+et rejouable à volonté. Les nouveaux articles qu'aucun mot-clé n'attrape
+peuvent être classés automatiquement par Gemini, si une clé API est
+configurée. Fonctionnalité entièrement facultative.
 
 **Partage par lien**
 
@@ -256,11 +258,12 @@ ne peut rattacher un titre à une page qui n'y figure pas.
 
 > **Le thémage par numéro via Gemini a été retiré**, pas seulement désactivé :
 > le quota gratuit (20 requêtes par jour) rendait l'opération irréaliste à
-> l'échelle de la bibliothèque, et plus aucun écran n'y faisait appel. La
-> navigation par sujet repose désormais entièrement sur la **taxonomie par
-> article** ci-dessous, construite hors ligne puis importée — gratuite et
-> rejouable à volonté. Les tags servent aujourd'hui à **filtrer la
-> recherche**, sans distinction de nature.
+> l'échelle de la bibliothèque. La navigation par sujet repose sur la
+> **taxonomie par article** ci-dessous, construite hors ligne puis importée —
+> gratuite et rejouable à volonté. Gemini n'intervient plus que pour
+> **classer les nouveaux articles orphelins** (voir *Classification
+> automatique*), jamais pour construire la taxonomie. Les tags servent à
+> **filtrer la recherche**, sans distinction de nature.
 
 Le tableau de bord mesure désormais la couverture de la taxonomie au niveau de
 l'**article** et non du numéro : *Articles rattachés* et *Sans sous-thématique*.
@@ -317,6 +320,25 @@ son sommaire — sans nouvel appel à un modèle, et sans action de votre part.
 docker exec magazine-search-app-backend-1 \
   python tools/importer_sous_thematiques.py --recalculer-tout --appliquer
 ```
+
+**Classification automatique des nouveaux articles.** Quand un numéro est
+scanné, ses articles sont d'abord rattachés par mots-clés. Si `GEMINI_API_KEY`
+est renseignée, ceux qu'aucun mot-clé n'attrape sont ensuite envoyés à Gemini,
+par lots de plusieurs centaines de titres : le modèle les range dans une
+sous-thématique existante ou, à défaut, **en crée une nouvelle** sous une
+thématique existante (il ne crée jamais de thématique de premier niveau). Ses
+mots-clés sont conservés, donc les articles suivants rejoignent la
+sous-thématique gratuitement. Les rattachements posés par Gemini ne sont pas
+effacés par un recalcul des mots-clés.
+
+L'application compte elle-même ses requêtes (par minute, par jour et en
+tokens) et s'arrête **avant** les limites, avec 2 requêtes par jour gardées en
+réserve. Quand le quota est atteint, ou en cas de clé ou de modèle refusés, le
+tableau de bord affiche une bannière avec la raison et l'heure de reprise en
+heure locale ; la classification reprend alors toute seule, y compris après un
+redémarrage. Le quota journalier de Google se réinitialise à minuit heure du
+Pacifique. Sans clé API, rien de tout cela ne s'exécute. Les articles déjà
+orphelins avant l'activation ne sont classés qu'au scan suivant.
 
 Le tableau de bord affiche aussi, à la demande, les **articles non
 rattachés** et les mots les plus fréquents parmi eux : un terme qui revient
@@ -385,6 +407,10 @@ Générer une valeur : `openssl rand -hex 32`.
 | `MIGRATION_FAILURE_DELAY_SECONDS` | Pause avant de sortir en erreur quand une migration échoue (défaut : 30), pour éviter une boucle de redémarrage trop serrée. |
 | `ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PASSWORD` | Compte créé au premier démarrage si aucun admin n'existe. À vider ensuite. |
 | `GOOGLE_CLIENT_ID` | ID client OAuth Google (pas un secret). Laissée vide, la connexion Google est simplement absente de l'interface. Voir *Se connecter*. |
+| `GEMINI_API_KEY` | Clé API Gemini. Laissée vide, la classification automatique est inactive. |
+| `GEMINI_MODEL` | Modèle utilisé (défaut : `gemini-3.8-flash`). Un nom erroné s'affiche sur le tableau de bord. |
+| `GEMINI_RPM` / `GEMINI_TPM` / `GEMINI_RPD` | Limites de votre compte : requêtes par minute (5), tokens par minute (250 000), requêtes par jour (20). À reprendre de la page « Limite de débit » d'AI Studio. |
+| `GEMINI_TIMEOUT_SECONDS` | Délai maximum d'un appel (défaut : 120). |
 
 ## Sauvegarde et restauration
 

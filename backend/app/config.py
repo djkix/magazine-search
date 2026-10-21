@@ -79,6 +79,19 @@ class Settings(BaseSettings):
     # jamais à aucun jeton, sans qu'il faille de code spécial.
     google_client_id: str = ""
 
+    # Classification automatique des articles orphelins par Gemini. Sans clé,
+    # la fonctionnalité est inactive et silencieuse. Les limites par défaut
+    # sont celles du palier gratuit observées pour ce modèle dans AI Studio ;
+    # un autre compte les ajustera par variable d'environnement.
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.8-flash"
+    gemini_rpm: int = 5
+    gemini_tpm: int = 250000
+    gemini_rpd: int = 20
+    # Borne d'un appel : sans elle, une connexion suspendue immobiliserait
+    # l'unique worker jusqu'au job_timeout RQ.
+    gemini_timeout_seconds: int = 120
+
     @field_validator("jwt_secret_key")
     @classmethod
     def _valider_jwt_secret(cls, v: str) -> str:

@@ -76,12 +76,25 @@ def rattacher(
 
     if appliquer:
         db.execute(
-            subtheme_articles.delete().where(subtheme_articles.c.subtheme_id == sous_theme.id)
+            subtheme_articles.delete().where(
+                subtheme_articles.c.subtheme_id == sous_theme.id,
+                subtheme_articles.c.source == "mots_cles",
+            )
         )
-        if retenus:
+        # Les liens posés par Gemini subsistent à la purge : ne pas les
+        # réinsérer, la clé primaire (sous-thématique, article) l'interdit.
+        deja_lies = set(
+            db.execute(
+                select(subtheme_articles.c.article_id).where(
+                    subtheme_articles.c.subtheme_id == sous_theme.id
+                )
+            ).scalars()
+        )
+        a_lier = [aid for aid in retenus if aid not in deja_lies]
+        if a_lier:
             db.execute(
                 subtheme_articles.insert(),
-                [{"subtheme_id": sous_theme.id, "article_id": aid} for aid in retenus],
+                [{"subtheme_id": sous_theme.id, "article_id": aid} for aid in a_lier],
             )
 
     return {
@@ -241,7 +254,13 @@ def rattacher_magazine(db: Session, magazine_id: int) -> dict:
     # Purge ciblée : un retraitement du sommaire remplace les articles, et les
     # liens des anciens deviendraient orphelins.
     ids = [aid for aid, _ in articles]
-    db.execute(subtheme_articles.delete().where(subtheme_articles.c.article_id.in_(ids)))
+    # Les liens posés par Gemini sont conservés : les mots-clés ne pourraient
+    # pas les retrouver, et l'article ne serait jamais renvoyé au modèle.
+    db.execute(
+        subtheme_articles.delete().where(
+            subtheme_articles.c.article_id.in_(ids), subtheme_articles.c.source == "mots_cles"
+        )
+    )
 
     liens: list[dict] = []
     for sous_theme in db.query(Subtheme).all():

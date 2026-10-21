@@ -9,8 +9,11 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import get_current_admin
 from app.models import Article, Collection, Magazine, OcrStatus, Page, ScanStatus, Tag, User, subtheme_articles
-from app.queue import ingestion_queue
+from app.config import get_settings
+from app.queue import ingestion_queue, redis_conn
 from app.schemas import (
+    ClassificationOut,
+    ClassificationPauseOut,
     AdminStatsResponse,
     ArticleCreate,
     ArticleOut,
@@ -36,6 +39,8 @@ from app.schemas import (
     UserUpdate,
 )
 from app.security import hash_password
+from app.services.classification_gemini import articles_a_classer
+from app.services.gemini_quota import SuiviQuota
 from app.services.export_orphelins import charge_utile as charge_utile_orphelins
 from app.services.export_orphelins import nom_de_fichier as nom_de_fichier_orphelins
 from app.services.export_orphelins import resume as resume_orphelins
@@ -57,6 +62,7 @@ from app.worker.tasks import (
 
 logger = logging.getLogger("app")
 
+settings = get_settings()
 router = APIRouter(dependencies=[Depends(get_current_admin)])
 
 
@@ -296,6 +302,29 @@ def scan_status(job_id: str, db: Session = Depends(get_db)):
 
 
 # ---- Stats ----
+
+
+@router.get("/classification", response_model=ClassificationOut)
+def get_classification_status(db: Session = Depends(get_db)):
+    """État de la classification Gemini : file d'attente, quota du jour, pause.
+
+    Sans clé API, la fonctionnalité est inactive : on ne touche pas à Redis.
+    """
+    if not settings.gemini_api_key:
+        return ClassificationOut(
+            actif=False, modele=settings.gemini_model, en_attente=0,
+            requetes_aujourdhui=0, limite_jour=0,
+        )
+    suivi = SuiviQuota(redis_conn, settings.gemini_rpm, settings.gemini_rpd, settings.gemini_tpm)
+    pause = suivi.pause_active()
+    return ClassificationOut(
+        actif=True,
+        modele=settings.gemini_model,
+        en_attente=len(articles_a_classer(db)),
+        requetes_aujourdhui=suivi.requetes_aujourdhui(),
+        limite_jour=suivi.limite_jour_effective(),
+        pause=ClassificationPauseOut(raison=pause.raison, jusqua=pause.jusqua) if pause else None,
+    )
 
 
 @router.get("/stats", response_model=AdminStatsResponse)
