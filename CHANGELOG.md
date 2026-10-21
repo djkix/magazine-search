@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.37.0](https://github.com/djkix/magazine-search/compare/v0.36.2...v0.37.0) (2026-10-21)
+
+
+### Features
+
+* **themes:** classer les nouveaux articles orphelins avec Gemini ([a92d607](https://github.com/djkix/magazine-search/commit/a92d6074cb14ecbc8d6694784fc96ebeaeeb3603))
+
 ## [0.36.2](https://github.com/djkix/magazine-search/compare/v0.36.1...v0.36.2) (2026-10-15)
 
 
