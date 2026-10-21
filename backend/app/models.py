@@ -166,6 +166,10 @@ class Article(Base):
     # table separee : sans expiration ni revocation, il n'y a rien de plus
     # a tracer qu'un champ sur la ligne existante.
     share_token: Mapped[str | None] = mapped_column(String(43), unique=True, index=True, nullable=True)
+    # Posé quand l'article a été soumis à Gemini pour classification, qu'il
+    # ait été rattaché ou non : sans lui, un article que le modèle n'a pas su
+    # placer serait renvoyé à chaque scan, et facturé au quota à chaque fois.
+    classe_par_gemini_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     magazine: Mapped["Magazine"] = relationship("Magazine", back_populates="articles")
@@ -257,6 +261,9 @@ subtheme_articles = Table(
     Base.metadata,
     Column("subtheme_id", ForeignKey("subthemes.id", ondelete="CASCADE"), primary_key=True),
     Column("article_id", ForeignKey("articles.id", ondelete="CASCADE"), primary_key=True),
+    # Origine du lien : « mots_cles » (recalculable à volonté) ou « gemini »
+    # (posé par le modèle, que le recalcul par mots-clés ne doit pas effacer).
+    Column("source", String(16), nullable=False, server_default="mots_cles"),
 )
 
 

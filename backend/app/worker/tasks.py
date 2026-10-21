@@ -1,11 +1,15 @@
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from app.config import get_settings
 from app.database import SessionLocal
 from app.models import Article, Magazine, OcrStatus, Page, PageLanguage, ScanStatus
+from app.queue import ingestion_queue, redis_conn
+from app.services.classification_gemini import classer_orphelins
+from app.services.gemini_client import appeler_gemini
+from app.services.gemini_quota import SuiviQuota
 from app.services.issue_parser import extract_issue_number_from_cover_text, extract_year_from_cover_text
 from app.services.meili import ensure_index_configured, index_page, index_pages
 from app.services.progress import clear_magazine_progress, set_magazine_progress
@@ -108,6 +112,14 @@ def extract_and_store_articles(db, magazine: Magazine) -> None:
         except Exception:  # noqa: BLE001 - le sommaire, lui, est bien enregistré
             db.rollback()
             logger.exception("Rattachement aux sous-thématiques échoué pour %s", magazine.id)
+
+        # Les articles que les mots-clés n'ont pas placés partent chez Gemini,
+        # si une clé est configurée. Mis en file seulement : l'appel réseau et
+        # l'attente éventuelle d'un quota n'ont rien à faire dans ce job.
+        try:
+            declencher_classification()
+        except Exception:  # noqa: BLE001 - n'affecte jamais le sommaire extrait
+            logger.exception("Mise en file de la classification échouée pour %s", magazine.id)
     except Exception as exc:  # noqa: BLE001 - non-fatal, reported on the magazine row
         db.rollback()
         magazine = db.get(Magazine, magazine.id)
@@ -116,6 +128,53 @@ def extract_and_store_articles(db, magazine: Magazine) -> None:
             magazine.toc_error_message = message_erreur_affichable(exc)
             db.commit()
         logger.exception("Sommaire extraction failed for magazine %s", magazine.id)
+
+
+CLE_VERROU_CLASSIFICATION = "gemini:verrou"
+DELAI_REPRISE_MARGE = timedelta(seconds=5)
+
+
+def declencher_classification() -> None:
+    """Met la classification en file. Sans clé API : ne fait rien."""
+    if not settings.gemini_api_key:
+        return
+    ingestion_queue.enqueue(classer_orphelins_task, job_timeout="30m")
+
+
+def classer_orphelins_task() -> None:
+    """Classe tous les articles orphelins en attente, dans la limite des quotas.
+
+    Une seule exécution à la fois (verrou Redis) : plusieurs scans rapprochés
+    mettent plusieurs tâches en file, et la première traite déjà tout ce qui
+    attend. Si une pause laisse des articles, la reprise est programmée à
+    l'heure indiquée, et survit à un redémarrage du worker (job différé RQ).
+    """
+    if not settings.gemini_api_key:
+        return
+    if not redis_conn.set(CLE_VERROU_CLASSIFICATION, 1, ex=3600, nx=True):
+        return
+    db = SessionLocal()
+    try:
+        suivi = SuiviQuota(redis_conn, settings.gemini_rpm, settings.gemini_rpd, settings.gemini_tpm)
+        bilan = classer_orphelins(db, suivi, appeler_gemini)
+        pause = bilan["pause"]
+        logger.info(
+            "Classification Gemini : %s rattaché(s), %s sous-thématique(s) créée(s), %s restant(s)",
+            bilan["rattaches"], bilan["crees"], bilan["restants"],
+        )
+        if pause is not None and bilan["restants"] > 0:
+            ingestion_queue.enqueue_at(
+                pause.jusqua + DELAI_REPRISE_MARGE,
+                classer_orphelins_task,
+                # Pas de job_id fixe : un job qui se reprogramme lui-même
+                # écraserait sa propre fiche, que RQ fait expirer à la fin de
+                # l'exécution, et la reprise serait perdue. Le verrou suffit à
+                # empêcher les exécutions en double.
+                job_timeout="30m",
+            )
+    finally:
+        db.close()
+        redis_conn.delete(CLE_VERROU_CLASSIFICATION)
 
 
 def recover_orphaned_processing_magazines() -> list[int]:

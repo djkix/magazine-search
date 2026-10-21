@@ -405,6 +405,22 @@ class AdminStatsResponse(BaseModel):
     recent: list[MagazineOut]
 
 
+class ClassificationPauseOut(BaseModel):
+    raison: str
+    jusqua: datetime
+
+
+class ClassificationOut(BaseModel):
+    """État de la classification automatique par Gemini, pour le tableau de bord."""
+
+    actif: bool
+    modele: str
+    en_attente: int
+    requetes_aujourdhui: int
+    limite_jour: int
+    pause: ClassificationPauseOut | None = None
+
+
 # ---- Search ----
 
 

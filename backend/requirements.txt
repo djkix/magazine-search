@@ -22,6 +22,9 @@ PyJWT==2.9.0
 # Verifie les jetons d'identite Google (signature, audience, expiration) pour
 # la connexion "Se connecter avec Google".
 google-auth==2.56.0
+# Classification automatique des articles orphelins par Gemini (facultative :
+# inactive sans GEMINI_API_KEY). Exige google-auth >= 2.56.0, deja present.
+google-genai==2.20.0
 passlib[argon2]==1.7.4
 argon2-cffi==23.1.0
 slowapi==0.1.9

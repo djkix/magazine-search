@@ -15,6 +15,7 @@ import type {
   CorpusExport,
 } from "@/lib/types";
 import StatCard from "@/components/admin/StatCard";
+import ClassificationBanner from "@/components/admin/ClassificationBanner";
 import StatusBadge from "@/components/ui/StatusBadge";
 import Icon from "@/components/ui/Icon";
 import Button from "@/components/ui/Button";
@@ -445,6 +446,8 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       )}
+
+      <ClassificationBanner />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
         <StatCard icon="library_books" label="Total PDF" value={stats?.total} onClick={() => setStatusFilter(null)} />
