@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 
@@ -14,6 +14,11 @@ const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mon
 export const metadata: Metadata = {
   title: "L'Archive — Magazine Search",
   description: "Recherche plein texte dans la collection de magazines",
+};
+
+// themeColor n'est plus accepté dans `metadata` depuis Next.js 14 : il
+// relève de l'export `viewport`.
+export const viewport: Viewport = {
   themeColor: "#051424",
 };
 

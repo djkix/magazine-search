@@ -209,7 +209,6 @@ export default function PdfViewer({
     if (loading) return;
     const target = pageNodesRef.current.get(pageNumber);
     target?.scrollIntoView({ behavior: "smooth", block: "start" });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageNumber, loading]);
 
   // Track which page is centered in the viewport during free scrolling, so
