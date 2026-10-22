@@ -26,6 +26,7 @@ from app.schemas import (
     MagazineProgressResponse,
     OrphansExportOut,
     OrphansOut,
+    PartageActifOut,
     PasswordReset,
     RetryFailedResponse,
     ScanStatusResponse,
@@ -67,6 +68,51 @@ router = APIRouter(dependencies=[Depends(get_current_admin)])
 
 
 # ---- Users ----
+
+
+@router.get("/partages", response_model=list[PartageActifOut])
+def list_active_shares(db: Session = Depends(get_db)):
+    """Liens de partage publics encore valides (articles et numéros), du plus
+    proche de l'expiration au plus lointain. La révocation passe par
+    DELETE /api/articles/{id}/share et /api/magazines/{id}/share."""
+    instant = datetime.now(timezone.utc)
+    articles = (
+        db.query(Article, Magazine.title, User.email)
+        .join(Magazine, Magazine.id == Article.magazine_id)
+        .outerjoin(User, User.id == Article.share_created_by_id)
+        .filter(Article.share_token.is_not(None), Article.share_expires_at > instant)
+        .all()
+    )
+    magazines = (
+        db.query(Magazine, User.email)
+        .outerjoin(User, User.id == Magazine.share_created_by_id)
+        .filter(Magazine.share_token.is_not(None), Magazine.share_expires_at > instant)
+        .all()
+    )
+    liens = [
+        PartageActifOut(
+            kind="article",
+            id=article.id,
+            title=article.title,
+            magazine_id=article.magazine_id,
+            magazine_title=titre_magazine,
+            expires_at=article.share_expires_at,
+            created_by_email=email,
+        )
+        for article, titre_magazine, email in articles
+    ] + [
+        PartageActifOut(
+            kind="magazine",
+            id=magazine.id,
+            title=magazine.title,
+            magazine_id=magazine.id,
+            magazine_title=magazine.title,
+            expires_at=magazine.share_expires_at,
+            created_by_email=email,
+        )
+        for magazine, email in magazines
+    ]
+    return sorted(liens, key=lambda lien: lien.expires_at)
 
 
 @router.get("/users", response_model=list[UserOut])

@@ -121,6 +121,12 @@ class Magazine(Base):
     # qui ne partage qu'un article précis) : nul tant que le numéro n'a
     # jamais été partagé, généré à la demande au premier clic.
     share_token: Mapped[str | None] = mapped_column(String(43), unique=True, index=True, nullable=True)
+    # Un lien sans date d'expiration n'est jamais servi (voir routers/partage.py).
+    share_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Auteur du lien : lui seul (ou un administrateur) peut le révoquer.
+    share_created_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
 
     pages: Mapped[list["Page"]] = relationship(
         "Page", back_populates="magazine", cascade="all, delete-orphan", order_by="Page.page_number"
@@ -162,10 +168,14 @@ class Article(Base):
     start_page: Mapped[int] = mapped_column(Integer, nullable=False)
     end_page: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Jeton de partage public : nul tant que l'article n'a jamais été
-    # partagé, genere a la demande au premier clic sur "Partager". Pas de
-    # table separee : sans expiration ni revocation, il n'y a rien de plus
-    # a tracer qu'un champ sur la ligne existante.
+    # partagé, genere a la demande au premier clic sur "Partager". Un seul
+    # lien actif par article : l'expiration et l'auteur tiennent donc sur la
+    # ligne existante, sans table separee.
     share_token: Mapped[str | None] = mapped_column(String(43), unique=True, index=True, nullable=True)
+    share_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    share_created_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     # Posé quand l'article a été soumis à Gemini pour classification, qu'il
     # ait été rattaché ou non : sans lui, un article que le modèle n'a pas su
     # placer serait renvoyé à chaque scan, et facturé au quota à chaque fois.

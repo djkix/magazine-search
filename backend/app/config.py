@@ -124,6 +124,11 @@ class Settings(BaseSettings):
 
     login_rate_limit: str = "5/15minutes"
 
+    # Durée de validité d'un lien de partage public, en jours : valeur par
+    # défaut et plafond d'une durée choisie à la création.
+    share_link_default_days: int = 30
+    share_link_max_days: int = 365
+
     # Nombre de proxys de confiance qui AJOUTENT une entrée à
     # X-Forwarded-For devant le backend (voir app/rate_limit.py). 1 = Nginx
     # Proxy Manager seul ; le proxy de réécriture de Next.js n'en ajoute pas.

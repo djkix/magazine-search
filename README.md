@@ -97,7 +97,9 @@
 - Bouton « Partager » **mobile uniquement**, sur chaque article et chaque couverture : ouvre le partage système (WhatsApp, Messages…)
 - Lien public **sans compte**, lecture en **streaming par plages HTTP** (jamais un téléchargement complet)
 - Aperçu enrichi (titre, collection, couverture) dans WhatsApp et consorts
-- ⚠️ **Pas d'expiration ni de révocation** ; un lien d'article donne accès au magazine entier. Pensé pour un canal privé
+- Chaque lien **expire** (30 jours par défaut, `SHARE_LINK_DEFAULT_DAYS`) ; la date est indiquée au moment du partage. Un lien expiré ou révoqué renvoie 404, et un nouveau partage produit une autre URL
+- **Révocation** par l'auteur du lien ou un administrateur ; liste des liens actifs dans `/admin/partages`
+- ⚠️ Un lien d'article donne accès au PDF du magazine entier. Pensé pour un canal privé
 
 ### 🔐 Authentification
 - **Email + mot de passe** : comptes créés par l'administrateur depuis `/admin` (par défaut, rien à configurer)
@@ -302,6 +304,7 @@ Référence complète et commentée : [`.env.example`](.env.example). L'applicat
 | `GEMINI_RPM` / `GEMINI_TPM` / `GEMINI_RPD` | Non | Non | Limites de votre compte (défaut 5 · 250 000 · 20), à reprendre d'AI Studio |
 | `GEMINI_TIMEOUT_SECONDS` | Non | Non | Délai maximum d'un appel (défaut `120`) |
 | `OCR_TIMEOUT_SECONDS` | Non | Non | Délai maximum d'`ocrmypdf` (défaut `1500`) |
+| `SHARE_LINK_DEFAULT_DAYS` · `SHARE_LINK_MAX_DAYS` | Non | Non | Validité d'un lien de partage, par défaut et maximale (30 · 365 jours) |
 | `LOGIN_RATE_LIMIT` | Non | Non | Limite de connexion par IP (défaut `5/15minutes`) |
 | `LOGIN_LOCKOUT_MAX_FAILURES` · `_WINDOW_MINUTES` · `LOGIN_LOCKOUT_MINUTES` | Non | Non | Verrouillage par compte (défaut 10 échecs en 15 min → 15 min ; `0` échec = désactivé) |
 | `TRUSTED_PROXY_HOPS` | Non | Non | Proxys de confiance ajoutant une entrée à `X-Forwarded-For` (défaut `1` : NPM) |
@@ -352,7 +355,9 @@ Routes publiques : `/api/health`, la connexion et `/api/partage/*`. **Toutes les
 | `GET` | `/api/magazines` · `/{id}` · `/facets` · `/count` | Numéros, filtres |
 | `GET` | `/api/magazines/{id}/file` · `/cover` · `/download` | PDF (plages HTTP), couverture, téléchargement |
 | `GET` | `/api/magazines/{id}/articles` · `/pages/{n}` | Sommaire, texte d'une page |
-| `POST` | `/api/magazines/{id}/share` · `/api/articles/{id}/share` | Crée (ou renvoie) le lien de partage |
+| `POST` | `/api/magazines/{id}/share` · `/api/articles/{id}/share` | Crée (ou renvoie) le lien de partage ; corps facultatif `{"days": n}` |
+| `DELETE` | `/api/magazines/{id}/share` · `/api/articles/{id}/share` | Révoque le lien (auteur ou admin) |
+| `GET` | `/api/admin/partages` | Liens de partage actifs **(admin)** |
 | `GET` | `/api/collections` · `/api/tags` | Bibliothèque, tags |
 | `GET` | `/api/themes/taxonomie` · `/{id}/subthemes` · `/subthemes/{id}/articles` | Navigation thématique |
 | `GET` | `/api/partage/{token}` · `/file` · `/cover` | Article partagé *(public)* |
@@ -383,7 +388,7 @@ Les messages d'erreur affichés dans l'interface sont volontairement courts : la
 **Limites connues**
 - Certaines maquettes restent hors de portée : les mensuels qui composent leurs numéros de page en gros caractères décoratifs (presse musicale anglophone) ne laissent aucun chiffre dans le texte reconnu
 - Les articles déjà orphelins avant l'activation de Gemini ne sont classés qu'au scan suivant
-- Les liens de partage n'expirent pas et ne se révoquent pas
+- Un utilisateur non administrateur ne peut révoquer ses liens que par l'API (`DELETE …/share`) : seule la page d'administration propose le bouton
 
 **Hors périmètre** (volontairement)
 - Thémage **par numéro** via Gemini (retiré : le quota gratuit rendait l'opération irréaliste)

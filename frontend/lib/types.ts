@@ -263,3 +263,14 @@ export interface ClassificationStatus {
   limite_jour: number;
   pause: { raison: string; jusqua: string } | null;
 }
+
+/** Lien de partage public encore valide (GET /admin/partages). */
+export interface PartageActif {
+  kind: "article" | "magazine";
+  id: number;
+  title: string;
+  magazine_id: number;
+  magazine_title: string;
+  expires_at: string;
+  created_by_email: string | null;
+}
