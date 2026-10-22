@@ -52,6 +52,9 @@
 
 **Auto-hébergé** : vos fichiers restent chez vous. Seules deux fonctions, toutes deux facultatives, appellent un service externe : la connexion Google et la classification Gemini.
 
+> [!WARNING]
+> **Usage personnel et droits d'auteur.** Cette application sert à consulter **vos propres PDF** de magazines, pour votre usage privé. Les magazines sont des œuvres protégées : ni les liens de partage ni la connexion Google ne doivent servir à mettre ces contenus à disposition du public (lien publié sur un site, un forum, un réseau social ou un groupe ouvert, comptes ouverts à des inconnus). Un lien de partage donne accès au PDF entier de son numéro, sans compte : ne l'envoyer qu'à des proches, par un canal privé, et le révoquer dès qu'il n'est plus utile. Le respect du droit d'auteur reste de la responsabilité de chaque personne qui déploie l'application.
+
 ---
 
 ## Fonctionnalités
