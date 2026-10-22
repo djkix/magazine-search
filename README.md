@@ -301,7 +301,10 @@ Référence complète et commentée : [`.env.example`](.env.example). L'applicat
 | `GEMINI_RPM` / `GEMINI_TPM` / `GEMINI_RPD` | Non | Non | Limites de votre compte (défaut 5 · 250 000 · 20), à reprendre d'AI Studio |
 | `GEMINI_TIMEOUT_SECONDS` | Non | Non | Délai maximum d'un appel (défaut `120`) |
 | `OCR_TIMEOUT_SECONDS` | Non | Non | Délai maximum d'`ocrmypdf` (défaut `1500`) |
-| `LOGIN_RATE_LIMIT` | Non | Non | Limite de connexion (défaut `5/15minutes`) |
+| `LOGIN_RATE_LIMIT` | Non | Non | Limite de connexion par IP (défaut `5/15minutes`) |
+| `LOGIN_LOCKOUT_MAX_FAILURES` · `_WINDOW_MINUTES` · `LOGIN_LOCKOUT_MINUTES` | Non | Non | Verrouillage par compte (défaut 10 échecs en 15 min → 15 min ; `0` échec = désactivé) |
+| `TRUSTED_PROXY_HOPS` | Non | Non | Proxys de confiance ajoutant une entrée à `X-Forwarded-For` (défaut `1` : NPM) |
+| `FRONTEND_BIND` | Non | Non | Interface hôte où publier le frontend (défaut `0.0.0.0`) |
 | `LOG_TIMEZONE` | Non | Non | Fuseau des journaux (défaut `Europe/Paris`) |
 | `BACKUP_DIR` · `BACKUP_RETENTION_DAYS` | Non | Non | Dossier et rétention (14 j) des sauvegardes |
 
@@ -363,7 +366,10 @@ Routes publiques : `/api/health`, la connexion et `/api/partage/*`. **Toutes les
 
 | Portée | Limite |
 |--------|--------|
-| `/api/login` · `/api/auth/google` | 5 / 15 min (`LOGIN_RATE_LIMIT`) |
+| `/api/login` · `/api/auth/google`, par adresse IP | 5 / 15 min (`LOGIN_RATE_LIMIT`) |
+| `/api/login`, par email visé (toutes IP confondues) | 10 échecs / 15 min → compte verrouillé 15 min (`LOGIN_LOCKOUT_*`) |
+
+L'adresse IP est lue à **droite** de `X-Forwarded-For` : l'entrée ajoutée par Nginx Proxy Manager (`$proxy_add_x_forwarded_for`, réglage par défaut de NPM), pas celle qu'un client peut forger. Le proxy `/api/*` de Next.js transmet l'en-tête sans y ajouter d'entrée. Si un autre proxy ajoutant une entrée est placé devant NPM (Cloudflare…), passer `TRUSTED_PROXY_HOPS` à `2`. Le port du frontend ne doit être joignable **que par NPM** (pare-feu, ou `FRONTEND_BIND`) : un client qui le contacterait directement choisirait lui-même cet en-tête.
 
 Les messages d'erreur affichés dans l'interface sont volontairement courts : la trace complète est dans la page **Journaux** (admin).
 

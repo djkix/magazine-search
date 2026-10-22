@@ -119,6 +119,22 @@ class Settings(BaseSettings):
 
     login_rate_limit: str = "5/15minutes"
 
+    # Nombre de proxys de confiance qui AJOUTENT une entrée à
+    # X-Forwarded-For devant le backend (voir app/rate_limit.py). 1 = Nginx
+    # Proxy Manager seul ; le proxy de réécriture de Next.js n'en ajoute pas.
+    trusted_proxy_hops: int = 1
+    # Stockage des compteurs de débit. Vide = Redis de la stack. Les tests
+    # passent « memory:// » pour ne dépendre d'aucun service.
+    rate_limit_storage_uri: str = ""
+
+    # Verrouillage par compte, indépendant de l'adresse IP : après
+    # LOGIN_LOCKOUT_MAX_FAILURES échecs en LOGIN_LOCKOUT_WINDOW_MINUTES, l'email
+    # visé est refusé pendant LOGIN_LOCKOUT_MINUTES, même avec le bon mot de
+    # passe. Complète la limite par IP, inopérante contre une attaque répartie.
+    login_lockout_max_failures: int = 10
+    login_lockout_window_minutes: int = 15
+    login_lockout_minutes: int = 15
+
     @property
     def cors_origins(self) -> list[str]:
         return [o.strip() for o in self.backend_cors_origins.split(",") if o.strip()]

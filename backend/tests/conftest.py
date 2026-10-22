@@ -29,6 +29,8 @@ os.environ.setdefault("MEILI_MASTER_KEY", _CLE_DE_TEST[:20])  # 16 minimum exig�
 os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://test:test@localhost:5432/test")
 os.environ.setdefault("ADMIN_BOOTSTRAP_EMAIL", "")
 os.environ.setdefault("ADMIN_BOOTSTRAP_PASSWORD", "")
+# Compteurs de débit en mémoire : les tests n'ont pas de Redis.
+os.environ.setdefault("RATE_LIMIT_STORAGE_URI", "memory://")
 
 # `Settings` lit aussi un fichier .env s'il existe. En CI il n'y en a pas ; en
 # local, les valeurs ci-dessus sont posées via setdefault, donc un .env réel
