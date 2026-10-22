@@ -52,6 +52,9 @@
 
 **Auto-hébergé** : vos fichiers restent chez vous. Seules deux fonctions, toutes deux facultatives, appellent un service externe : la connexion Google et la classification Gemini.
 
+> [!WARNING]
+> **Usage personnel et droits d'auteur.** Cette application sert à consulter **vos propres PDF** de magazines, pour votre usage privé. Les magazines sont des œuvres protégées : ni les liens de partage ni la connexion Google ne doivent servir à mettre ces contenus à disposition du public (lien publié sur un site, un forum, un réseau social ou un groupe ouvert, comptes ouverts à des inconnus). Un lien de partage donne accès au PDF entier de son numéro, sans compte : ne l'envoyer qu'à des proches, par un canal privé, et le révoquer dès qu'il n'est plus utile. Le respect du droit d'auteur reste de la responsabilité de chaque personne qui déploie l'application.
+
 ---
 
 ## Fonctionnalités
@@ -97,11 +100,13 @@
 - Bouton « Partager » **mobile uniquement**, sur chaque article et chaque couverture : ouvre le partage système (WhatsApp, Messages…)
 - Lien public **sans compte**, lecture en **streaming par plages HTTP** (jamais un téléchargement complet)
 - Aperçu enrichi (titre, collection, couverture) dans WhatsApp et consorts
-- ⚠️ **Pas d'expiration ni de révocation** ; un lien d'article donne accès au magazine entier. Pensé pour un canal privé
+- Chaque lien **expire** (30 jours par défaut, `SHARE_LINK_DEFAULT_DAYS`) ; la date est indiquée au moment du partage. Un lien expiré ou révoqué renvoie 404, et un nouveau partage produit une autre URL
+- **Révocation** par l'auteur du lien ou un administrateur ; liste des liens actifs dans `/admin/partages`
+- ⚠️ Un lien d'article donne accès au PDF du magazine entier. Pensé pour un canal privé
 
 ### 🔐 Authentification
 - **Email + mot de passe** : comptes créés par l'administrateur depuis `/admin` (par défaut, rien à configurer)
-- **Google** (si `GOOGLE_CLIENT_ID` est défini) : ⚠️ **n'importe quel compte Google peut créer un accès et lire toute la bibliothèque**. À n'activer que si l'accès est contrôlé en amont
+- **Google** (si `GOOGLE_CLIENT_ID` est défini) : réservé aux comptes listés dans **`GOOGLE_ALLOWED_EMAILS`** (emails complets ou domaines `@exemple.fr`). Liste vide = connexion Google refusée à tous. Un compte hors liste n'est jamais créé ; un compte existant hors liste ne se connecte plus par Google (son mot de passe reste valable)
 - Fusion automatique par email entre compte manuel et compte Google ; désactiver un compte bloque les deux méthodes
 - Aucune notification d'inscription : surveiller le compteur **« Nouveaux comptes (7j) »** du tableau de bord
 
@@ -246,6 +251,16 @@ npm run typecheck    # tsc --noEmit
 
 Les mêmes contrôles tournent dans GitHub Actions : détection de secrets (gitleaks), typage frontend, ruff, pytest, **rejeu de toute la chaîne Alembic** (up / down / up sur base vierge) et build de l'image.
 
+### Conteneurs sans privilèges
+
+Le backend et le worker tournent sous l'utilisateur `app` (**UID/GID 10001**), le frontend sous `node` (UID 1000). Deux conséquences :
+
+- **Volume `app_data` créé par une version antérieure** (propriété de root) : le backend refuse de démarrer et affiche la commande à lancer, une seule fois :
+  ```bash
+  docker compose run --rm --no-deps -u 0 --entrypoint chown app-backend -R 10001:10001 /data
+  ```
+- **Montage NAS** (lecture seule) : les PDF doivent être lisibles par l'UID 10001. S'ils ne le sont que par un groupe (partage CIFS/NFS monté avec `gid=…`), ajouter ce groupe à `app-backend` et `worker` via `group_add: ["<gid>"]` dans `docker-compose.yml`.
+
 ### Revenir à une version précédente
 
 Chaque release publie un tag d'image `X.Y.Z` (en plus de `latest`). Épingler la version dans `.env` :
@@ -296,12 +311,17 @@ Référence complète et commentée : [`.env.example`](.env.example). L'applicat
 | `IMAGE_TAG` | Non | Non | Version déployée (préférer un tag précis à `latest`) |
 | `ADMIN_BOOTSTRAP_EMAIL` / `_PASSWORD` | Non | 🔒 | Compte créé au premier démarrage si aucun admin n'existe ; à vider ensuite |
 | `GOOGLE_CLIENT_ID` | Non | Public | Active « Se connecter avec Google » (lu au runtime par le backend) |
+| `GOOGLE_ALLOWED_EMAILS` | Si Google | Non | Comptes Google autorisés, séparés par des virgules (`ami@exemple.org,@exemple.fr`). Vide = aucun |
 | `GEMINI_API_KEY` | Non | 🔒 | Active la classification automatique |
 | `GEMINI_MODEL` | Non | Non | Modèle (défaut `gemini-3.8-flash`) ; un nom erroné s'affiche sur le tableau de bord |
 | `GEMINI_RPM` / `GEMINI_TPM` / `GEMINI_RPD` | Non | Non | Limites de votre compte (défaut 5 · 250 000 · 20), à reprendre d'AI Studio |
 | `GEMINI_TIMEOUT_SECONDS` | Non | Non | Délai maximum d'un appel (défaut `120`) |
 | `OCR_TIMEOUT_SECONDS` | Non | Non | Délai maximum d'`ocrmypdf` (défaut `1500`) |
-| `LOGIN_RATE_LIMIT` | Non | Non | Limite de connexion (défaut `5/15minutes`) |
+| `SHARE_LINK_DEFAULT_DAYS` · `SHARE_LINK_MAX_DAYS` | Non | Non | Validité d'un lien de partage, par défaut et maximale (30 · 365 jours) |
+| `LOGIN_RATE_LIMIT` | Non | Non | Limite de connexion par IP (défaut `5/15minutes`) |
+| `LOGIN_LOCKOUT_MAX_FAILURES` · `_WINDOW_MINUTES` · `LOGIN_LOCKOUT_MINUTES` | Non | Non | Verrouillage par compte (défaut 10 échecs en 15 min → 15 min ; `0` échec = désactivé) |
+| `TRUSTED_PROXY_HOPS` | Non | Non | Proxys de confiance ajoutant une entrée à `X-Forwarded-For` (défaut `1` : NPM) |
+| `FRONTEND_BIND` | Non | Non | Interface hôte où publier le frontend (défaut `0.0.0.0`) |
 | `LOG_TIMEZONE` | Non | Non | Fuseau des journaux (défaut `Europe/Paris`) |
 | `BACKUP_DIR` · `BACKUP_RETENTION_DAYS` | Non | Non | Dossier et rétention (14 j) des sauvegardes |
 
@@ -348,7 +368,9 @@ Routes publiques : `/api/health`, la connexion et `/api/partage/*`. **Toutes les
 | `GET` | `/api/magazines` · `/{id}` · `/facets` · `/count` | Numéros, filtres |
 | `GET` | `/api/magazines/{id}/file` · `/cover` · `/download` | PDF (plages HTTP), couverture, téléchargement |
 | `GET` | `/api/magazines/{id}/articles` · `/pages/{n}` | Sommaire, texte d'une page |
-| `POST` | `/api/magazines/{id}/share` · `/api/articles/{id}/share` | Crée (ou renvoie) le lien de partage |
+| `POST` | `/api/magazines/{id}/share` · `/api/articles/{id}/share` | Crée (ou renvoie) le lien de partage ; corps facultatif `{"days": n}` |
+| `DELETE` | `/api/magazines/{id}/share` · `/api/articles/{id}/share` | Révoque le lien (auteur ou admin) |
+| `GET` | `/api/admin/partages` | Liens de partage actifs **(admin)** |
 | `GET` | `/api/collections` · `/api/tags` | Bibliothèque, tags |
 | `GET` | `/api/themes/taxonomie` · `/{id}/subthemes` · `/subthemes/{id}/articles` | Navigation thématique |
 | `GET` | `/api/partage/{token}` · `/file` · `/cover` | Article partagé *(public)* |
@@ -363,7 +385,10 @@ Routes publiques : `/api/health`, la connexion et `/api/partage/*`. **Toutes les
 
 | Portée | Limite |
 |--------|--------|
-| `/api/login` · `/api/auth/google` | 5 / 15 min (`LOGIN_RATE_LIMIT`) |
+| `/api/login` · `/api/auth/google`, par adresse IP | 5 / 15 min (`LOGIN_RATE_LIMIT`) |
+| `/api/login`, par email visé (toutes IP confondues) | 10 échecs / 15 min → compte verrouillé 15 min (`LOGIN_LOCKOUT_*`) |
+
+L'adresse IP est lue à **droite** de `X-Forwarded-For` : l'entrée ajoutée par Nginx Proxy Manager (`$proxy_add_x_forwarded_for`, réglage par défaut de NPM), pas celle qu'un client peut forger. Le proxy `/api/*` de Next.js transmet l'en-tête sans y ajouter d'entrée. Si un autre proxy ajoutant une entrée est placé devant NPM (Cloudflare…), passer `TRUSTED_PROXY_HOPS` à `2`. Le port du frontend ne doit être joignable **que par NPM** (pare-feu, ou `FRONTEND_BIND`) : un client qui le contacterait directement choisirait lui-même cet en-tête.
 
 Les messages d'erreur affichés dans l'interface sont volontairement courts : la trace complète est dans la page **Journaux** (admin).
 
@@ -376,11 +401,11 @@ Les messages d'erreur affichés dans l'interface sont volontairement courts : la
 **Limites connues**
 - Certaines maquettes restent hors de portée : les mensuels qui composent leurs numéros de page en gros caractères décoratifs (presse musicale anglophone) ne laissent aucun chiffre dans le texte reconnu
 - Les articles déjà orphelins avant l'activation de Gemini ne sont classés qu'au scan suivant
-- Les liens de partage n'expirent pas et ne se révoquent pas
+- Un utilisateur non administrateur ne peut révoquer ses liens que par l'API (`DELETE …/share`) : seule la page d'administration propose le bouton
 
 **Hors périmètre** (volontairement)
 - Thémage **par numéro** via Gemini (retiré : le quota gratuit rendait l'opération irréaliste)
-- Notifications d'inscription (email, webhook) ; liste blanche d'emails pour Google
+- Notifications d'inscription (email, webhook)
 
 ---
 

@@ -78,6 +78,11 @@ class Settings(BaseSettings):
     # Google est simplement indisponible : l'audience "" ne correspond
     # jamais à aucun jeton, sans qu'il faille de code spécial.
     google_client_id: str = ""
+    # Comptes autorisés à se connecter avec Google : emails complets, ou
+    # domaines entiers écrits « @exemple.fr », séparés par des virgules. Vide =
+    # connexion Google refusée à tous. Sans cette liste, n'importe quel compte
+    # Google devenait un utilisateur actif ayant accès à toute la bibliothèque.
+    google_allowed_emails: str = ""
 
     # Classification automatique des articles orphelins par Gemini. Sans clé,
     # la fonctionnalité est inactive et silencieuse. Les limites par défaut
@@ -118,6 +123,31 @@ class Settings(BaseSettings):
     processed_dir: str = "/data/processed"
 
     login_rate_limit: str = "5/15minutes"
+
+    # Durée de validité d'un lien de partage public, en jours : valeur par
+    # défaut et plafond d'une durée choisie à la création.
+    share_link_default_days: int = 30
+    share_link_max_days: int = 365
+
+    # Nombre de proxys de confiance qui AJOUTENT une entrée à
+    # X-Forwarded-For devant le backend (voir app/rate_limit.py). 1 = Nginx
+    # Proxy Manager seul ; le proxy de réécriture de Next.js n'en ajoute pas.
+    trusted_proxy_hops: int = 1
+    # Stockage des compteurs de débit. Vide = Redis de la stack. Les tests
+    # passent « memory:// » pour ne dépendre d'aucun service.
+    rate_limit_storage_uri: str = ""
+
+    # Verrouillage par compte, indépendant de l'adresse IP : après
+    # LOGIN_LOCKOUT_MAX_FAILURES échecs en LOGIN_LOCKOUT_WINDOW_MINUTES, l'email
+    # visé est refusé pendant LOGIN_LOCKOUT_MINUTES, même avec le bon mot de
+    # passe. Complète la limite par IP, inopérante contre une attaque répartie.
+    login_lockout_max_failures: int = 10
+    login_lockout_window_minutes: int = 15
+    login_lockout_minutes: int = 15
+
+    @property
+    def google_emails_autorises(self) -> set[str]:
+        return {e.strip().lower() for e in self.google_allowed_emails.split(",") if e.strip()}
 
     @property
     def cors_origins(self) -> list[str]:

@@ -22,6 +22,12 @@ ENV NODE_ENV=production
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+# Fichiers de l'application en lecture seule pour le processus ; seul le cache
+# de Next.js doit rester inscriptible.
+RUN mkdir -p .next/cache && chown node:node .next/cache
+
+# Utilisateur non privilégié fourni par l'image node (UID 1000).
+USER node
 
 EXPOSE 3000
 CMD ["node", "server.js"]

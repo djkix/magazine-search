@@ -549,7 +549,7 @@ export default function CollectionArticlesPage() {
                 )}
                 {articles.length === 0 && magazine.toc_status === "failed" && (
                   <li className="px-4 py-3 text-sm text-red-400" title={magazine.toc_error_message ?? undefined}>
-                    Échec de l'extraction du sommaire
+                    Échec de l&apos;extraction du sommaire
                     {magazine.toc_error_message ? ` : ${magazine.toc_error_message}` : ""}
                   </li>
                 )}

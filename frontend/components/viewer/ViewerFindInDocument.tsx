@@ -53,7 +53,6 @@ export default function ViewerFindInDocument({
       setHits(stored.hits);
       setIndex(stored.index);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [magazineId]);
 
   async function runSearch() {

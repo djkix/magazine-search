@@ -1,5 +1,8 @@
-fastapi==0.115.0
-uvicorn[standard]==0.30.6
+fastapi==0.159.1
+# Pin explicite : fastapi ne borne que le minimum, et les versions de
+# Starlette anterieures a 1.3.1 portent des avis de securite publies.
+starlette==1.9.0
+uvicorn[standard]==0.54.0
 pydantic==2.12.5
 email-validator==2.2.0
 pydantic-settings==2.5.2
@@ -14,11 +17,14 @@ PyMuPDF==1.24.10
 # couverture sont encodees en WebP, or PyMuPDF ne sait ecrire que PNG et JPEG.
 # Dependre implicitement d'un paquet qu'on utilise directement exposerait a le
 # perdre au premier changement de version d'ocrmypdf.
-Pillow==10.4.0
+Pillow==13.0.0
 ocrmypdf==16.4.3
+# Dependance transitive d'ocrmypdf, pinnee pour sortir des versions < 1.3.0
+# visees par des avis de securite.
+pi-heif==1.4.0
 pikepdf==9.11.0
 langdetect==1.0.9
-PyJWT==2.9.0
+PyJWT==2.15.1
 # Verifie les jetons d'identite Google (signature, audience, expiration) pour
 # la connexion "Se connecter avec Google".
 google-auth==2.56.0
@@ -27,8 +33,8 @@ google-auth==2.56.0
 google-genai==2.20.0
 passlib[argon2]==1.7.4
 argon2-cffi==23.1.0
-slowapi==0.1.9
-python-multipart==0.0.9
+slowapi==0.1.10
+python-multipart==0.0.32
 # Base de fuseaux IANA pour zoneinfo. Les images python:*-slim ne l'embarquent
 # pas : sans ce paquet, ZoneInfo("Europe/Paris") echoue et les journaux
 # retombent silencieusement en UTC.

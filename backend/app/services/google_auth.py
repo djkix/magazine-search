@@ -29,6 +29,15 @@ def verifier_id_token(credential: str) -> dict:
         raise GoogleAuthInvalide(f"Jeton Google invalide : {exc}") from exc
 
 
+def email_google_autorise(email: str, autorises: set[str] | None = None) -> bool:
+    """Vrai si l'email figure dans GOOGLE_ALLOWED_EMAILS, en entier ou par
+    son domaine (« @exemple.fr »). Liste vide : personne n'est autorisé."""
+    autorises = settings.google_emails_autorises if autorises is None else autorises
+    email = email.strip().lower()
+    domaine = "@" + email.rpartition("@")[2]
+    return email in autorises or domaine in autorises
+
+
 def authentifier_ou_creer(db: Session, credential: str) -> User:
     """Vérifie le jeton Google puis retrouve ou crée l'utilisateur
     correspondant, par EMAIL (pas par google_sub) : un compte créé à la
@@ -44,6 +53,12 @@ def authentifier_ou_creer(db: Session, credential: str) -> User:
 
     email = claims["email"]
     sub = claims["sub"]
+
+    if not email_google_autorise(email):
+        # Vérifié avant toute lecture ou écriture en base : un compte Google
+        # hors liste ne crée rien, et un compte existant hors liste ne se
+        # connecte plus par Google (son mot de passe reste valable).
+        raise GoogleAuthInvalide("Ce compte Google n'est pas autorisé sur cette instance.")
 
     user = db.query(User).filter(User.email == email).first()
     if user is None:

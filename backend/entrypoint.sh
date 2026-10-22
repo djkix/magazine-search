@@ -25,6 +25,22 @@ DELAI_AVANT_SORTIE="${MIGRATION_FAILURE_DELAY_SECONDS:-30}"
 #     descente, remontée) sur une base vierge avant tout déploiement ;
 #   - le service db-backup, qui produit un dump quotidien avec rotation.
 
+# Depuis que l'image tourne sous un utilisateur non privilégié (UID 10001),
+# un volume app_data créé par une version antérieure appartient encore à root.
+# Sans droit d'écriture, la journalisation échoue dès l'import de l'app : on
+# l'explique ici plutôt que de laisser une trace Python obscure.
+if [ ! -w /data ] || { [ -d /data/logs ] && [ ! -w /data/logs ]; }; then
+  echo "" >&2
+  echo "=== /data N'EST PAS INSCRIPTIBLE PAR L'UTILISATEUR $(id -u) ===" >&2
+  echo "" >&2
+  echo "Volume créé par une version antérieure, qui tournait en root." >&2
+  echo "À faire une seule fois, depuis l'hôte :" >&2
+  echo "  docker compose run --rm --no-deps -u 0 --entrypoint chown app-backend -R 10001:10001 /data" >&2
+  echo "" >&2
+  sleep "$DELAI_AVANT_SORTIE"
+  exit 1
+fi
+
 # Only the API service runs migrations, so a concurrent restart of
 # app-backend and worker (same image/entrypoint) can't race on Alembic.
 case "$1" in

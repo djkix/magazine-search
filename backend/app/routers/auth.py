@@ -10,6 +10,7 @@ from app.rate_limit import limiter
 from app.schemas import GoogleClientIdOut, GoogleLoginRequest, LoginRequest, LoginResponse, UserOut
 from app.security import create_access_token, hash_password, verify_password
 from app.services.google_auth import GoogleAuthInvalide, authentifier_ou_creer
+from app.services.verrouillage_login import VerrouillageCompte, get_verrouillage
 
 router = APIRouter()
 settings = get_settings()
@@ -23,14 +24,34 @@ _HASH_FACTICE = hash_password("mot-de-passe-inexistant-pour-egaliser-le-temps")
 
 @router.post("/login", response_model=LoginResponse)
 @limiter.limit(settings.login_rate_limit)
-def login(request: Request, response: Response, payload: LoginRequest, db: Session = Depends(get_db)):
+def login(
+    request: Request,
+    response: Response,
+    payload: LoginRequest,
+    db: Session = Depends(get_db),
+    verrou: VerrouillageCompte = Depends(get_verrouillage),
+):
+    # Verrou par compte, vérifié AVANT le mot de passe : pendant sa durée,
+    # même le bon mot de passe est refusé, sans quoi le verrou ne ralentirait
+    # pas une attaque répartie sur de nombreuses adresses IP.
+    restant = verrou.secondes_restantes(payload.email)
+    if restant:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed attempts, try again later",
+            headers={"Retry-After": str(restant)},
+        )
+
     user = db.query(User).filter(User.email == payload.email).first()
     if not user:
         # Même coût de calcul que pour un compte existant, puis même erreur.
         verify_password(payload.password, _HASH_FACTICE)
+        verrou.enregistrer_echec(payload.email)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     if not verify_password(payload.password, user.password_hash):
+        verrou.enregistrer_echec(payload.email)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    verrou.reinitialiser(payload.email)
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")
 

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { api } from "@/lib/api";
 import Icon from "@/components/ui/Icon";
 
-// Les deux cibles partagent la même forme de réponse ({token}) et la même
+// Les deux cibles partagent la même forme de réponse ({token, expires_at}) et la même
 // logique de copie/erreur côté frontend ; seuls le endpoint et le préfixe
 // de l'URL publique diffèrent.
 const CONFIG = {
@@ -22,6 +22,7 @@ export default function ShareButton({
   className?: string;
 }) {
   const [etat, setEtat] = useState<"inactif" | "copie" | "erreur">("inactif");
+  const [expiration, setExpiration] = useState<string | null>(null);
   const { endpoint, urlPrefix } = CONFIG[kind];
   const titreArticleOuNumero = kind === "article" ? "cet article" : "ce numéro";
 
@@ -34,8 +35,9 @@ export default function ShareButton({
     e.stopPropagation();
 
     let token: string;
+    let expiresAt: string;
     try {
-      ({ token } = await api.post<{ token: string }>(endpoint(id)));
+      ({ token, expires_at: expiresAt } = await api.post<{ token: string; expires_at: string }>(endpoint(id)));
     } catch {
       // Échec réel de la création du lien (ressource supprimée entre-temps,
       // backend indisponible...) : contrairement à un échec de presse-
@@ -47,13 +49,18 @@ export default function ShareButton({
     }
 
     const url = `${window.location.origin}${urlPrefix}/${token}`;
+    // Le lien expire (30 jours par défaut, côté serveur) : le dire à celui
+    // qui partage comme à celui qui reçoit, plutôt que de laisser découvrir
+    // un lien mort.
+    const fin = new Date(expiresAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+    setExpiration(fin);
 
     // Sur mobile, navigator.share ouvre le sélecteur natif du système
     // (WhatsApp, Messages, Mail...) : c'est exactement ce qu'on veut, plutôt
     // que de copier le lien et obliger à aller le coller soi-même ailleurs.
     if (typeof navigator.share === "function") {
       try {
-        await navigator.share({ url });
+        await navigator.share({ url, text: `Lien valable jusqu'au ${fin}` });
         return;
       } catch (err) {
         // L'utilisateur a fermé le sélecteur sans choisir d'app : un choix
@@ -73,7 +80,12 @@ export default function ShareButton({
     window.setTimeout(() => setEtat("inactif"), 1500);
   }
 
-  const titre = etat === "copie" ? "Lien copié" : etat === "erreur" ? "Erreur, réessayez" : `Partager ${titreArticleOuNumero}`;
+  const titre =
+    etat === "copie"
+      ? `Lien copié${expiration ? `, valable jusqu'au ${expiration}` : ""}`
+      : etat === "erreur"
+        ? "Erreur, réessayez"
+        : `Partager ${titreArticleOuNumero}`;
   const icone = etat === "copie" ? "check" : etat === "erreur" ? "error" : "share";
 
   return (

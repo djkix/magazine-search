@@ -1,11 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Article, Collection, Magazine
-from app.schemas import ArticleWithMagazine, ShareOut
-from app.services.partage import obtenir_ou_creer_token_partage
+from app.models import Article, Collection, Magazine, User
+from app.schemas import ArticleWithMagazine, ShareCreate, ShareOut
+from app.services.partage import (
+    duree_demandee,
+    obtenir_ou_creer_token_partage,
+    peut_revoquer,
+    revoquer_partage,
+)
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
@@ -84,15 +89,37 @@ def list_articles(
 
 
 @router.post("/{article_id}/share", response_model=ShareOut)
-def share_article(article_id: int, db: Session = Depends(get_db)):
+def share_article(
+    article_id: int,
+    payload: ShareCreate | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """Cree ou retrouve le lien de partage public d'un article.
 
     Idempotent : rejouer l'appel sur un article deja partage renvoie le
-    meme token plutot que d'en generer un second — un seul lien valide par
-    article, jamais une liste qui grossit a chaque clic.
+    meme token tant qu'il n'a pas expire ni ete revoque — un seul lien
+    valide par article, jamais une liste qui grossit a chaque clic.
     """
+    article = _get_article_or_404(article_id, db)
+    token = obtenir_ou_creer_token_partage(db, Article, article, user.id, duree_demandee(payload))
+    return ShareOut(token=token, expires_at=article.share_expires_at)
+
+
+@router.delete("/{article_id}/share", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_article_share(article_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Revoque le lien de partage de l'article : auteur du lien ou admin."""
+    article = _get_article_or_404(article_id, db)
+    if not article.share_token:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active share link")
+    if not peut_revoquer(user, article):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to revoke this link")
+    revoquer_partage(db, article)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+def _get_article_or_404(article_id: int, db: Session) -> Article:
     article = db.get(Article, article_id)
     if not article:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found")
-
-    return ShareOut(token=obtenir_ou_creer_token_partage(db, Article, article))
+    return article

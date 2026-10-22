@@ -2,14 +2,13 @@ services:
   app-backend:
     image: ghcr.io/djkix/magazine-search-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
-    # NOTE sécurité : --forwarded-allow-ips="*" fait confiance à l'en-tête
-    # X-Forwarded-For de n'importe quel client, ce qui permet de réinitialiser
-    # le compteur anti-force-brute du login à volonté. Le port n'étant plus
-    # publié sur l'hôte (voir « expose » ci-dessous), seul un client déjà
-    # présent sur le réseau Docker interne peut en profiter. Pour fermer
-    # complètement : remplacer "*" par l'adresse du conteneur app-frontend,
-    # seul client légitime du backend. À valider sur la stack en marche.
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips="*"
+    # Pas de --proxy-headers : avec --forwarded-allow-ips="*", uvicorn
+    # retenait l'entrée la plus à GAUCHE de X-Forwarded-For, fournie par le
+    # client lui-même, qui pouvait ainsi changer de compteur anti-force-brute
+    # à chaque requête. L'adresse du client est désormais extraite par
+    # app/rate_limit.py, à partir de la DROITE de l'en-tête (entrée ajoutée
+    # par Nginx Proxy Manager, voir TRUSTED_PROXY_HOPS dans .env.example).
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-proxy-headers
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
@@ -82,8 +81,13 @@ services:
       BACKEND_INTERNAL_URL: http://app-backend:8000
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
       NEXT_PUBLIC_APP_VERSION: ${NEXT_PUBLIC_APP_VERSION:-}
+    # Seul NPM doit joindre ce port : un client qui le contacterait en direct
+    # choisirait lui-même le X-Forwarded-For lu par le backend. Restreindre
+    # par pare-feu, ou lier le port à l'interface vue par NPM, par exemple
+    # FRONTEND_BIND=127.0.0.1 si NPM tourne sur le même hôte en mode réseau
+    # « host ».
     ports:
-      - "${FRONTEND_PORT:-3000}:3000"
+      - "${FRONTEND_BIND:-0.0.0.0}:${FRONTEND_PORT:-3000}:3000"
     depends_on:
       - app-backend
     networks:

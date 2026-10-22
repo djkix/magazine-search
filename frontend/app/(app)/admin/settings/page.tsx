@@ -132,7 +132,7 @@ export default function AdminSettingsPage() {
         <div>
           <p className="text-sm font-medium text-foreground">Tags</p>
           <p className="mt-1 text-xs text-foreground-muted">
-            Thématiques (ex: "Bricolage", "Guide achat") utilisées pour filtrer la bibliothèque, les sommaires et la
+            Thématiques (ex : « Bricolage », « Guide achat ») utilisées pour filtrer la bibliothèque, les sommaires et la
             recherche. Un tag peut regrouper plusieurs collections, et une collection peut porter plusieurs tags.
           </p>
         </div>
@@ -207,7 +207,7 @@ export default function AdminSettingsPage() {
         <div>
           <p className="text-sm font-medium text-foreground">Collections</p>
           <p className="mt-1 text-xs text-foreground-muted">
-            Créées automatiquement au scan (une collection par répertoire du NAS, ex: "Que Choisir"). Clique sur un
+            Créées automatiquement au scan (une collection par répertoire du NAS, ex : « Que Choisir »). Clique sur un
             ou plusieurs tags pour les rattacher à la collection.
           </p>
         </div>

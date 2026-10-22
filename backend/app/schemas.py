@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
@@ -223,10 +224,30 @@ class ArticleWithMagazine(ArticleOut):
     magazine_collection_name: str | None = None
 
 
+class ShareCreate(BaseModel):
+    # Durée de validité souhaitée, en jours. Absente : SHARE_LINK_DEFAULT_DAYS.
+    # Le plafond (SHARE_LINK_MAX_DAYS) est vérifié par le routeur, la valeur
+    # venant de la configuration.
+    days: int | None = Field(default=None, ge=1)
+
+
 class ShareOut(BaseModel):
     # Forme partagée par la création d'un partage d'article et d'un partage
-    # de numéro entier : les deux ne renvoient qu'un jeton.
+    # de numéro entier : le jeton et la date à laquelle il cessera de valoir.
     token: str
+    expires_at: datetime
+
+
+class PartageActifOut(BaseModel):
+    """Lien de partage encore valide, pour la liste d'administration."""
+
+    kind: Literal["article", "magazine"]
+    id: int
+    title: str
+    magazine_id: int
+    magazine_title: str
+    expires_at: datetime
+    created_by_email: str | None
 
 
 class PartageOut(BaseModel):

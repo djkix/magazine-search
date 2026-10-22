@@ -66,9 +66,10 @@ def test_idempotent(db_session):
 
 
 def test_course_entre_deux_appels_concurrents(db_session, monkeypatch):
-    """Simule une course : share_token est posé par une autre requête juste
-    avant que celle-ci ne commite le sien. La mise à jour conditionnelle
-    (WHERE share_token IS NULL) doit empêcher l'écrasement, et l'appelant
+    """Simule une course : un lien valide est posé par une autre requête
+    juste avant que celle-ci ne commite le sien. La mise à jour
+    conditionnelle (aucun lien valide en base) doit empêcher l'écrasement,
+    et l'appelant
     doit recevoir le token réellement enregistré, jamais celui qu'il avait
     généré localement avant de perdre la course."""
     import app.services.partage as partage_module
@@ -89,7 +90,12 @@ def test_course_entre_deux_appels_concurrents(db_session, monkeypatch):
     def faux_token_urlsafe(n):
         # Au moment ou CE thread genere son jeton, un autre a deja gagne et
         # pose le sien directement en base - on le simule ici.
-        db_session.query(Magazine).filter(Magazine.id == magazine.id).update({"share_token": token_gagnant})
+        db_session.query(Magazine).filter(Magazine.id == magazine.id).update(
+            {
+                "share_token": token_gagnant,
+                "share_expires_at": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30),
+            }
+        )
         db_session.commit()
         return "token-perdant-genere-en-parallele"
 

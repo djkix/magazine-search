@@ -5,6 +5,7 @@ from app.database import get_db
 from app.models import Article, Magazine
 from app.schemas import PartageMagazineOut, PartageOut
 from app.services.media_streaming import CACHE_PDF, resoudre_chemin_pdf, servir_couverture, servir_pdf
+from app.services.partage import filtre_lien_valide
 
 # Delibere : AUCUNE Depends(get_current_user) sur ce routeur. C'est le seul
 # point d'entree de l'application accessible sans session — tout son interet
@@ -22,12 +23,13 @@ def _get_article_ou_404(token: str, db: Session) -> Article:
     article = (
         db.query(Article)
         .options(joinedload(Article.magazine).joinedload(Magazine.collection))
-        .filter(Article.share_token == token)
+        .filter(*filtre_lien_valide(Article, token))
         .first()
     )
     if not article:
-        # 404 generique, indiscernable d'un token qui n'a jamais existe : ne
-        # pas confirmer a un tiers qu'un token "presque bon" existe.
+        # 404 generique, indiscernable d'un token qui n'a jamais existe (ou
+        # expire, ou revoque) : ne pas confirmer a un tiers qu'un token
+        # "presque bon" existe.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lien introuvable.")
     return article
 
@@ -63,7 +65,10 @@ def partage_couverture(token: str, db: Session = Depends(get_db)):
 
 def _get_magazine_ou_404(token: str, db: Session) -> Magazine:
     magazine = (
-        db.query(Magazine).options(joinedload(Magazine.collection)).filter(Magazine.share_token == token).first()
+        db.query(Magazine)
+        .options(joinedload(Magazine.collection))
+        .filter(*filtre_lien_valide(Magazine, token))
+        .first()
     )
     if not magazine:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lien introuvable.")

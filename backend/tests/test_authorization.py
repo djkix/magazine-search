@@ -16,6 +16,7 @@ sollicités. Les dépendances sont neutralisées par `dependency_overrides`.
 import re
 
 import pytest
+from fastapi.openapi.utils import get_openapi
 from fastapi.testclient import TestClient
 
 from app.database import get_db
@@ -45,13 +46,23 @@ def _sans_base():
 
 
 def _routes_admin():
-    """(méthode, chemin) de chaque route d'administration déclarée."""
+    """(méthode, chemin) de chaque route d'administration déclarée.
+
+    Énumérées via le schéma OpenAPI (API publique) plutôt qu'en parcourant
+    `app.routes` : depuis FastAPI 0.15x, les routeurs inclus n'y sont plus
+    aplatis mais enveloppés dans un objet interne, et ce parcours ne trouvait
+    plus aucune route. Le schéma, lui, est généré même quand /api/openapi.json
+    est fermé (ENABLE_API_DOCS=false), et liste toutes les routes déclarées.
+    """
+    schema = get_openapi(title=app.title, version="test", routes=app.routes)
     trouvees = []
-    for route in app.routes:
-        chemin = getattr(route, "path", "")
+    for chemin, operations in schema["paths"].items():
         if not chemin.startswith(PREFIXE_ADMIN):
             continue
-        for methode in getattr(route, "methods", set()) - METHODES_IGNOREES:
+        for methode in operations:
+            methode = methode.upper()
+            if methode in METHODES_IGNOREES:
+                continue
             # Les paramètres de chemin sont remplacés par une valeur factice :
             # on teste le refus d'accès, jamais la ressource elle-même.
             trouvees.append((methode, re.sub(r"\{[^}]+\}", "1", chemin)))

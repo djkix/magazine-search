@@ -132,7 +132,7 @@ def servir_pdf(chemin: Path, nom: str, disposition: str, requete: Request, cache
         # 416 obligatoire : renvoyer 200 ferait croire au client que sa plage
         # a ete servie, et pdf.js interpreterait le fichier de travers.
         return Response(
-            status_code=status.HTTP_416_REQUESTED_RANGE_NOT_SATISFIABLE,
+            status_code=status.HTTP_416_RANGE_NOT_SATISFIABLE,
             headers={**entetes, "Content-Range": f"bytes */{taille}"},
         )
 

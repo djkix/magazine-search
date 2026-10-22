@@ -8,6 +8,7 @@ import { useUser } from "@/components/layout/UserContext";
 const TABS = [
   { href: "/admin", label: "Tableau de bord" },
   { href: "/admin/users", label: "Utilisateurs" },
+  { href: "/admin/partages", label: "Partages" },
   { href: "/admin/logs", label: "Logs" },
   { href: "/admin/settings", label: "Réglages" },
 ];
