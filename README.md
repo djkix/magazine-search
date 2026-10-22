@@ -1,430 +1,270 @@
-# Magazine Search
+<div align="center">
 
-## Le principe
+# 📚 Magazine Search
 
-Vous avez une collection de magazines en PDF sur un NAS. Des centaines, voire
-des milliers de numéros, accumulés au fil des années, dans lesquels il est
-impossible de retrouver quoi que ce soit : ni par le nom de fichier, ni en
-ouvrant les documents un par un.
+**Bibliothèque de magazines PDF — recherche plein texte · lecture surlignée · sommaires · thématiques**
 
-Magazine Search transforme ce dossier en bibliothèque consultable.
+[![Version](https://img.shields.io/badge/version-0.37.0-purple?style=for-the-badge)](https://github.com/djkix/magazine-search/releases)
+[![Stack](https://img.shields.io/badge/stack-FastAPI_·_Next.js_·_PostgreSQL-blue?style=for-the-badge)](#stack-technique)
+[![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](./LICENSE)
 
-L'application surveille le partage réseau, détecte les nouveaux PDF, en extrait
-le texte — par OCR quand il s'agit de scans — puis indexe l'ensemble. À partir
-de là, une recherche sur « ponceuse excentrique » remonte les numéros qui en
-parlent, avec les occurrences surlignées directement dans les pages.
+*Retrouvez « ponceuse excentrique » dans des milliers de numéros, auto-hébergé, sans rien saisir.*
 
-Le reste est déduit automatiquement : le titre du magazine devient une
-collection, le numéro et la date sont lus dans le nom de fichier, et le
-sommaire est reconstruit depuis la page de sommaire du magazine. Vous n'avez
-rien à saisir.
+<br />
 
-Une navigation par sujet vient compléter cette organisation : une fois une
-taxonomie mise en place (une seule fois, voir *Gérer les thématiques*), chaque
-nouvel article y est rattaché de lui-même, sans aucune action de votre part.
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  L'Archive                                          🔍 ponceuse excentr…│
+├──────────┬──────────────────────────────────────────────────────────────┤
+│          │  12 numéros · 3 collections                                  │
+│ Recherche│  ─────────────────────────────────────────────────────────── │
+│ Biblio   │  Système D n°871 · Mars 2019         ████████ 14 occurrences │
+│ Sommaires│  Maison & Travaux n°302 · Mai 2021   ████░░░░  6 occurrences │
+│ Thèmes   │  Bricolage Pratique n°45 · Juin 2017 ██░░░░░░  3 occurrences │
+│ Admin    │                                                              │
+│          │  Clic → le PDF s'ouvre à la bonne page, termes surlignés     │
+│          │  OCR · Sommaires reconstruits · Partage par lien · PWA       │
+└──────────┴──────────────────────────────────────────────────────────────┘
+```
 
-L'application est **auto-hébergée** : vos fichiers restent chez vous, sur votre
-matériel. Seule la construction initiale de la taxonomie fait appel à un
-service externe, et elle est facultative.
+<br />
 
-## Sommaire
+[Installation](#installation) ·
+[Fonctionnalités](#fonctionnalités) ·
+[Architecture](#architecture) ·
+[Déploiement Docker](#déploiement-docker) ·
+[Variables d'environnement](#variables-denvironnement)
 
-- [Fonctionnalités](#fonctionnalités)
-- [Utilisation](#utilisation)
-- [Configuration](#configuration)
-- [Sauvegarde et restauration](#sauvegarde-et-restauration)
-- [Stack technique](#stack-technique)
-- [Derniers changements](#derniers-changements)
-- [Licence](#licence)
+</div>
+
+---
+
+## Vue d'ensemble
+
+**Magazine Search** transforme un dossier de PDF sur un NAS en bibliothèque consultable. L'application surveille le partage réseau, extrait le texte (OCR pour les scans), indexe tout, et **déduit le reste toute seule** :
+
+| Déduit automatiquement | D'où ça vient |
+|------------------------|---------------|
+| 📁 **Collection** | Répertoire de premier niveau du NAS |
+| 🔢 **Numéro, date, Hors-Série** | Nom de fichier, avec repli sur le texte de couverture |
+| 📑 **Sommaire** | Analyse locale de la page de sommaire (aucun service externe) |
+| 🧭 **Thématique** | Rattachement par mots-clés, éventuellement complété par Gemini |
+
+**Auto-hébergé** : vos fichiers restent chez vous. Seules deux fonctions, toutes deux facultatives, appellent un service externe : la connexion Google et la classification Gemini.
+
+---
 
 ## Fonctionnalités
 
-**Recherche plein texte**
+### 🔍 Recherche
+- Plein texte sur **tous** les numéros ; filtres collection, année, numéro, thématique
+- Un résultat par magazine, classé par nombre d'occurrences, affiché « magazine · numéro · Mois année »
+- Un clic ouvre le PDF à la page concernée, **occurrences surlignées** à leur position exacte
 
-Sur l'intégralité du texte extrait, avec filtres par titre, année, numéro et
-thématique. Un résultat par magazine, classé par nombre d'occurrences. Les
-résultats affichent « magazine - numéro - Mois année » plutôt que le nom de
-fichier brut.
+### 📖 Lecture
+- Visionneuse **pdf.js** intégrée, recherche dans le document ouvert, retour vers la collection du numéro
+- Rendu à la **densité réelle de l'écran** (net sur mobile, même au zoom)
 
-**Lecture avec surlignage**
+### 📥 Ingestion automatique
+- Détection des nouveaux fichiers, **déduplication par empreinte** de contenu, attente de stabilité (un PDF en cours de copie n'est pas ingéré)
+- OCR (`ocrmypdf` / Tesseract `fra+eng`) **seulement si nécessaire**
+- Texte natif présent mais illisible (police corrompue → « lll Why | | | ») : repéré par la densité de mots courants et refait par OCR complet
+- Scan ne relisant que les fichiers nouveaux ou modifiés ; un scan interrompu est récupéré au redémarrage du worker
 
-Visionneuse PDF intégrée, occurrences du terme recherché surlignées à leur
-position exacte dans la page, et recherche dans le document ouvert.
+### 🗂️ Organisation
+- **Collections** automatiques ; **tags** créés à la main pour les regrouper (« Bricolage » = Système D + Maison & Travaux)
+- Bibliothèque à deux niveaux (collections → numéros), Hors-Séries toujours en bloc distinct, filtres par année
 
-**Ingestion automatique**
+### 📑 Sommaires reconstruits
+- Extraction **locale**, sans coût ; plusieurs mises en page reconnues (points de conduite, colonnes, numéro avant/après le titre)
+- Échec **tracé et visible** : page introuvable, ou page trouvée mais illisible (le numéro passe alors *en échec*, une absence légitime de sommaire reste *terminé*)
+- Marge de maquette (« 607-sommaire.indd ») écartée sans supprimer de vraies rubriques (« MIX », « Q&A », « GT3 RS »)
 
-Détection des nouveaux fichiers, déduplication par empreinte de contenu, et
-attente de stabilité avant traitement — un PDF encore en cours de copie n'est
-pas ingéré. L'OCR n'est déclenché que si nécessaire.
+### 🧭 Thématiques
+- Navigation à **trois écrans** : thématique → sous-thématique → articles groupés par collection, ouverts à la page exacte
+- Rattachement au niveau de l'**article**, pas du numéro, par correspondance de mots-clés (gratuit, rejouable)
+- **Taxonomie construite hors ligne** depuis le tableau de bord : télécharger le corpus → le soumettre à un modèle → déposer le `.json` → **simulation** (rien n'est écrit tant que vous n'avez pas cliqué *Appliquer*). Import **cumulatif**
+- Aussi disponible en CLI : `python tools/importer_sous_thematiques.py`
+- Les **articles non rattachés** et leurs mots les plus fréquents sont listés pour compléter la taxonomie
 
-Les PDF dont le texte natif est présent mais illisible — police au mapping
-corrompu, qui produit « lll Why | | | Il Ill » au lieu de mots — sont repérés
-par la densité de mots courants et repassent par un OCR complet.
+#### 🤖 Classification automatique Gemini *(facultatif)*
+- Avec `GEMINI_API_KEY`, les nouveaux articles qu'aucun mot-clé n'attrape sont envoyés à Gemini **par lots** : rangés dans une sous-thématique existante, ou **nouvelle sous-thématique créée** sous une thématique existante
+- L'app **compte ses propres requêtes** (minute, jour, tokens) et s'arrête **avant** les limites (2 requêtes/jour en réserve)
+- Quota atteint, clé ou modèle refusé : **bandeau sur le tableau de bord** avec la raison et l'heure de reprise (heure locale) ; reprise automatique, y compris après redémarrage
+- Les liens posés par Gemini ne sont pas effacés par un recalcul des mots-clés
 
-**Organisation déduite**
+### 🔗 Partage par lien
+- Bouton « Partager » **mobile uniquement**, sur chaque article et chaque couverture : ouvre le partage système (WhatsApp, Messages…)
+- Lien public **sans compte**, lecture en **streaming par plages HTTP** (jamais un téléchargement complet)
+- Aperçu enrichi (titre, collection, couverture) dans WhatsApp et consorts
+- ⚠️ **Pas d'expiration ni de révocation** ; un lien d'article donne accès au magazine entier. Pensé pour un canal privé
 
-Le répertoire de premier niveau du NAS devient le nom de la collection. Numéro,
-mois — ou plage de mois pour un bimestriel — année et statut Hors-Série sont lus
-dans le nom de fichier, avec repli sur le texte de couverture quand le nom ne
-porte ni date ni numéro.
+### 🔐 Authentification
+- **Email + mot de passe** : comptes créés par l'administrateur depuis `/admin` (par défaut, rien à configurer)
+- **Google** (si `GOOGLE_CLIENT_ID` est défini) : ⚠️ **n'importe quel compte Google peut créer un accès et lire toute la bibliothèque**. À n'activer que si l'accès est contrôlé en amont
+- Fusion automatique par email entre compte manuel et compte Google ; désactiver un compte bloque les deux méthodes
+- Aucune notification d'inscription : surveiller le compteur **« Nouveaux comptes (7j) »** du tableau de bord
 
-**Sommaires reconstruits**
+### 📱 PWA
+- Manifeste + icônes : « Ajouter à l'écran d'accueil » (mobile) ou installation depuis la barre d'adresse (desktop)
 
-Extraction locale, par analyse du texte de la page de sommaire : aucun service
-externe, aucun coût. Plusieurs mises en page sont reconnues — points de
-conduite, colonnes, numéro avant ou après le titre, séparateur typographique.
-Quand rien n'est extrait, la raison est consignée et visible dans le
-backoffice : page introuvable, ou page trouvée mais illisible.
-
-Les magazines portent dans leur marge le nom du fichier de maquette qui a servi
-à les composer (« 607-sommaire.indd »). L'OCR le lit comme du texte ordinaire :
-le parseur l'écarte, et le retire lorsqu'il s'est collé à la fin d'un titre
-valide. Le filtre ne vise que ce motif précis — un critère de brièveté aurait
-supprimé des rubriques bien réelles comme « MIX » ou « Q&A », et un critère
-d'absence de voyelle aurait emporté les « GT3 RS » des magazines automobiles.
-
-**Thématiques**
-
-Navigation par sujet à deux niveaux (thématique puis sous-thématique),
-rattachée aux **articles**. La taxonomie se construit hors ligne — un modèle
-de langage sans contrainte de quota nomme les regroupements, le rattachement
-lui-même est calculé localement par correspondance de mots-clés, donc gratuit
-et rejouable à volonté. Les nouveaux articles qu'aucun mot-clé n'attrape
-peuvent être classés automatiquement par Gemini, si une clé API est
-configurée. Fonctionnalité entièrement facultative.
-
-**Partage par lien**
-
-Un bouton « Partager », visible uniquement sur mobile, sur chaque article
-et chaque couverture de numéro, génère un lien public consultable sans
-compte, qui streame le magazine par plages HTTP (jamais un téléchargement
-complet). Le lien reste valide indéfiniment une fois créé. Fonctionnalité
-entièrement facultative,
-pensée pour une diffusion ponctuelle sur un canal privé.
-
-**Installable (PWA)**
-
-Icône et manifeste d'application web : « Ajouter à l'écran d'accueil » sur
-mobile, ou installation depuis la barre d'adresse sur desktop, pour ouvrir
-l'application comme une app à part entière.
-
-**Administration**
-
-Tableau de bord auto-rafraîchi, compteurs cliquables par statut, progression
-page par page du numéro en cours, relances ciblées, journaux applicatifs
-filtrables et gestion des comptes.
-
-## Utilisation
-
-### Se connecter
-
-Par email et mot de passe, un compte créé manuellement par l'administrateur
-depuis `/admin` — c'est le fonctionnement par défaut, sans rien à configurer.
-
-Si `GOOGLE_CLIENT_ID` est renseigné (voir Configuration), un bouton « Se
-connecter avec Google » apparaît aussi sur la page de connexion. **N'importe
-quel compte Google peut alors créer un accès et consulter toute la
-bibliothèque** — il n'y a pas de liste blanche d'emails ni de validation par
-l'administrateur : à n'activer que si l'application n'est pas exposée sur
-Internet sans contrôle d'accès en amont, ou si son contenu n'est pas sensible.
-Un compte créé à la main dont l'email correspond à un compte Google fusionne
-automatiquement avec lui au premier login Google — aucun doublon. Désactiver
-un compte depuis `/admin` bloque sa connexion par les deux méthodes à la fois.
-
-L'application n'envoie aucune notification (email, webhook...) à la création
-d'un compte. Le tableau de bord admin affiche un compteur « Nouveaux comptes
-(7j) », qui mène à la liste des utilisateurs — c'est là qu'il faut regarder
-pour remarquer une inscription, Google comprise.
-
-### Rechercher
-
-Saisissez vos termes dans la barre de recherche. La recherche porte sur tout le
-texte extrait de tous les numéros.
-
-Affinez avec les filtres : collection, année, thématique. Un clic sur un
-résultat ouvre le numéro à la page concernée, occurrences surlignées.
-
-Dans la visionneuse, la recherche dans le document permet de circuler entre les
-occurrences du numéro ouvert : la liste des résultats reste affichée après un
-clic, le résultat consulté restant repérable dedans. La flèche de retour ramène
-à la collection du numéro plutôt qu'au sommet de la bibliothèque.
-
-### Parcourir la bibliothèque
-
-La bibliothèque s'explore en deux niveaux : d'abord les collections, avec leur
-couverture et leur nombre de numéros, puis le détail d'une collection.
-
-Les numéros ordinaires et les Hors-Séries sont toujours présentés en blocs
-distincts, même triés par date. Une colonne latérale liste les années présentes
-et les Hors-Séries, chacune cliquable pour filtrer.
-
-La vue « Sommaires » d'une collection affiche les articles extraits de chaque
-numéro, avec le même système de filtres.
-
-### Explorer par thématique
-
-La page « Thématiques » descend en trois écrans :
-
-1. **La thématique** — « Alimentation », « Audio », « Fiscalité » — avec le
-   nombre d'articles rattachés, les plus fournies en tête.
-2. **Ses sous-thématiques** — « Légumes », « Budget alimentaire ». Une
-   sous-thématique affichée à zéro article n'est pas un oubli : elle signale
-   des mots-clés qui n'accrochent rien, ce qui aide à corriger la taxonomie.
-3. **Les articles**, regroupés par collection, du numéro le plus récent au plus
-   ancien. Chaque ligne ouvre le lecteur directement à la page de l'article.
-
-Le rattachement se fait au niveau de l'**article**, pas du numéro : « Les
-légumes, bientôt une denrée de luxe » relève de « Alimentation > légumes » sans
-y entraîner les vingt autres titres du même sommaire.
-
-Cette navigation reste vide tant qu'aucune taxonomie n'a été importée — voir
-*Gérer les thématiques* plus bas.
-
-### Partager un article ou un numéro
-
-Un bouton « Partager » apparaît sur chaque article (panneau du lecteur,
-page « Sommaires » d'une collection) et chaque couverture affichée
-(bibliothèque, accueil) — **uniquement sur mobile**, pas sur la version web.
-Il ouvre directement le sélecteur de partage du système (WhatsApp,
-Messages...) et donne un lien public, consultable **sans compte**, qui
-ouvre directement l'article ou le numéro concerné.
-
-Le lien streame le magazine par plages HTTP — comme le lecteur normal,
-jamais un téléchargement complet du fichier — pour une lecture rapide même
-sur un réseau mobile. **Il n'y a ni expiration ni révocation** : le lien
-reste valide tant que l'article ou le numéro existe. Un lien d'article
-donne accès au magazine entier qui le contient, pas seulement à ses
-propres pages. Pensé pour une diffusion ponctuelle sur un canal déjà privé
-(par exemple WhatsApp), pas pour un partage public à grande échelle.
-
-Collé dans WhatsApp ou tout autre outil affichant un aperçu de lien, il
-montre le titre, le magazine/collection et la couverture du numéro.
-
-### Organiser avec des tags
-
-Une **collection** est créée automatiquement, vous n'avez rien à faire.
-
-Un **tag** se crée à la main dans les réglages et peut regrouper plusieurs
-collections — « Bricolage » rassemblant Système D et Maison & Travaux, par
-exemple. Une collection peut porter plusieurs tags.
-
-### Ajouter des numéros
-
-Déposez les PDF dans le bon répertoire du NAS, puis déclenchez un scan depuis
-`/admin`.
-
-Le scan ne relit que les fichiers réellement nouveaux ou modifiés : son coût
-suit ce que vous ajoutez, pas la taille totale de la bibliothèque. Les numéros
-détectés sont mis en file, et le tableau de bord affiche la progression page par
-page.
-
-Un scan interrompu — redémarrage, coupure — est récupéré automatiquement : les
-numéros restés « en cours » sont marqués en échec au redémarrage du worker, ce
-qui débloque la barre de progression.
-
-### Relancer un traitement
-
-Depuis `/admin`, les compteurs par statut sont cliquables : ils filtrent la
-liste sur les numéros concernés, sans limite d'ancienneté. Vous pouvez relancer
-un numéro isolé, ou tous ceux d'un statut.
-
-Pour les numéros sans sommaire, **deux actions distinctes** sont proposées, car
-leur coût n'a rien de comparable :
+### 🛠️ Administration
+- Tableau de bord auto-rafraîchi, compteurs cliquables par statut, progression page par page, journaux filtrables par niveau/composant, gestion des comptes
+- **Relances ciblées**, avec deux actions aux coûts très différents pour les numéros sans sommaire :
 
 | Action | Ce qu'elle fait | Durée |
-| --- | --- | --- |
-| **Réextraire les sommaires** | Rejoue le parsing à partir du texte déjà extrait. Ni OCR, ni appel externe. | Quelques minutes pour toute la bibliothèque |
-| **Relancer l'OCR complet** | Refait le traitement de zéro. | Environ une minute par numéro |
+|--------|-----------------|-------|
+| **Réextraire les sommaires** | Rejoue le parsing sur le texte déjà extrait (ni OCR ni appel externe) | Quelques minutes pour toute la bibliothèque |
+| **Relancer l'OCR complet** | Refait le traitement de zéro (confirmation demandée) | ~1 min par numéro |
 
-Dans la quasi-totalité des cas, c'est la première qu'il faut : le texte OCR ne
-change pas, seul le parseur du sommaire évolue. La seconde n'est utile que si la
-logique de décision OCR elle-même a changé, et demande une confirmation
-explicite.
+---
 
-**Deux absences de sommaire, qui ne se valent pas.** Un numéro peut n'en
-comporter aucun : c'est légitime, il reste marqué *terminé*. Mais lorsque la
-page de sommaire a bien été localisée et qu'aucune entrée n'a pu en être lue,
-c'est un échec de lecture, et le numéro est marqué *en échec*. Auparavant les
-deux passaient pour des succès, ce qui rendait le second invisible : la
-bibliothèque affichait 675 numéros « terminés » dont une partie n'avait
-simplement jamais pu être exploitée.
+## Architecture
 
-Certaines maquettes resteront hors de portée. Les mensuels qui composent leurs
-numéros de page en gros caractères décoratifs — la presse musicale anglophone
-notamment — ne laissent aucun chiffre dans le texte reconnu, et aucun parseur
-ne peut rattacher un titre à une page qui n'y figure pas.
+```mermaid
+flowchart TB
+    subgraph Client["🖥️ Navigateur"]
+        UI["Next.js 14 · React 18\nTailwind · pdf.js"]
+    end
 
-### Gérer les thématiques
+    subgraph App["⚙️ Application"]
+        FE["app-frontend\n(proxy /api/*)"]
+        API["app-backend\nFastAPI"]
+        W["worker\nRQ · ocrmypdf"]
+        FE --> API
+    end
 
-> **Le thémage par numéro via Gemini a été retiré**, pas seulement désactivé :
-> le quota gratuit (20 requêtes par jour) rendait l'opération irréaliste à
-> l'échelle de la bibliothèque. La navigation par sujet repose sur la
-> **taxonomie par article** ci-dessous, construite hors ligne puis importée —
-> gratuite et rejouable à volonté. Gemini n'intervient plus que pour
-> **classer les nouveaux articles orphelins** (voir *Classification
-> automatique*), jamais pour construire la taxonomie. Les tags servent à
-> **filtrer la recherche**, sans distinction de nature.
+    subgraph Data["💾 Données"]
+        PG[("PostgreSQL 16\ntexte OCR · sommaires · comptes")]
+        MS[("Meilisearch\nindex plein texte")]
+        RD[("Redis\nfile RQ · quotas")]
+        NAS[("NAS\nPDF en lecture seule")]
+    end
 
-Le tableau de bord mesure désormais la couverture de la taxonomie au niveau de
-l'**article** et non du numéro : *Articles rattachés* et *Sans sous-thématique*.
-Les articles sont comptés distincts — un article relevant de plusieurs
-sous-thématiques ne pèse qu'une fois. Les anciens compteurs s'appuyaient sur
-`themed_at`, posé sur tout numéro parcouru par un lot même quand le modèle ne
-lui attribuait rien : ils surestimaient la couverture.
+    subgraph Ext["🌐 Services externes (facultatifs)"]
+        GG["Google Identity\nconnexion"]
+        GM["Gemini\nclassification"]
+    end
 
-La vue *Par thématique* d'une collection s'appuie elle aussi sur la taxonomie :
-elle liste les sous-thématiques présentes dans les articles de la collection,
-puis les articles correspondants groupés par numéro. Elle tient en une requête,
-là où la version précédente en faisait une par numéro affiché.
-
-**Sous-thématiques.** Chaque thématique peut être découpée en regroupements
-plus fins (« Légumes » sous « Alimentation »), rattachés aux **articles** et
-non aux numéros entiers — un numéro touche souvent plusieurs sujets, et
-rattacher tout son sommaire à chacun contaminerait les corpus. Le quota Gemini
-ne permet pas de calculer cette taxonomie dans l'application : elle est donc
-produite hors ligne, par un modèle sans contrainte de quota.
-
-Tout se fait depuis le tableau de bord, section *Sous-thématiques* :
-
-1. **Télécharger** le corpus complet (tous les titres d'articles, groupés par
-   collection pour donner du contexte au modèle, avec la consigne intégrée).
-2. **Soumettre** ce fichier à un modèle de langage de votre choix.
-3. **Déposer** sa réponse dans le champ prévu, sur la même page.
-
-Le dépôt déclenche une **simulation** : la page affiche, par sous-thématique,
-le nombre d'articles rattachés et les mots-clés sans correspondance, ainsi que
-la proportion du corpus couverte. **Rien n'est écrit** tant que vous n'avez pas
-cliqué sur *Appliquer*.
-
-L'import est **cumulatif** : la réponse d'un modèle sur un corpus de cette
-taille dépasse souvent sa limite de sortie et arrive en plusieurs morceaux —
-chaque dépôt s'ajoute aux sous-thématiques déjà en base plutôt que de les
-remplacer. Un avertissement apparaît si moins de la moitié du corpus est
-couverte : les mots-clés sont probablement trop étroits.
-
-Les mêmes opérations restent disponibles en ligne de commande, avec la même
-logique et le même résultat :
-
-```bash
-docker exec magazine-search-app-backend-1 \
-  python tools/importer_sous_thematiques.py -f /data/exports/reponse.json
+    UI <-->|HTTPS| FE
+    API <--> PG
+    API <--> MS
+    API --> RD
+    RD --> W
+    W --> NAS
+    W --> PG
+    W --> MS
+    W -.-> GM
+    API -.-> GG
 ```
 
-Le modèle ne fait que nommer les regroupements et fournir leurs mots-clés. Le
-rattachement des articles est calculé localement, en confrontant ces mots-clés
-aux titres : le résultat reste vérifiable, et un article ajouté plus tard
-rejoint automatiquement les sous-thématiques existantes, dès l'extraction de
-son sommaire — sans nouvel appel à un modèle, et sans action de votre part.
+### Flux d'ingestion d'un numéro
 
-```bash
-docker exec magazine-search-app-backend-1 \
-  python tools/importer_sous_thematiques.py --recalculer-tout --appliquer
+```mermaid
+sequenceDiagram
+    participant A as Admin
+    participant API as app-backend
+    participant W as worker
+    participant DB as PostgreSQL + Meilisearch
+    participant G as Gemini (facultatif)
+
+    A->>API: Scan (depuis /admin)
+    API->>API: Détecte les PDF nouveaux · empreinte · stabilité
+    API->>W: Met le numéro en file (RQ)
+    W->>W: Texte natif ou OCR · couverture
+    W->>DB: Pages indexées (plein texte)
+    W->>W: Sommaire reconstruit · articles
+    W->>DB: Rattachement par mots-clés
+    W-->>G: Orphelins par lots (quota suivi)
+    G-->>W: Sous-thématiques (existantes ou nouvelles)
+    W->>DB: Liens source=gemini
 ```
 
-**Classification automatique des nouveaux articles.** Quand un numéro est
-scanné, ses articles sont d'abord rattachés par mots-clés. Si `GEMINI_API_KEY`
-est renseignée, ceux qu'aucun mot-clé n'attrape sont ensuite envoyés à Gemini,
-par lots de plusieurs centaines de titres : le modèle les range dans une
-sous-thématique existante ou, à défaut, **en crée une nouvelle** sous une
-thématique existante (il ne crée jamais de thématique de premier niveau). Ses
-mots-clés sont conservés, donc les articles suivants rejoignent la
-sous-thématique gratuitement. Les rattachements posés par Gemini ne sont pas
-effacés par un recalcul des mots-clés.
+---
 
-L'application compte elle-même ses requêtes (par minute, par jour et en
-tokens) et s'arrête **avant** les limites, avec 2 requêtes par jour gardées en
-réserve. Quand le quota est atteint, ou en cas de clé ou de modèle refusés, le
-tableau de bord affiche une bannière avec la raison et l'heure de reprise en
-heure locale ; la classification reprend alors toute seule, y compris après un
-redémarrage. Le quota journalier de Google se réinitialise à minuit heure du
-Pacifique. Sans clé API, rien de tout cela ne s'exécute. Les articles déjà
-orphelins avant l'activation ne sont classés qu'au scan suivant.
+## Stack technique
 
-Le tableau de bord affiche aussi, à la demande, les **articles non
-rattachés** et les mots les plus fréquents parmi eux : un terme qui revient
-souvent et qu'aucun mot-clé ne couvre encore se repère à l'œil, sans appel à
-un modèle — de quoi compléter la taxonomie au fil de l'eau.
+| Couche | Technologies |
+|--------|--------------|
+| Backend | Python 3.12, FastAPI, SQLAlchemy 2.0, Alembic, Pydantic v2 |
+| Frontend | Next.js 14 (App Router), React 18, Tailwind CSS, pdf.js |
+| Base de données | PostgreSQL 16 |
+| File d'attente | RQ (Redis Queue) |
+| Recherche | Meilisearch |
+| OCR | `ocrmypdf` / Tesseract (`fra+eng`) |
+| Thématiques | Mots-clés locaux ; Gemini en option (`google-genai`) |
+| CI/CD | GitHub Actions → GHCR (`ghcr.io/djkix/magazine-search-*`), release-please |
+| Orchestration | Docker Compose |
 
-Un bouton dédié permet aussi de **télécharger ces orphelins** pour un modèle,
-distinct de l'export complet : il ne contient que ce qui reste à classer,
-accompagné de la taxonomie déjà en place pour que le modèle l'étende plutôt
-que de la reconstruire. Soumettre les 13 500 titres déjà classés pour
-n'obtenir que des ajouts noierait le signal. La consigne est intégrée au
-fichier, comme pour l'export complet.
+---
 
-La consigne embarquée énonce trois contraintes, qui ne sont pas des
-précautions de style mais le reflet exact du code de rattachement :
+## Installation
 
-| Contrainte | Pourquoi |
-| --- | --- |
-| Lister **chaque forme** d'un mot-clé | La correspondance ne tolère qu'un `s` ou un `x` final. `mix` n'attrape pas `mixing`, `master` n'attrape pas `mastering`. |
-| Renvoyer la liste **complète** des mots-clés d'une sous-thématique reprise | L'import **remplace** la liste, il ne la fusionne pas : omettre un ancien mot-clé détacherait les articles qu'il retenait. |
-| Éviter les mots trop larges | `test` ou `guide` attraperaient des centaines d'articles sans rapport et rendraient la navigation inutilisable. |
+### Prérequis
+- **Docker** + Docker Compose
+- Un **partage réseau** (NAS) contenant vos PDF, un répertoire par magazine
 
-La deuxième est la plus coûteuse à découvrir soi-même : elle ne provoque
-aucune erreur, seulement des articles qui disparaissent silencieusement d'une
-sous-thématique.
+### Déploiement Docker
 
-**Déposer la réponse.** Le champ attend un **fichier** `.json` (2 Mo maximum),
-pas un copier-coller. Enregistrez la réponse du modèle telle quelle, en
-retirant l'habillage <code>```json</code> s'il en a mis — ce cas précis est
-détecté et signalé plutôt que de produire une erreur incompréhensible. Les
-scripts ou explications que certains modèles ajoutent spontanément n'ont
-aucune utilité ici : seul le JSON compte.
+```bash
+git clone https://github.com/djkix/magazine-search.git
+cd magazine-search
 
-### Consulter les journaux
+cp .env.example .env
+# Éditer .env : JWT_SECRET_KEY, MEILI_MASTER_KEY, POSTGRES_PASSWORD, NAS_MOUNT_PATH
 
-La page de logs filtre par niveau et par composant. Le fichier de sauvegarde
-après rotation reste consultable, et les traces d'exception y sont conservées —
-c'est là qu'il faut chercher le détail d'un échec, les messages affichés dans
-l'interface étant volontairement courts.
+docker compose up -d
+```
 
-## Configuration
+Ouvrir `http://<IP-du-serveur>:3000`, se connecter avec le compte d'amorçage (`ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PASSWORD`, à vider ensuite), puis **déposer les PDF dans le NAS et lancer un scan depuis `/admin`**.
 
-Toutes les variables sont définies dans `.env`. Voir
-[`.env.example`](./.env.example) pour le fichier commenté complet.
+| Service | Port | Rôle |
+|---------|------|------|
+| `app-frontend` | 3000 | Interface web + proxy `/api/*` (**seul port publié**) |
+| `app-backend` | 8000 *(interne)* | API FastAPI |
+| `worker` | — | OCR, sommaires, classification |
+| `postgres` · `redis` · `meilisearch` | — | Données, file d'attente, recherche |
+| `db-backup` | — | Dump compressé quotidien avec rotation |
 
-**Obligatoires** — l'application refuse de démarrer si elles manquent, sont trop
-courtes, ou sont restées à une valeur d'exemple.
+> Le reverse proxy n'a besoin que du port du frontend. Les migrations Alembic s'exécutent au démarrage ; si l'une échoue, le conteneur attend `MIGRATION_FAILURE_DELAY_SECONDS` avant de sortir (pas de boucle de redémarrage serrée).
 
-| Variable | Contrainte |
-| --- | --- |
-| `JWT_SECRET_KEY` | 32 caractères minimum. Le modifier déconnecte tout le monde. |
-| `MEILI_MASTER_KEY` | 16 caractères minimum. |
-| `POSTGRES_PASSWORD` | À générer aléatoirement. |
+### Développement local
 
-Générer une valeur : `openssl rand -hex 32`.
+```bash
+# Backend (tests)
+cd backend
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
+pytest -q
 
-**Principales options**
+# Frontend
+cd frontend
+npm install
+npm run dev          # http://localhost:3000
+npm run typecheck    # tsc --noEmit
+```
 
-| Variable | Rôle |
-| --- | --- |
-| `NAS_MOUNT_PATH` | Chemin hôte du partage, monté en lecture seule. |
-| `FRONTEND_PORT` | Seul port publié ; c'est lui que le reverse proxy atteint. |
-| `IMAGE_TAG` | Version déployée. Préférer un tag précis à `latest` en production. |
-| `OCR_TIMEOUT_SECONDS` | Délai maximum d'`ocrmypdf` (défaut : 1500). |
-| `LOG_TIMEZONE` | Fuseau des horodatages des journaux (défaut : `Europe/Paris`). Sans lui, un conteneur Docker journalise en UTC. |
-| `MIGRATION_FAILURE_DELAY_SECONDS` | Pause avant de sortir en erreur quand une migration échoue (défaut : 30), pour éviter une boucle de redémarrage trop serrée. |
-| `ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PASSWORD` | Compte créé au premier démarrage si aucun admin n'existe. À vider ensuite. |
-| `GOOGLE_CLIENT_ID` | ID client OAuth Google (pas un secret). Laissée vide, la connexion Google est simplement absente de l'interface. Voir *Se connecter*. |
-| `GEMINI_API_KEY` | Clé API Gemini. Laissée vide, la classification automatique est inactive. |
-| `GEMINI_MODEL` | Modèle utilisé (défaut : `gemini-3.8-flash`). Un nom erroné s'affiche sur le tableau de bord. |
-| `GEMINI_RPM` / `GEMINI_TPM` / `GEMINI_RPD` | Limites de votre compte : requêtes par minute (5), tokens par minute (250 000), requêtes par jour (20). À reprendre de la page « Limite de débit » d'AI Studio. |
-| `GEMINI_TIMEOUT_SECONDS` | Délai maximum d'un appel (défaut : 120). |
+Les mêmes contrôles tournent dans GitHub Actions : détection de secrets (gitleaks), typage frontend, ruff, pytest, **rejeu de toute la chaîne Alembic** (up / down / up sur base vierge) et build de l'image.
+
+### Revenir à une version précédente
+
+Chaque release publie un tag d'image `X.Y.Z` (en plus de `latest`). Épingler la version dans `.env` :
+
+```bash
+IMAGE_TAG=0.36.2
+```
+
+puis `docker compose up -d`. Un rollback de code ne défait pas une migration déjà appliquée : restaurer le dump correspondant si le schéma a changé.
+
+---
 
 ## Sauvegarde et restauration
 
-La base PostgreSQL est la **seule donnée non reconstructible** : elle contient
-le texte OCR intégral, les sommaires, les thématiques et les comptes. Les PDF du
-NAS, eux, peuvent être re-scannés.
-
-Le service `db-backup` produit un dump compressé quotidien avec rotation, sous
-`${BACKUP_DIR}`.
+La base PostgreSQL est la **seule donnée non reconstructible** (texte OCR, sommaires, thématiques, comptes). Les PDF du NAS peuvent être re-scannés.
 
 ```bash
 ls -lh ./backups                    # sauvegardes disponibles
 docker compose restart db-backup    # sauvegarde immédiate
-docker compose logs -f db-backup    # journal du service
 ```
 
 **Restauration**
@@ -438,66 +278,133 @@ gunzip -c ./backups/magazines_<horodatage>.sql.gz \
 docker compose start app-backend worker
 ```
 
-> Placez `BACKUP_DIR` sur un autre support que le volume PostgreSQL, et
-> **testez une restauration périodiquement** — une sauvegarde jamais restaurée
-> n'est pas une sauvegarde.
+> Placez `BACKUP_DIR` sur un autre support que le volume PostgreSQL et **testez une restauration périodiquement**. Aucune sauvegarde n'est prise automatiquement avant une migration : pour une migration risquée, faire un dump manuel.
 
-**Avant une migration de schéma**
+---
 
-Aucune sauvegarde n'est prise automatiquement au démarrage. Cette protection a
-existé du 11 au 13 septembre 2026, et coûtait plus qu'elle ne rapportait : neuf
-minutes d'indisponibilité à chaque déploiement touchant le schéma, et un dump
-que le redémarrage de PostgreSQL — inhérent au redéploiement — interrompait,
-ce qui annulait la migration et laissait le backend boucler sans démarrer.
+## Variables d'environnement
 
-Ce qui protège réellement : le job CI `migrations`, qui rejoue toute la chaîne
-Alembic sur une base vierge avant tout déploiement, et le service `db-backup`
-ci-dessus. Pour une migration que vous jugez risquée, prenez un dump
-manuellement avant de déployer.
+Référence complète et commentée : [`.env.example`](.env.example). L'application **refuse de démarrer** si une variable obligatoire manque, est trop courte ou reste à une valeur d'exemple.
 
-## Stack technique
+| Variable | Obligatoire | Secret | Description |
+|----------|-------------|--------|-------------|
+| `JWT_SECRET_KEY` | ✅ | 🔒 | 32 caractères minimum (`openssl rand -hex 32`). Le changer déconnecte tout le monde |
+| `MEILI_MASTER_KEY` | ✅ | 🔒 | 16 caractères minimum |
+| `POSTGRES_PASSWORD` | ✅ | 🔒 | À générer aléatoirement |
+| `NAS_MOUNT_PATH` | ✅ | Non | Chemin hôte du partage, monté en **lecture seule** |
+| `FRONTEND_PORT` | Non | Non | Port publié (défaut `3000`) |
+| `IMAGE_TAG` | Non | Non | Version déployée (préférer un tag précis à `latest`) |
+| `ADMIN_BOOTSTRAP_EMAIL` / `_PASSWORD` | Non | 🔒 | Compte créé au premier démarrage si aucun admin n'existe ; à vider ensuite |
+| `GOOGLE_CLIENT_ID` | Non | Public | Active « Se connecter avec Google » (lu au runtime par le backend) |
+| `GEMINI_API_KEY` | Non | 🔒 | Active la classification automatique |
+| `GEMINI_MODEL` | Non | Non | Modèle (défaut `gemini-3.8-flash`) ; un nom erroné s'affiche sur le tableau de bord |
+| `GEMINI_RPM` / `GEMINI_TPM` / `GEMINI_RPD` | Non | Non | Limites de votre compte (défaut 5 · 250 000 · 20), à reprendre d'AI Studio |
+| `GEMINI_TIMEOUT_SECONDS` | Non | Non | Délai maximum d'un appel (défaut `120`) |
+| `OCR_TIMEOUT_SECONDS` | Non | Non | Délai maximum d'`ocrmypdf` (défaut `1500`) |
+| `LOGIN_RATE_LIMIT` | Non | Non | Limite de connexion (défaut `5/15minutes`) |
+| `LOG_TIMEZONE` | Non | Non | Fuseau des journaux (défaut `Europe/Paris`) |
+| `BACKUP_DIR` · `BACKUP_RETENTION_DAYS` | Non | Non | Dossier et rétention (14 j) des sauvegardes |
 
-| Composant | Techno |
-| --- | --- |
-| Backend | Python 3.12, FastAPI, SQLAlchemy 2.0, Alembic, Pydantic v2 |
-| Frontend | Next.js 14 (App Router), React 18, Tailwind CSS |
-| Base de données | PostgreSQL 16 |
-| File d'attente | RQ (Redis Queue) |
-| Recherche | Meilisearch |
-| OCR | `ocrmypdf` / Tesseract (`fra+eng`) |
-| Thématiques | Correspondance de mots-clés locale, sans appel à un modèle |
-| Visionneuse | `pdf.js` |
-| Déploiement | Docker Compose, images publiées sur GHCR |
+---
 
-## Derniers changements
+## Structure du projet
 
-| Version | Date | Changement |
-| --- | --- | --- |
-| 0.30.2 | 2026-09-15 | Interface : coller le contenu à gauche quand la barre est repliée |
-| 0.30.1 | 2026-09-15 | OCR : normaliser via Ghostscript quand qpdf ne suffit pas |
-| 0.30.0 | 2026-09-15 | Navigation : barre latérale repliable, mise en cache des couvertures et PDF |
-| 0.29.0 | 2026-09-15 | Sous-thématiques : rattachement au fil de l'eau et écran des orphelins |
-| 0.28.1 | 2026-09-14 | Thématiques : passer les titres OCR à la ligne au lieu de les tronquer |
-| 0.28.0 | 2026-09-14 | Thématiques : navigation à trois écrans sur la taxonomie |
-| 0.27.1 | 2026-09-13 | Déploiement : supprimer la sauvegarde avant migration |
-| 0.27.0 | 2026-09-13 | Thématiques : propager les tags de sujet et tirer la file au hasard |
-| 0.26.0 | 2026-09-13 | Admin : déposer la réponse du modèle depuis le tableau de bord |
-| 0.25.1 | 2026-09-11 | Outils : rendre le paquet `app` importable depuis `tools/` |
-| 0.25.0 | 2026-09-11 | Sous-thématiques : socle de données et chaîne export/import |
-| 0.24.2 | 2026-09-11 | Gemini : borner les appels à l'API et le nombre total de tentatives |
-| 0.24.1 | 2026-09-11 | Journaux : horodatages dans le fuseau local, décalage inclus |
-| 0.24.0 | 2026-09-11 | Déploiement : sauvegarde avant migration, fin de la boucle d'échec |
-| 0.23.3 | 2026-09-11 | OCR : réparer la structure du PDF via qpdf en dernier recours |
-| 0.23.2 | 2026-09-11 | Base : ne plus recréer un index déjà posé par une révision antérieure |
-| 0.23.1 | 2026-09-10 | Lecteur : conserver les résultats au clic, retour vers la collection |
-| 0.23.0 | 2026-09-10 | Thématiques : page dédiée triée par occurrences, avancement en admin |
+```
+magazine-search/
+├── .env.example              # Modèle de configuration (copier → .env)
+├── docker-compose.yml
+├── backend/
+│   ├── app/
+│   │   ├── routers/          # auth, magazines, articles, search, themes, partage, admin…
+│   │   ├── services/         # OCR/sommaires, taxonomie, classification Gemini, quotas, streaming
+│   │   ├── worker/           # tâches RQ (ingestion, sommaires, classification)
+│   │   └── models.py         # Schéma SQLAlchemy
+│   ├── alembic/versions/     # Migrations
+│   ├── tools/                # CLI : import/export de taxonomie, diagnostic de sommaire…
+│   └── tests/
+├── frontend/
+│   ├── app/                  # Pages : (app)/search, library, themes, admin · partage/[token]
+│   ├── components/           # Viewer, bibliothèque, partage, admin
+│   └── middleware.ts         # Redirection vers /login hors fichiers statiques et /partage
+├── ops/                      # Script de sauvegarde PostgreSQL
+├── docs/superpowers/         # Spécifications et plans de conception
+└── .github/workflows/        # CI, build d'images, release-please
+```
 
-**L'historique complet est dans [`CHANGELOG.md`](./CHANGELOG.md)**, généré
-automatiquement à chaque release.
+---
 
-La version affichée dans l'interface, sous le logo, correspond à la dernière
-release publiée — pas au dernier commit poussé.
+## API principale
+
+Routes publiques : `/api/health`, la connexion et `/api/partage/*`. **Toutes les autres exigent une session** (cookie `httpOnly`) ; `/api/admin/*` exige le rôle administrateur.
+
+| Méthode | Route | Description |
+|---------|-------|-------------|
+| `GET` | `/api/health` | Statut *(public)* |
+| `POST` | `/api/login` | Connexion email *(public)* |
+| `GET` | `/api/auth/google/client-id` | Client ID Google, lu au runtime *(public)* |
+| `POST` | `/api/auth/google` | Connexion Google (jeton ID vérifié côté serveur) *(public)* |
+| `POST` | `/api/logout` · `GET` `/api/me` | Déconnexion · utilisateur courant |
+| `GET` | `/api/search` | Recherche plein texte |
+| `GET` | `/api/magazines` · `/{id}` · `/facets` · `/count` | Numéros, filtres |
+| `GET` | `/api/magazines/{id}/file` · `/cover` · `/download` | PDF (plages HTTP), couverture, téléchargement |
+| `GET` | `/api/magazines/{id}/articles` · `/pages/{n}` | Sommaire, texte d'une page |
+| `POST` | `/api/magazines/{id}/share` · `/api/articles/{id}/share` | Crée (ou renvoie) le lien de partage |
+| `GET` | `/api/collections` · `/api/tags` | Bibliothèque, tags |
+| `GET` | `/api/themes/taxonomie` · `/{id}/subthemes` · `/subthemes/{id}/articles` | Navigation thématique |
+| `GET` | `/api/partage/{token}` · `/file` · `/cover` | Article partagé *(public)* |
+| `GET` | `/api/partage/magazine/{token}` · `/file` · `/cover` | Numéro partagé *(public)* |
+| `GET` | `/api/admin/stats` · `/classification` · `/logs` | Tableau de bord, état Gemini, journaux **(admin)** |
+| `POST` | `/api/admin/scan` · `/scan/retry-failed` | Lancer / relancer un scan **(admin)** |
+| `POST` | `/api/admin/magazines/reprocess-no-sommaire` · `/reocr-no-sommaire` | Réextraire les sommaires / refaire l'OCR **(admin)** |
+| `GET/POST` | `/api/admin/themes/export` · `/orphans/export` · `/import` | Taxonomie hors ligne **(admin)** |
+| `GET/POST/PATCH/DELETE` | `/api/admin/users` · `/tags` · `/collections` · `/articles` | Gestion **(admin)** |
+
+### Limites de débit
+
+| Portée | Limite |
+|--------|--------|
+| `/api/login` · `/api/auth/google` | 5 / 15 min (`LOGIN_RATE_LIMIT`) |
+
+Les messages d'erreur affichés dans l'interface sont volontairement courts : la trace complète est dans la page **Journaux** (admin).
+
+---
+
+## Périmètre actuel
+
+**Inclus** — voir [Fonctionnalités](#fonctionnalités) : ingestion OCR, recherche surlignée, sommaires, thématiques à deux niveaux, classification Gemini, partage par lien, Google, PWA, sauvegardes.
+
+**Limites connues**
+- Certaines maquettes restent hors de portée : les mensuels qui composent leurs numéros de page en gros caractères décoratifs (presse musicale anglophone) ne laissent aucun chiffre dans le texte reconnu
+- Les articles déjà orphelins avant l'activation de Gemini ne sont classés qu'au scan suivant
+- Les liens de partage n'expirent pas et ne se révoquent pas
+
+**Hors périmètre** (volontairement)
+- Thémage **par numéro** via Gemini (retiré : le quota gratuit rendait l'opération irréaliste)
+- Notifications d'inscription (email, webhook) ; liste blanche d'emails pour Google
+
+---
+
+## Historique des versions
+
+Généré automatiquement à chaque release par release-please. **Historique complet : [`CHANGELOG.md`](./CHANGELOG.md).** La version affichée dans l'interface, sous le logo, est celle de la dernière release publiée.
+
+### v0.37.0
+- Thématiques : **classification automatique** des nouveaux articles orphelins par Gemini, avec suivi de quota, pauses et reprise affichées sur le tableau de bord
+
+### v0.36.2
+- Visionneuse : rendu à la densité réelle de l'écran (plus de pixellisation au zoom sur mobile)
+
+### v0.36.1
+- Partage : `pdf.worker.min.mjs` et les fichiers statiques ne sont plus redirigés vers `/login` (lecture cassée pour un visiteur sans session)
+
+### v0.36.0
+- **PWA** : manifeste et icônes, application installable
+
+### v0.35.0
+- Admin : compteur « Nouveaux comptes (7j) » sur le tableau de bord
+
+---
 
 ## Licence
 
-[MIT](./LICENSE).
+[MIT](./LICENSE)
