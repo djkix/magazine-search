@@ -308,7 +308,7 @@ Référence complète et commentée : [`.env.example`](.env.example). L'applicat
 | `IMAGE_TAG` | Non | Non | Version déployée (préférer un tag précis à `latest`) |
 | `ADMIN_BOOTSTRAP_EMAIL` / `_PASSWORD` | Non | 🔒 | Compte créé au premier démarrage si aucun admin n'existe ; à vider ensuite |
 | `GOOGLE_CLIENT_ID` | Non | Public | Active « Se connecter avec Google » (lu au runtime par le backend) |
-| `GOOGLE_ALLOWED_EMAILS` | Si Google | Non | Comptes Google autorisés, séparés par des virgules (`a@gmail.com,@exemple.fr`). Vide = aucun |
+| `GOOGLE_ALLOWED_EMAILS` | Si Google | Non | Comptes Google autorisés, séparés par des virgules (`ami@exemple.org,@exemple.fr`). Vide = aucun |
 | `GEMINI_API_KEY` | Non | 🔒 | Active la classification automatique |
 | `GEMINI_MODEL` | Non | Non | Modèle (défaut `gemini-3.8-flash`) ; un nom erroné s'affiche sur le tableau de bord |
 | `GEMINI_RPM` / `GEMINI_TPM` / `GEMINI_RPD` | Non | Non | Limites de votre compte (défaut 5 · 250 000 · 20), à reprendre d'AI Studio |

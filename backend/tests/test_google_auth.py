@@ -158,7 +158,7 @@ def test_compte_desactive_rejete(monkeypatch, db):
 
 
 def test_compte_google_hors_liste_rejete_sans_creer_de_compte(monkeypatch, db):
-    _mock_verify(monkeypatch, retour={**CLAIMS_VALIDES, "email": "inconnu@gmail.com"})
+    _mock_verify(monkeypatch, retour={**CLAIMS_VALIDES, "email": "inconnu@ailleurs.example"})
 
     with pytest.raises(GoogleAuthInvalide):
         authentifier_ou_creer(db, "un-jeton")
@@ -181,7 +181,7 @@ def test_compte_existant_hors_liste_ne_se_connecte_plus_par_google(monkeypatch, 
     plus, leur mot de passe éventuel reste valable."""
     db.add(
         User(
-            email="ancien@gmail.com",
+            email="ancien@ailleurs.example",
             display_name="Ancien",
             password_hash="hash",
             google_sub="999",
@@ -189,7 +189,7 @@ def test_compte_existant_hors_liste_ne_se_connecte_plus_par_google(monkeypatch, 
         )
     )
     db.commit()
-    _mock_verify(monkeypatch, retour={**CLAIMS_VALIDES, "email": "ancien@gmail.com", "sub": "999"})
+    _mock_verify(monkeypatch, retour={**CLAIMS_VALIDES, "email": "ancien@ailleurs.example", "sub": "999"})
 
     with pytest.raises(GoogleAuthInvalide):
         authentifier_ou_creer(db, "un-jeton")
