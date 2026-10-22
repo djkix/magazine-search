@@ -78,6 +78,11 @@ class Settings(BaseSettings):
     # Google est simplement indisponible : l'audience "" ne correspond
     # jamais à aucun jeton, sans qu'il faille de code spécial.
     google_client_id: str = ""
+    # Comptes autorisés à se connecter avec Google : emails complets, ou
+    # domaines entiers écrits « @exemple.fr », séparés par des virgules. Vide =
+    # connexion Google refusée à tous. Sans cette liste, n'importe quel compte
+    # Google devenait un utilisateur actif ayant accès à toute la bibliothèque.
+    google_allowed_emails: str = ""
 
     # Classification automatique des articles orphelins par Gemini. Sans clé,
     # la fonctionnalité est inactive et silencieuse. Les limites par défaut
@@ -134,6 +139,10 @@ class Settings(BaseSettings):
     login_lockout_max_failures: int = 10
     login_lockout_window_minutes: int = 15
     login_lockout_minutes: int = 15
+
+    @property
+    def google_emails_autorises(self) -> set[str]:
+        return {e.strip().lower() for e in self.google_allowed_emails.split(",") if e.strip()}
 
     @property
     def cors_origins(self) -> list[str]:

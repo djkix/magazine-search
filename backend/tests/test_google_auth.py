@@ -18,7 +18,12 @@ from app.database import Base
 from app.models import User
 from app.security import verify_password
 from app.services import google_auth
-from app.services.google_auth import GoogleAuthInvalide, authentifier_ou_creer, verifier_id_token
+from app.services.google_auth import (
+    GoogleAuthInvalide,
+    authentifier_ou_creer,
+    email_google_autorise,
+    verifier_id_token,
+)
 
 CLAIMS_VALIDES = {
     "email": "utilisateur@exemple.fr",
@@ -38,6 +43,13 @@ def db():
         yield session
     finally:
         session.close()
+
+
+@pytest.fixture(autouse=True)
+def liste_blanche(monkeypatch):
+    """Par défaut, l'email des claims de test est autorisé : les tests de
+    fusion et de création ci-dessous portent sur un compte légitime."""
+    monkeypatch.setattr(google_auth.settings, "google_allowed_emails", CLAIMS_VALIDES["email"])
 
 
 def _mock_verify(monkeypatch, retour=None, exception=None):
@@ -140,3 +152,65 @@ def test_compte_desactive_rejete(monkeypatch, db):
 
     with pytest.raises(GoogleAuthInvalide):
         authentifier_ou_creer(db, "un-jeton")
+
+
+# ---- liste blanche GOOGLE_ALLOWED_EMAILS ----
+
+
+def test_compte_google_hors_liste_rejete_sans_creer_de_compte(monkeypatch, db):
+    _mock_verify(monkeypatch, retour={**CLAIMS_VALIDES, "email": "inconnu@gmail.com"})
+
+    with pytest.raises(GoogleAuthInvalide):
+        authentifier_ou_creer(db, "un-jeton")
+
+    assert db.query(User).count() == 0
+
+
+def test_liste_vide_refuse_tout_le_monde(monkeypatch, db):
+    monkeypatch.setattr(google_auth.settings, "google_allowed_emails", "")
+    _mock_verify(monkeypatch, retour=CLAIMS_VALIDES)
+
+    with pytest.raises(GoogleAuthInvalide):
+        authentifier_ou_creer(db, "un-jeton")
+
+    assert db.query(User).count() == 0
+
+
+def test_compte_existant_hors_liste_ne_se_connecte_plus_par_google(monkeypatch, db):
+    """Comptes créés avant l'ajout de la liste : Google ne les authentifie
+    plus, leur mot de passe éventuel reste valable."""
+    db.add(
+        User(
+            email="ancien@gmail.com",
+            display_name="Ancien",
+            password_hash="hash",
+            google_sub="999",
+            is_active=True,
+        )
+    )
+    db.commit()
+    _mock_verify(monkeypatch, retour={**CLAIMS_VALIDES, "email": "ancien@gmail.com", "sub": "999"})
+
+    with pytest.raises(GoogleAuthInvalide):
+        authentifier_ou_creer(db, "un-jeton")
+
+
+def test_domaine_autorise(monkeypatch, db):
+    monkeypatch.setattr(google_auth.settings, "google_allowed_emails", " autre@x.fr , @Exemple.fr ")
+    _mock_verify(monkeypatch, retour=CLAIMS_VALIDES)
+
+    assert authentifier_ou_creer(db, "un-jeton").email == CLAIMS_VALIDES["email"]
+
+
+@pytest.mark.parametrize(
+    ("email", "attendu"),
+    [
+        ("Ami@Exemple.fr", True),
+        ("autre@exemple.fr", False),
+        ("ami@exemple.fr.pirate.com", False),
+        ("qui@exemple.org", True),
+        ("qui@sous.exemple.org", False),
+    ],
+)
+def test_email_google_autorise(email, attendu):
+    assert email_google_autorise(email, {"ami@exemple.fr", "@exemple.org"}) is attendu

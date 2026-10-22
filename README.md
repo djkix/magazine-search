@@ -101,7 +101,7 @@
 
 ### 🔐 Authentification
 - **Email + mot de passe** : comptes créés par l'administrateur depuis `/admin` (par défaut, rien à configurer)
-- **Google** (si `GOOGLE_CLIENT_ID` est défini) : ⚠️ **n'importe quel compte Google peut créer un accès et lire toute la bibliothèque**. À n'activer que si l'accès est contrôlé en amont
+- **Google** (si `GOOGLE_CLIENT_ID` est défini) : réservé aux comptes listés dans **`GOOGLE_ALLOWED_EMAILS`** (emails complets ou domaines `@exemple.fr`). Liste vide = connexion Google refusée à tous. Un compte hors liste n'est jamais créé ; un compte existant hors liste ne se connecte plus par Google (son mot de passe reste valable)
 - Fusion automatique par email entre compte manuel et compte Google ; désactiver un compte bloque les deux méthodes
 - Aucune notification d'inscription : surveiller le compteur **« Nouveaux comptes (7j) »** du tableau de bord
 
@@ -296,6 +296,7 @@ Référence complète et commentée : [`.env.example`](.env.example). L'applicat
 | `IMAGE_TAG` | Non | Non | Version déployée (préférer un tag précis à `latest`) |
 | `ADMIN_BOOTSTRAP_EMAIL` / `_PASSWORD` | Non | 🔒 | Compte créé au premier démarrage si aucun admin n'existe ; à vider ensuite |
 | `GOOGLE_CLIENT_ID` | Non | Public | Active « Se connecter avec Google » (lu au runtime par le backend) |
+| `GOOGLE_ALLOWED_EMAILS` | Si Google | Non | Comptes Google autorisés, séparés par des virgules (`a@gmail.com,@exemple.fr`). Vide = aucun |
 | `GEMINI_API_KEY` | Non | 🔒 | Active la classification automatique |
 | `GEMINI_MODEL` | Non | Non | Modèle (défaut `gemini-3.8-flash`) ; un nom erroné s'affiche sur le tableau de bord |
 | `GEMINI_RPM` / `GEMINI_TPM` / `GEMINI_RPD` | Non | Non | Limites de votre compte (défaut 5 · 250 000 · 20), à reprendre d'AI Studio |
@@ -386,7 +387,7 @@ Les messages d'erreur affichés dans l'interface sont volontairement courts : la
 
 **Hors périmètre** (volontairement)
 - Thémage **par numéro** via Gemini (retiré : le quota gratuit rendait l'opération irréaliste)
-- Notifications d'inscription (email, webhook) ; liste blanche d'emails pour Google
+- Notifications d'inscription (email, webhook)
 
 ---
 
