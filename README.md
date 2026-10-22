@@ -248,6 +248,16 @@ npm run typecheck    # tsc --noEmit
 
 Les mêmes contrôles tournent dans GitHub Actions : détection de secrets (gitleaks), typage frontend, ruff, pytest, **rejeu de toute la chaîne Alembic** (up / down / up sur base vierge) et build de l'image.
 
+### Conteneurs sans privilèges
+
+Le backend et le worker tournent sous l'utilisateur `app` (**UID/GID 10001**), le frontend sous `node` (UID 1000). Deux conséquences :
+
+- **Volume `app_data` créé par une version antérieure** (propriété de root) : le backend refuse de démarrer et affiche la commande à lancer, une seule fois :
+  ```bash
+  docker compose run --rm --no-deps -u 0 --entrypoint chown app-backend -R 10001:10001 /data
+  ```
+- **Montage NAS** (lecture seule) : les PDF doivent être lisibles par l'UID 10001. S'ils ne le sont que par un groupe (partage CIFS/NFS monté avec `gid=…`), ajouter ce groupe à `app-backend` et `worker` via `group_add: ["<gid>"]` dans `docker-compose.yml`.
+
 ### Revenir à une version précédente
 
 Chaque release publie un tag d'image `X.Y.Z` (en plus de `latest`). Épingler la version dans `.env` :
