@@ -421,6 +421,22 @@ class ClassificationOut(BaseModel):
     pause: ClassificationPauseOut | None = None
 
 
+class SauvegardeTentativeOut(BaseModel):
+    fin: datetime
+    reussie: bool
+    message: str
+
+
+class SauvegardeOut(BaseModel):
+    """État de la sauvegarde vers le NAS, pour le tableau de bord."""
+
+    derniere_reussite: datetime | None
+    derniere_tentative: SauvegardeTentativeOut | None
+    # Une demande « Sauvegarder maintenant » attend le service.
+    demandee: bool
+    alerte: str | None
+
+
 # ---- Search ----
 
 
