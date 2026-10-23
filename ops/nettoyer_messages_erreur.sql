@@ -29,7 +29,7 @@
 --   La partie 2 est encadrée par BEGIN/ROLLBACK : par défaut, RIEN n'est
 --   écrit. Remplacer ROLLBACK par COMMIT une fois le résultat vérifié.
 --
---   Faire une sauvegarde fraîche avant d'appliquer (voir ops/pg_backup.sh).
+--   Faire une sauvegarde fraîche avant d'appliquer (« Sauvegarder maintenant » au tableau de bord).
 
 
 -- =====================================================================

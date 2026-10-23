@@ -152,6 +152,17 @@ jobs:
         working-directory: ./backend
         run: alembic upgrade head
 
+  # Script de sauvegarde essayé dans son image, avec faux pg_dump et psql
+  # (sauvegarde/essai.sh) : liens physiques, sept jours, verrou, échecs
+  # inscrits, demande « Sauvegarder maintenant » prise par planifier.sh.
+  sauvegarde:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t magazine-search-sauvegarde:essai sauvegarde
+      - run: docker run --rm --entrypoint sh magazine-search-sauvegarde:essai /app/essai.sh
+
   build-backend:
     runs-on: ubuntu-latest
     timeout-minutes: 20
