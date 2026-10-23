@@ -29,6 +29,16 @@ services:
     # temporairement en local.
     expose:
       - "8000"
+    # Sain une fois les migrations Alembic jouées et uvicorn à l'écoute :
+    # entrypoint.sh ne lance uvicorn qu'après « alembic upgrade head ». Le
+    # délai de démarrage est large, une migration pouvant durer plusieurs
+    # minutes sur une grosse base.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 600s
     depends_on:
       postgres:
         condition: service_healthy
@@ -119,33 +129,6 @@ services:
     networks:
       - internal
 
-  # Sauvegarde périodique de Postgres avec rotation. La base est la seule
-  # donnée non reconstructible de la stack : les PDF du NAS peuvent être
-  # re-scannés, mais pas le texte OCR ni les sommaires payés à l'API Gemini.
-  # Vérifier régulièrement qu'une restauration fonctionne :
-  #   gunzip -c backups/<fichier>.sql.gz | docker compose exec -T postgres \
-  #     psql -U "$POSTGRES_USER" -d <base_de_test>
-  db-backup:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      PGHOST: ${POSTGRES_HOST}
-      PGPORT: ${POSTGRES_PORT}
-      PGUSER: ${POSTGRES_USER}
-      PGPASSWORD: ${POSTGRES_PASSWORD}
-      PGDATABASE: ${POSTGRES_DB}
-      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
-      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
-    volumes:
-      - ./ops/pg_backup.sh:/usr/local/bin/pg_backup.sh:ro
-      - ${BACKUP_DIR:-./backups}:/backups
-    entrypoint: ["/bin/sh", "/usr/local/bin/pg_backup.sh"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - internal
-
   meilisearch:
     image: getmeili/meilisearch:v1.10
     restart: unless-stopped
@@ -157,6 +140,52 @@ services:
     networks:
       - internal
 
+  # Sauvegarde vers le NAS, en NFS : chaque jour dès 3 h (heure de Paris), la
+  # base, les données de l'application (volume app_data : PDF retraités par
+  # l'OCR et couvertures, sans les journaux) et la configuration de la stack,
+  # dans un dossier daté, sept jours gardés, sans chiffrement (voir
+  # sauvegarde/). Les PDF d'origine sont déjà sur le NAS et ne sont pas
+  # copiés ; l'index Meilisearch se reconstruit depuis la base, Redis ne porte
+  # qu'une file de travail.
+  #
+  # Ne pas confondre : NAS_MOUNT_PATH est la bibliothèque de PDF, montée en
+  # lecture seule dans app-backend et worker sur /mnt/nas ; NAS_OPTIONS et
+  # NAS_CHEMIN décrivent le dossier de sauvegarde, monté ici seul sur /nas.
+  #
+  # Activé par le profil « sauvegarde » : COMPOSE_PROFILES=sauvegarde dans le
+  # .env. Sans lui, ni ce service ni le volume nas ne sont créés, et une
+  # installation sans NAS de sauvegarde démarre comme avant.
+  #
+  # Le code est dans l'image : la stack reste autonome. Aucun service n'en
+  # dépend : NAS éteint, seul ce conteneur ne démarre pas, et le tableau de
+  # bord d'administration le signale au bout de 36 h.
+  sauvegarde:
+    image: ghcr.io/djkix/magazine-search-sauvegarde:${IMAGE_TAG:-latest}
+    profiles: [sauvegarde]
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Paris
+      HEURE: ${SAUVEGARDE_HEURE:-3}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+      # Une base injoignable ne bloque pas la boucle de planification : 10 s pour se connecter.
+      PGCONNECT_TIMEOUT: "10"
+    volumes:
+      - app_data:/data:ro
+      # Le dossier de la stack : son fichier compose et son .env sont copiés.
+      - .:/stack:ro
+      - nas:/nas
+    # Le backend sain a joué les migrations : les tables backup_runs et
+    # backup_requests existent avant la première tentative.
+    depends_on:
+      app-backend:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+    networks:
+      - internal
+
 networks:
   internal:
 
@@ -165,3 +194,12 @@ volumes:
   meili_data:
   redis_data:
   app_data:
+  # Dossier de sauvegarde sur le NAS, en NFS ; adresse et chemin dans le .env,
+  # jamais dans le dépôt. Créé seulement avec le profil « sauvegarde » ; sans
+  # « :? » pour qu'une installation sans ce profil n'ait rien à renseigner.
+  nas:
+    driver: local
+    driver_opts:
+      type: ${NAS_TYPE:-nfs}
+      o: ${NAS_OPTIONS:-}
+      device: ${NAS_CHEMIN:-}

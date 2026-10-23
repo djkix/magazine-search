@@ -263,3 +263,12 @@ export interface ClassificationStatus {
   limite_jour: number;
   pause: { raison: string; jusqua: string } | null;
 }
+
+/** État de la sauvegarde vers le NAS (service « sauvegarde »). */
+export interface SauvegardeStatus {
+  derniere_reussite: string | null;
+  derniere_tentative: { fin: string; reussie: boolean; message: string } | null;
+  /** Une demande « Sauvegarder maintenant » attend le service. */
+  demandee: boolean;
+  alerte: string | null;
+}

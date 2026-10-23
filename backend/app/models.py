@@ -313,3 +313,27 @@ class Setting(Base):
 
     key: Mapped[str] = mapped_column(String(100), primary_key=True)
     value: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class BackupRun(Base):
+    """Une tentative de sauvegarde vers le NAS, inscrite par le service
+    `sauvegarde` (sauvegarde/sauvegarder.sh), lue par le tableau de bord."""
+
+    __tablename__ = "backup_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    finished_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    succeeded: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    # Message technique seulement (« étape base (code 1) »), vide si réussie.
+    message: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+
+class BackupRequest(Base):
+    """« Sauvegarder maintenant » : prise et effacée par le service
+    `sauvegarde` dans les 5 minutes."""
+
+    __tablename__ = "backup_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

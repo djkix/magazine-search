@@ -23,7 +23,7 @@ DELAI_AVANT_SORTIE="${MIGRATION_FAILURE_DELAY_SECONDS:-30}"
 # Ce qui protège réellement, aujourd'hui :
 #   - le job CI « migrations », qui rejoue toute la chaîne Alembic (montée,
 #     descente, remontée) sur une base vierge avant tout déploiement ;
-#   - le service db-backup, qui produit un dump quotidien avec rotation.
+#   - le service sauvegarde, qui copie chaque nuit la base sur le NAS.
 
 # Only the API service runs migrations, so a concurrent restart of
 # app-backend and worker (same image/entrypoint) can't race on Alembic.
@@ -44,8 +44,8 @@ case "$1" in
       echo "Arretez le conteneur avant toute correction en base : tant qu'il" >&2
       echo "tourne, ses tentatives repetees monopolisent les verrous." >&2
       echo "" >&2
-      echo "La derniere sauvegarde quotidienne se trouve dans le volume du" >&2
-      echo "service db-backup." >&2
+      echo "La derniere sauvegarde quotidienne se trouve sur le NAS, dans" >&2
+      echo "le dossier date du service sauvegarde (lien « derniere »)." >&2
       echo "" >&2
       echo "Nouvelle tentative dans ${DELAI_AVANT_SORTIE}s." >&2
       echo "" >&2

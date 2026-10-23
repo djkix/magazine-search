@@ -16,6 +16,7 @@ import type {
 } from "@/lib/types";
 import StatCard from "@/components/admin/StatCard";
 import ClassificationBanner from "@/components/admin/ClassificationBanner";
+import SauvegardeBanner from "@/components/admin/SauvegardeBanner";
 import StatusBadge from "@/components/ui/StatusBadge";
 import Icon from "@/components/ui/Icon";
 import Button from "@/components/ui/Button";
@@ -448,6 +449,7 @@ export default function AdminDashboardPage() {
       )}
 
       <ClassificationBanner />
+      <SauvegardeBanner />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
         <StatCard icon="library_books" label="Total PDF" value={stats?.total} onClick={() => setStatusFilter(null)} />

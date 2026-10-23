@@ -20,7 +20,7 @@ la seule première colonne.
 
 Verrouillage : `CREATE INDEX` prend un verrou SHARE, qui bloque les écritures
 mais laisse les lectures passer. À lancer file d'ingestion vide, et après un
-dump — voir ops/pg_backup.sh. La variante CONCURRENTLY, non bloquante, n'est
+dump — voir sauvegarde/. La variante CONCURRENTLY, non bloquante, n'est
 pas utilisable ici : elle ne peut pas s'exécuter dans la transaction dont
 Alembic enveloppe la migration.
 """

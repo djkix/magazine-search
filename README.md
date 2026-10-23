@@ -224,7 +224,7 @@ Ouvrir `http://<IP-du-serveur>:3000`, se connecter avec le compte d'amorçage (`
 | `app-backend` | 8000 *(interne)* | API FastAPI |
 | `worker` | — | OCR, sommaires, classification |
 | `postgres` · `redis` · `meilisearch` | — | Données, file d'attente, recherche |
-| `db-backup` | — | Dump compressé quotidien avec rotation |
+| `sauvegarde` | — | Sauvegarde quotidienne vers le NAS *(profil `sauvegarde`, facultatif)* |
 
 > Le reverse proxy n'a besoin que du port du frontend. Les migrations Alembic s'exécutent au démarrage ; si l'une échoue, le conteneur attend `MIGRATION_FAILURE_DELAY_SECONDS` avant de sortir (pas de boucle de redémarrage serrée).
 
@@ -260,25 +260,57 @@ puis `docker compose up -d`. Un rollback de code ne défait pas une migration d�
 
 ## Sauvegarde et restauration
 
-La base PostgreSQL est la **seule donnée non reconstructible** (texte OCR, sommaires, thématiques, comptes). Les PDF du NAS peuvent être re-scannés.
+Le service `sauvegarde`, facultatif, copie chaque jour dès 3 h (heure de Paris) ce qu'il faut pour remonter l'application dans un dossier daté d'un NAS, en NFS. **Sans chiffrement** : le `.env` et ses secrets y sont en clair, lisibles par qui a accès au dossier partagé.
 
-```bash
-ls -lh ./backups                    # sauvegardes disponibles
-docker compose restart db-backup    # sauvegarde immédiate
+```
+<dossier de sauvegarde>/
+├── 2026-10-23/
+│   ├── base/magazines.dump    pg_dump -Fc : texte OCR, sommaires, thématiques, comptes
+│   ├── donnees/               volume app_data : PDF retraités par l'OCR, couvertures (sans les journaux)
+│   ├── config/                fichier compose et .env de la stack
+│   └── sauvegarde.txt         version, début, fin, tailles
+├── …                          sept dossiers datés au plus
+└── derniere -> 2026-10-23     la plus récente réussie
 ```
 
-**Restauration**
+Ce qui n'est pas copié : les **PDF d'origine** (déjà sur le NAS de la bibliothèque), l'**index Meilisearch** (reconstruit depuis la base par *Réindexer tous les magazines*, Administration › Réglages), **Redis** (file de travail) et les journaux.
+
+**Activer** : dans le `.env`, `COMPOSE_PROFILES=sauvegarde`, `NAS_OPTIONS` et `NAS_CHEMIN` (voir [`.env.example`](.env.example)), puis `docker compose up -d`. Le NAS doit autoriser le serveur Docker en NFS, en lecture/écriture.
+
+> **Deux NAS, deux réglages distincts.** `NAS_MOUNT_PATH` est le chemin hôte de la bibliothèque de PDF, montée en lecture seule dans `app-backend` et `worker` sur `/mnt/nas`. `NAS_OPTIONS` et `NAS_CHEMIN` décrivent le dossier de sauvegarde, monté par Docker (volume `nas`) dans le seul service `sauvegarde`, sur `/nas`. Ils peuvent viser le même appareil, jamais le même dossier.
+
+- Un fichier inchangé est un lien physique vers celui de la veille : sept jours occupent à peu près la place d'un seul.
+- Une tentative ratée ne supprime rien. Une nuit manquée (serveur ou NAS éteint) est rattrapée dès que le service tourne ; après un échec, il réessaie une heure plus tard. Une seule sauvegarde tourne à la fois.
+- Chaque tentative est inscrite en base. Le **tableau de bord d'administration** affiche un bandeau si la dernière a échoué ou si aucune n'a réussi depuis 36 h, avec le bouton **« Sauvegarder maintenant »** (pris dans les 5 minutes). Tout de suite : `docker compose exec sauvegarde /app/sauvegarder.sh`. Journal : `docker compose logs --since 24h sauvegarde`.
+- **Si le serveur redémarre avant le NAS**, le montage échoue et le conteneur reste arrêté ; l'alerte des 36 h le signale. Remède : `docker compose up -d sauvegarde`, le NAS allumé.
+- Une base injoignable ou figée ne bloque pas la planification : 10 s pour se connecter (`PGCONNECT_TIMEOUT`), 10 minutes au plus d'attente d'un verrou pour `pg_dump`.
+
+### Restauration complète
+
+Depuis le dossier daté voulu (`<date>`, ou `derniere`). Le volume du NAS s'appelle `<projet>_nas` (`docker volume ls`) ; sur un serveur reconstruit, le créer d'abord avec les options du `.env` :
 
 ```bash
-docker compose stop app-backend worker
-
-gunzip -c ./backups/magazines_<horodatage>.sql.gz \
-  | docker compose exec -T postgres psql -U "$POSTGRES_USER" -d postgres
-
-docker compose start app-backend worker
+docker volume create --driver local --opt type=nfs \
+  --opt o=addr=<IP du NAS>,nfsvers=4.1,soft,timeo=150,retrans=3 \
+  --opt device=:/volumeN/<partage>/<dossier> <projet>_nas
 ```
 
-> Placez `BACKUP_DIR` sur un autre support que le volume PostgreSQL et **testez une restauration périodiquement**. Aucune sauvegarde n'est prise automatiquement avant une migration : pour une migration risquée, faire un dump manuel.
+1. Configuration, sur un serveur reconstruit seulement : reprendre `config/` dans le dossier de la stack (`docker run --rm -v <projet>_nas:/n:ro alpine tar cf - -C /n/<date>/config . | tar xf -`), puis `docker compose up -d --wait postgres`.
+2. Arrêter ce qui écrit : `docker compose stop app-backend worker sauvegarde`.
+3. Base : `docker run --rm -v <projet>_nas:/n:ro alpine cat /n/<date>/base/magazines.dump | docker compose exec -T postgres pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists`.
+4. Données : `docker run --rm -v <projet>_nas:/n:ro -v <projet>_app_data:/d alpine cp -R /n/<date>/donnees/. /d/`.
+5. `docker compose up -d --wait`, puis **Réindexer tous les magazines** (Administration › Réglages) pour reconstruire Meilisearch.
+
+> Testez une restauration au moins une fois par an, dans un PostgreSQL jetable. Aucune sauvegarde n'est prise automatiquement avant une migration : pour une migration risquée, appuyez d'abord sur « Sauvegarder maintenant ».
+
+### Passer de `db-backup` à `sauvegarde`
+
+1. Retirer le service `db-backup` du fichier compose de la stack (Dockge : tout le bloc, boucle comprise), ou reprendre le `docker-compose.yml` du dépôt.
+2. Dans le `.env` : retirer `BACKUP_DIR`, `BACKUP_RETENTION_DAYS`, `BACKUP_INTERVAL_SECONDS` ; ajouter `COMPOSE_PROFILES=sauvegarde`, `NAS_OPTIONS`, `NAS_CHEMIN` (et `SAUVEGARDE_HEURE` au besoin). `NAS_MOUNT_PATH` ne change pas.
+3. `docker compose pull && docker compose up -d --remove-orphans` ; le service attend le backend sain (migration jouée).
+4. « Sauvegarder maintenant » depuis le tableau de bord, puis vérifier le dossier `derniere` sur le NAS.
+
+Les anciens dumps de `./backups` restent sur l'hôte : rien ne les supprime, à effacer à la main une fois la première sauvegarde vérifiée.
 
 ---
 
@@ -303,7 +335,9 @@ Référence complète et commentée : [`.env.example`](.env.example). L'applicat
 | `OCR_TIMEOUT_SECONDS` | Non | Non | Délai maximum d'`ocrmypdf` (défaut `1500`) |
 | `LOGIN_RATE_LIMIT` | Non | Non | Limite de connexion (défaut `5/15minutes`) |
 | `LOG_TIMEZONE` | Non | Non | Fuseau des journaux (défaut `Europe/Paris`) |
-| `BACKUP_DIR` · `BACKUP_RETENTION_DAYS` | Non | Non | Dossier et rétention (14 j) des sauvegardes |
+| `COMPOSE_PROFILES` | Non | Non | `sauvegarde` active la sauvegarde vers le NAS |
+| `NAS_OPTIONS` · `NAS_CHEMIN` | Avec la sauvegarde | Non | Montage NFS du dossier de sauvegarde (distinct de `NAS_MOUNT_PATH`) |
+| `SAUVEGARDE_HEURE` | Non | Non | Heure de la sauvegarde quotidienne (défaut `3`, heure de Paris) |
 
 ---
 
@@ -326,7 +360,8 @@ magazine-search/
 │   ├── app/                  # Pages : (app)/search, library, themes, admin · partage/[token]
 │   ├── components/           # Viewer, bibliothèque, partage, admin
 │   └── middleware.ts         # Redirection vers /login hors fichiers statiques et /partage
-├── ops/                      # Script de sauvegarde PostgreSQL
+├── sauvegarde/               # Image du service de sauvegarde vers le NAS (scripts, essai)
+├── ops/                      # Scripts SQL d'exploitation ponctuels
 ├── docs/superpowers/         # Spécifications et plans de conception
 └── .github/workflows/        # CI, build d'images, release-please
 ```
@@ -354,6 +389,7 @@ Routes publiques : `/api/health`, la connexion et `/api/partage/*`. **Toutes les
 | `GET` | `/api/partage/{token}` · `/file` · `/cover` | Article partagé *(public)* |
 | `GET` | `/api/partage/magazine/{token}` · `/file` · `/cover` | Numéro partagé *(public)* |
 | `GET` | `/api/admin/stats` · `/classification` · `/logs` | Tableau de bord, état Gemini, journaux **(admin)** |
+| `GET` · `POST` | `/api/admin/backup` · `/backup/request` | État de la sauvegarde vers le NAS · « Sauvegarder maintenant » **(admin)** |
 | `POST` | `/api/admin/scan` · `/scan/retry-failed` | Lancer / relancer un scan **(admin)** |
 | `POST` | `/api/admin/magazines/reprocess-no-sommaire` · `/reocr-no-sommaire` | Réextraire les sommaires / refaire l'OCR **(admin)** |
 | `GET/POST` | `/api/admin/themes/export` · `/orphans/export` · `/import` | Taxonomie hors ligne **(admin)** |

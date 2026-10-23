@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_admin
-from app.models import Article, Collection, Magazine, OcrStatus, Page, ScanStatus, Tag, User, subtheme_articles
+from app.models import Article, BackupRequest, BackupRun, Collection, Magazine, OcrStatus, Page, ScanStatus, Tag, User, subtheme_articles
 from app.config import get_settings
 from app.queue import ingestion_queue, redis_conn
 from app.schemas import (
@@ -28,6 +28,8 @@ from app.schemas import (
     OrphansOut,
     PasswordReset,
     RetryFailedResponse,
+    SauvegardeOut,
+    SauvegardeTentativeOut,
     ScanStatusResponse,
     ScanTriggerResponse,
     TagCreate,
@@ -51,6 +53,7 @@ from app.services.import_sous_thematiques import (
     importer,
 )
 from app.services.logs import read_logs
+from app.services.sauvegarde import alerte as alerte_sauvegarde
 from app.services.progress import get_magazine_progress
 from app.services.scan import get_latest_scan_job_id, get_scan_job_magazine_ids, run_collections_backfill, run_scan
 from app.worker.tasks import (
@@ -400,6 +403,47 @@ def get_logs(
     limit: int = Query(200, ge=1, le=1000),
 ):
     return read_logs(level=level, component=component, limit=limit)
+
+
+# ---- Sauvegarde vers le NAS ----
+#
+# Le backend ne sauvegarde rien lui-même : il lit les tentatives inscrites par
+# le service `sauvegarde` et n'écrit qu'une demande, prise dans les 5 minutes.
+
+
+@router.get("/backup", response_model=SauvegardeOut)
+def get_backup_status(db: Session = Depends(get_db)):
+    derniere = db.query(BackupRun).order_by(BackupRun.finished_at.desc()).first()
+    reussite = (
+        db.query(BackupRun.finished_at)
+        .filter(BackupRun.succeeded.is_(True))
+        .order_by(BackupRun.finished_at.desc())
+        .first()
+    )
+    derniere_reussite = reussite[0] if reussite else None
+    return SauvegardeOut(
+        derniere_reussite=derniere_reussite,
+        derniere_tentative=SauvegardeTentativeOut(
+            fin=derniere.finished_at, reussie=derniere.succeeded, message=derniere.message
+        )
+        if derniere
+        else None,
+        demandee=db.query(BackupRequest).count() > 0,
+        alerte=alerte_sauvegarde(
+            derniere.succeeded if derniere else None,
+            derniere.message if derniere else "",
+            derniere_reussite,
+            datetime.now(timezone.utc),
+        ),
+    )
+
+
+@router.post("/backup/request", status_code=status.HTTP_204_NO_CONTENT)
+def request_backup(db: Session = Depends(get_db)):
+    """Deux appuis ne font qu'une sauvegarde."""
+    if db.query(BackupRequest).count() == 0:
+        db.add(BackupRequest())
+        db.commit()
 
 
 # ---- Articles (sommaires) ----
