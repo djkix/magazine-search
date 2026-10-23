@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.38.0](https://github.com/djkix/magazine-search/compare/v0.37.0...v0.38.0) (2026-10-23)
+
+
+### ⚠ BREAKING CHANGES
+
+* **sauvegarde:** le service db-backup et ops/pg_backup.sh sont retirés, ainsi que BACKUP_DIR, BACKUP_RETENTION_DAYS et BACKUP_INTERVAL_SECONDS. Activer la sauvegarde par COMPOSE_PROFILES=sauvegarde, NAS_OPTIONS et NAS_CHEMIN.
+
+### Features
+
+* **backend:** tentatives et demandes de sauvegarde, état dans l'administration ([d9a4ad3](https://github.com/djkix/magazine-search/commit/d9a4ad31e718e777cfef7291487c88c030def489))
+* **frontend:** état de la sauvegarde et « Sauvegarder maintenant » au tableau de bord ([2d82aef](https://github.com/djkix/magazine-search/commit/2d82aefb745f299d6a847c7c2834f3b5e2eb81d9))
+* **sauvegarde:** sauvegarde quotidienne vers le NAS, à la place de db-backup ([61ba5c9](https://github.com/djkix/magazine-search/commit/61ba5c9d21d33707dc59164819560b1e8c1a5a0d))
+* **sauvegarde:** sauvegarde quotidienne vers le NAS, à la place de db-backup ([bd9d2a1](https://github.com/djkix/magazine-search/commit/bd9d2a1f3911fec7043b6d45cb4216de9f918a2c))
+
+
+### Miscellaneous Chores
+
+* publier la sauvegarde vers le NAS en 0.38.0 ([8a9f5c9](https://github.com/djkix/magazine-search/commit/8a9f5c92d425f6fbf0096bf283b22f5ed5663881))
+
 ## [0.37.0](https://github.com/djkix/magazine-search/compare/v0.36.2...v0.37.0) (2026-10-21)
 
 
