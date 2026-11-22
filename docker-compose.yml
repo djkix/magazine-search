@@ -22,6 +22,7 @@ services:
     volumes:
       - app_data:/data
       - ${NAS_MOUNT_PATH}:/mnt/nas:ro
+      - pdf:/pdf
     # Le backend n'est PLUS publié sur l'hôte : il n'est joignable que depuis
     # le réseau Docker interne, via app-frontend qui relaie /api/*. Le reverse
     # proxy n'a besoin que du port du frontend. Pour un accès de débogage
@@ -70,6 +71,7 @@ services:
     volumes:
       - app_data:/data
       - ${NAS_MOUNT_PATH}:/mnt/nas:ro
+      - pdf:/pdf
     depends_on:
       postgres:
         condition: service_healthy
@@ -194,6 +196,18 @@ volumes:
   meili_data:
   redis_data:
   app_data:
+  # PDF retraités par l'OCR, hors du disque du serveur (facultatif). Par défaut
+  # ce volume reste vide et inutilisé : les PDF vivent dans app_data, sous
+  # /data/processed. Pour les mettre sur un NAS : PDF_NAS_TYPE=nfs,
+  # PDF_NAS_OPTIONS, PDF_NAS_CHEMIN et PROCESSED_DIR=/pdf dans le .env. Le
+  # service sauvegarde ne monte pas ce volume : ces PDF ne sont alors plus
+  # dans la sauvegarde quotidienne, au NAS de les protéger.
+  pdf:
+    driver: local
+    driver_opts:
+      type: ${PDF_NAS_TYPE:-}
+      o: ${PDF_NAS_OPTIONS:-}
+      device: ${PDF_NAS_CHEMIN:-}
   # Dossier de sauvegarde sur le NAS, en NFS ; adresse et chemin dans le .env,
   # jamais dans le dépôt. Créé seulement avec le profil « sauvegarde » ; sans
   # « :? » pour qu'une installation sans ce profil n'ait rien à renseigner.

@@ -338,6 +338,7 @@ Référence complète et commentée : [`.env.example`](.env.example). L'applicat
 | `COMPOSE_PROFILES` | Non | Non | `sauvegarde` active la sauvegarde vers le NAS |
 | `NAS_OPTIONS` · `NAS_CHEMIN` | Avec la sauvegarde | Non | Montage NFS du dossier de sauvegarde (distinct de `NAS_MOUNT_PATH`) |
 | `SAUVEGARDE_HEURE` | Non | Non | Heure de la sauvegarde quotidienne (défaut `3`, heure de Paris) |
+| `PDF_NAS_TYPE` · `PDF_NAS_OPTIONS` · `PDF_NAS_CHEMIN` · `PROCESSED_DIR` | Non | Non | PDF retraités sur un NAS en NFS plutôt que sur le disque du serveur (voir [`.env.example`](.env.example)) ; ils sortent alors de la sauvegarde quotidienne |
 
 ---
 
