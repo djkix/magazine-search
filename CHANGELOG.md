@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.39.0](https://github.com/djkix/magazine-search/compare/v0.38.0...v0.39.0) (2026-11-22)
+
+
+### Features
+
+* **compose:** PDF retraités sur un NAS en NFS, facultatif ([aac1e22](https://github.com/djkix/magazine-search/commit/aac1e2217e880ca6aa3c798a97060748b9008e8a))
+
 ## [0.38.0](https://github.com/djkix/magazine-search/compare/v0.37.0...v0.38.0) (2026-10-23)
 
 
